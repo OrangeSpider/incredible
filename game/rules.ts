@@ -22,7 +22,7 @@ export const GOAL_MODES=[
 ] as const;
 
 export const FORCE_SOURCES=[
-  {gadget:"Mausrad",kind:"Drehmoment",direction:"Drehbewegung",rule:"Nur solange die Maus läuft; über Riemen oder Kette übertragbar"},
+  {gadget:"Hamsterrad",kind:"Drehmoment",direction:"Drehbewegung",rule:"Nur solange das Rad läuft; über Riemen oder Kette übertragbar"},
   {gadget:"Affenfahrrad",kind:"Drehmoment",direction:"Drehbewegung am stationären Rad",rule:"Startet, sobald die geöffnete Jalousie die Banane sichtbar macht"},
   {gadget:"Luftballon",kind:"Auftrieb",direction:"Nach oben",rule:"Abhängig von Tragkraft und angehängter Masse"},
   {gadget:"Bowlingkugel",kind:"Gewichtskraft",direction:"Nach unten",rule:"Schwerkraft wirkt entsprechend der Masse"},

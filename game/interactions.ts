@@ -13,8 +13,8 @@ export type Interaction = {
  * Bewegung und Kollision; diese Tabelle beschreibt die Spielregeln darüber.
  */
 export const INTERACTIONS: Interaction[] = [
-  { source: "Bowlingkugel", target: "Mausrad", trigger: "Kollision", effect: "Mausrad und verbundenes Laufband starten", status: "aktiv" },
-  { source: "Mausrad", target: "Laufband", trigger: "Antriebsriemen ist gespannt", effect: "Überträgt Drehung; ohne Riemen bleibt das Band stehen", status: "aktiv" },
+  { source: "Bowlingkugel", target: "Hamsterrad", trigger: "Kollision", effect: "Hamsterrad und verbundenes Laufband starten", status: "aktiv" },
+  { source: "Hamsterrad", target: "Laufband", trigger: "Antriebsriemen ist gespannt", effect: "Überträgt Drehung; ohne Riemen bleibt das Band stehen", status: "aktiv" },
   { source: "Laufband", target: "Katze", trigger: "Kontakt bei laufendem Band", effect: "Katze wird mit konstanter Geschwindigkeit transportiert", status: "aktiv" },
   { source: "Katze", target: "Ausgang", trigger: "Betritt Zielbereich", effect: "Erzeugt das Signal cat.entered.exit", status: "aktiv" },
   { source: "Rampe", target: "Kugel / beweglicher Körper", trigger: "Kontakt", effect: "Lenkt Bewegung entsprechend ihrer Neigung um", status: "aktiv" },
