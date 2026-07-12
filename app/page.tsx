@@ -103,11 +103,20 @@ function drawRope(ctx:CanvasRenderingContext2D,from:{x:number;y:number},pulley:{
   ctx.save();ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.quadraticCurveTo((from.x+left.x)/2,(from.y+left.y)/2+12+wobble,left.x,left.y);ctx.arc(pulley.x,pulley.y,radius,Math.PI,Math.PI*2);ctx.quadraticCurveTo((right.x+to.x)/2,(right.y+to.y)/2+12-wobble,to.x,to.y);ctx.stroke();ctx.strokeStyle="#b99362";ctx.lineWidth=1.5;ctx.setLineDash([5,6]);ctx.stroke();ctx.restore();
 }
 
+const clamp01=(value:number)=>Math.max(0,Math.min(1,value));
+
 function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { level:number; placed: Placed[]; selectedId:number|null; running: boolean; attempt: number; onWin: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
     const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const fireSprites=new Image();fireSprites.src="/assets/fire-animation-sprites.png";
+    const drawFireSprite=(row:number,frame:number,x:number,y:number,width:number,height:number,rotation=0)=>{
+      if(!fireSprites.complete||!fireSprites.naturalWidth)return false;
+      const cellWidth=fireSprites.naturalWidth/6,cellHeight=fireSprites.naturalHeight/3;
+      ctx.save();ctx.translate(x,y);ctx.rotate(rotation);ctx.drawImage(fireSprites,frame*cellWidth,row*cellHeight,cellWidth,cellHeight,-width/2,-height/2,width,height);ctx.restore();return true;
+    };
+    const drawFallbackFlame=(x:number,y:number,now:number,scale=1)=>{const sway=Math.sin(now*.018)*3*scale;ctx.save();ctx.translate(x,y);ctx.fillStyle="#e94620";ctx.beginPath();ctx.moveTo(-9*scale,10*scale);ctx.quadraticCurveTo((-15+sway)*scale,-4*scale,sway,-18*scale);ctx.quadraticCurveTo((14+sway)*scale,-3*scale,9*scale,10*scale);ctx.fill();ctx.fillStyle="#ffd34f";ctx.beginPath();ctx.ellipse(sway*.35,3*scale,4*scale,8*scale,0,0,Math.PI*2);ctx.fill();ctx.restore()};
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 1, scale: 0.001 } });
     const W = 900, H = 520;
     const floor = Matter.Bodies.rectangle(W / 2, 500, W, 40, { isStatic: true, label:"floor" });
@@ -163,7 +172,8 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
     const mouseBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="mouse")??null;
     const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
     const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");const fuseReachable=new Set<number>(),fuseQueue=fuseBodies.filter(body=>Math.hypot(body.position.x-100,body.position.y-420)<120);fuseQueue.forEach(body=>fuseReachable.add(body.id));while(fuseQueue.length){const current=fuseQueue.shift()!;for(const candidate of fuseBodies){if(!fuseReachable.has(candidate.id)&&Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y)<120){fuseReachable.add(candidate.id);fuseQueue.push(candidate)}}}const fuseIgnited=fuseReachable.size>0,fuseReady=!!cannonBody&&fuseBodies.some(body=>fuseReachable.has(body.id)&&Math.hypot(body.position.x-cannonBody.position.x,body.position.y-cannonBody.position.y)<125);
-    let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,cannonFired=false,won=false,raf=0,last=performance.now();
+    const fuseDuration=1600+fuseBodies.length*280;
+    let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       if (labels.includes("wheel") && labels.includes("ball") && beltConnected && !motor) { motor = true; motorStartedAt = performance.now(); }
@@ -171,7 +181,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       if (labels.includes("candle") && labels.includes("levelBalloon") && !won) { balloonPopped=true; won=true; onWin(); }
       if (labels.includes("targetRing") && labels.includes("levelBalloon") && !won) { won=true; onWin(); }
       if(labels.includes("needle")&&labels.includes("levelBalloon")&&!won){balloonPopped=true;won=true;onWin()}
-      if(labels.includes("cannonball")&&labels.includes("cannonTarget")&&!won){won=true;onWin()}
+      if(labels.includes("cannonball")&&labels.includes("cannonTarget")&&!won&&!cannonHitAt)cannonHitAt=performance.now();
       if(labels.includes("trampoline")&&labels.includes("levelBall")&&levelBall){
         const trampoline=bodyA.label==="trampoline"?bodyA:bodyB;
         Matter.Body.setVelocity(levelBall,{x:Math.sin(trampoline.angle)*20,y:-Math.abs(Math.cos(trampoline.angle))*20});
@@ -198,7 +208,8 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       }
       if(running&&level===6&&mouseBody&&cat){if(!mouseFleeAt&&Math.abs(mouseBody.position.y-cat.position.y)<35&&mouseBody.position.x>cat.position.x)mouseFleeAt=now;if(mouseFleeAt){Matter.Body.setPosition(mouseBody,{x:Math.min(835,mouseBody.position.x+dt*.09),y:mouseBody.position.y});Matter.Body.setPosition(cat,{x:Math.min(760,cat.position.x+dt*.055),y:cat.position.y});if(mouseBody.position.x>=810&&!won){won=true;onWin()}}}
       if(running&&level===7&&gearsConnected){if(!gearTurnAt)gearTurnAt=now;if(now-gearTurnAt>1100&&!won){won=true;onWin()}}
-      if(running&&level===8&&fuseIgnited){if(!fuseLitAt)fuseLitAt=now;const fireAfter=1600+fuseBodies.length*280;if(fuseReady&&cannonBody&&!cannonFired&&now-fuseLitAt>fireAfter){cannonFired=true;const direction={x:Math.cos(cannonBody.angle),y:Math.sin(cannonBody.angle)};const shot=Matter.Bodies.circle(cannonBody.position.x+direction.x*58,cannonBody.position.y+direction.y*58,11,{density:.0025,restitution:.3,label:"cannonball"});Matter.Body.setVelocity(shot,{x:direction.x*14,y:direction.y*14});Matter.Composite.add(engine.world,shot)}}
+      if(running&&level===8&&fuseIgnited){if(!fuseLitAt)fuseLitAt=now;if(fuseReady&&cannonBody&&!cannonFired&&now-fuseLitAt>fuseDuration){cannonFired=true;cannonFiredAt=now;const direction={x:Math.cos(cannonBody.angle),y:Math.sin(cannonBody.angle)};const shot=Matter.Bodies.circle(cannonBody.position.x+direction.x*58,cannonBody.position.y+direction.y*58,11,{density:.0025,restitution:.3,label:"cannonball"});Matter.Body.setVelocity(shot,{x:direction.x*14,y:direction.y*14});Matter.Composite.add(engine.world,shot)}}
+      if(cannonHitAt&&!won&&now-cannonHitAt>520){won=true;onWin()}
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
       ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40);
@@ -207,7 +218,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         drawGear(365,345,42,motor?now/180:0);ctx.fillStyle="#93511f";ctx.fillRect(475,393,270,24);ctx.fillStyle="#d84a32";for(let x=490;x<730;x+=34){ctx.fillText("›",x,412)}
         if(beltConnected){ctx.save();ctx.strokeStyle="#51351f";ctx.lineWidth=7;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(400,325);ctx.lineTo(510,390);ctx.stroke();ctx.restore()}
       }else if(level===1){
-        ctx.fillStyle="#7b4c24";ctx.fillRect(770,135,72,10);ctx.fillStyle="#f1cb62";ctx.fillRect(793,75,24,64);ctx.fillStyle="#ff7a22";ctx.beginPath();ctx.moveTo(805,76);ctx.quadraticCurveTo(785,57,805,40);ctx.quadraticCurveTo(826,58,805,76);ctx.fill();
+        ctx.fillStyle="#7b4c24";ctx.fillRect(770,135,72,10);ctx.fillStyle="#f1cb62";ctx.fillRect(793,75,24,64);if(!drawFireSprite(0,Math.floor(now/105)%6,805,51,82,90))drawFallbackFlame(805,58,now,1.05);
       }else if(level===2){
         ctx.strokeStyle="#c73b2e";ctx.lineWidth=12;ctx.beginPath();ctx.arc(780,150,45,0,Math.PI*2);ctx.stroke();ctx.strokeStyle="#f1c351";ctx.lineWidth=4;ctx.beginPath();ctx.arc(780,150,45,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#5d371e";ctx.font="bold 14px system-ui";ctx.fillText("ZIELRING",744,218);
       }else if(level===3){
@@ -222,7 +233,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       }else if(level===7){
         ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ANTRIEB",220,230);ctx.fillText("ZIELRAD",565,230);
       }else if(level===8){
-        ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);ctx.fillStyle="#f1cb62";ctx.fillRect(91,390,22,52);ctx.fillStyle="#ff7a22";ctx.beginPath();ctx.moveTo(102,390);ctx.quadraticCurveTo(84,374,102,355);ctx.quadraticCurveTo(120,375,102,390);ctx.fill();ctx.strokeStyle="#c73b2e";ctx.lineWidth=9;ctx.beginPath();ctx.arc(825,230,48,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIEL",808,300);
+        ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);ctx.fillStyle="#f1cb62";ctx.fillRect(91,390,22,52);if(!drawFireSprite(0,Math.floor(now/105)%6,102,366,82,90))drawFallbackFlame(102,374,now);ctx.strokeStyle="#c73b2e";ctx.lineWidth=9;ctx.beginPath();ctx.arc(825,230,48,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIEL",808,300);
       }
       for(const b of Matter.Composite.allBodies(engine.world)){
         const {x,y}=b.position;ctx.save();ctx.translate(x,y);ctx.rotate(b.angle);
@@ -238,8 +249,8 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
         if(b.label==="mouse"){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}
         if(["gear","gearSource","gearTarget"].includes(b.label)){const depth=gearDepth.get(b.id);ctx.rotate(running&&depth!==undefined?(now/170)*(depth%2?-1:1):0);ctx.fillStyle=b.label==="gearTarget"?"#bf432d":"#d39a28";for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(34,-6,15,12)}ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
-        if(b.label==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42)}
-        if(b.label==="fuse"){const progress=fuseLitAt?Math.min(1,(now-fuseLitAt)/(1600+fuseBodies.length*280)):0,order=(b.plugin?.fuseIndex??0)/Math.max(1,fuseBodies.length),reached=fuseReachable.has(b.id);ctx.strokeStyle=reached&&progress>=order?"#e34a24":"#4f3d2b";ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-55,0);ctx.quadraticCurveTo(0,8,55,0);ctx.stroke();if(reached&&progress>=order&&progress<order+1/Math.max(1,fuseBodies.length)){ctx.fillStyle="#ffb126";ctx.beginPath();ctx.arc(45,0,8,0,Math.PI*2);ctx.fill()}}
+        if(b.label==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42);const cannonFuseProgress=fuseLitAt&&fuseReady?clamp01((now-fuseLitAt-(fuseDuration-650))/650):0;ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#9a9284";ctx.beginPath();ctx.moveTo(-26,-17);ctx.quadraticCurveTo(-35,-34,-18,-42);ctx.stroke();ctx.strokeStyle="#49382a";ctx.beginPath();ctx.moveTo(-26+(8*cannonFuseProgress),-17-(25*cannonFuseProgress));ctx.quadraticCurveTo(-34,-34,-18,-42);ctx.stroke();if(cannonFuseProgress>0&&cannonFuseProgress<1){const fx=-26+8*cannonFuseProgress,fy=-17-25*cannonFuseProgress;if(!drawFireSprite(1,Math.floor(now/80)%6,fx,fy,34,34))drawFallbackFlame(fx,fy,now,.55)}if(cannonFiredAt&&now-cannonFiredAt<520){const flashFrame=Math.min(5,Math.floor((now-cannonFiredAt)/87));if(!drawFireSprite(2,flashFrame,70,0,105,78))drawFallbackFlame(67,0,now,1.5)}}
+        if(b.label==="fuse"){const progress=fuseLitAt?clamp01((now-fuseLitAt)/fuseDuration):0,index=b.plugin?.fuseIndex??0,count=Math.max(1,fuseBodies.length),localBurn=clamp01(progress*count-index),reached=fuseReachable.has(b.id);ctx.lineWidth=7;ctx.lineCap="round";if(reached&&localBurn>0&&localBurn<1&&drawFireSprite(1,Math.min(5,Math.floor(localBurn*6)),0,-2,132,58)){/* Das Sprite zeigt Seil, Aschespur, wandernde Flamme und Funken. */}else{ctx.strokeStyle=reached&&localBurn>=1?"#a29a8d":"#4f3d2b";ctx.beginPath();ctx.moveTo(-55,0);ctx.quadraticCurveTo(0,8,55,0);ctx.stroke()}}
         if(b.label==="cannonball"){ctx.fillStyle="#333f43";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
         if(b.plugin?.placedId===selectedId&&!running){ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);if(["ramp","trampoline","fuse","cannon"].includes(b.label))ctx.strokeRect(-64,-28,128,56);else{ctx.beginPath();ctx.arc(0,0,48,0,Math.PI*2);ctx.stroke()}ctx.setLineDash([])}ctx.restore();
       }
