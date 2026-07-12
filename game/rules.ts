@@ -12,6 +12,7 @@ export const LEVEL_GOALS:GoalSpec[]=[
   {mode:"all",conditions:[{signal:"mouse.entered.hole",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"target_gear.rotating",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"cannonball.hit.target",operator:"occurred"}]},
+  {mode:"all",conditions:[{signal:"candle.extinguished_by_water",operator:"occurred"}]},
 ];
 
 export const GOAL_MODES=[
@@ -31,4 +32,6 @@ export const FORCE_SOURCES=[
   {gadget:"Trampolin",kind:"Stoßimpuls",direction:"Von der Fläche weg, überwiegend nach oben",rule:"Lenkt eintreffende Bewegung um"},
   {gadget:"Seil",kind:"Kraftübertragung",direction:"Entlang jedes Seilabschnitts – vertikal, horizontal oder schräg",rule:"Überträgt ausschließlich Zug; Rollen ändern die Richtung der Kraft"},
   {gadget:"Kanone",kind:"Explosionsimpuls",direction:"Entlang des Kanonenrohrs",rule:"Wird nach vollständig abgebrannter Lunte einmalig freigesetzt"},
+  {gadget:"Wassereimer",kind:"Gewicht und Schwall",direction:"Schwerkraft und Eimeröffnung",rule:"Kippt um sein Scharnier; Wasserteilchen verlassen die offene Seite"},
+  {gadget:"Wasser",kind:"Partikelströmung",direction:"Schwerkraft, Kollision und Gefälle",rule:"Fließt um feste Formen, verteilt sich am Boden und sammelt sich in offenen Behältern"},
 ] as const;
