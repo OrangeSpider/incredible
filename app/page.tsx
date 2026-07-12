@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
 import "./modal.css";
+import { INTERACTIONS } from "@/game/interactions";
 
 type Part = "ball" | "ramp" | "balloon" | "fan";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
@@ -53,7 +54,7 @@ function GameCanvas({ placed, running, attempt, onWin }: { placed: Placed[]; run
     const shelf = Matter.Bodies.rectangle(245, 345, 300, 18, { isStatic: true, angle: -0.06 });
     const wheel = Matter.Bodies.circle(470, 310, 42, { isStatic: true, isSensor: true, label: "wheel" });
     const exit = Matter.Bodies.rectangle(835, 410, 55, 130, { isStatic: true, isSensor: true, label: "exit" });
-    const cat = Matter.Bodies.rectangle(115, 430, 64, 52, { friction: 0.8, label: "cat" });
+    const cat = Matter.Bodies.rectangle(115, 454, 64, 52, { friction: 0.8, frictionAir: .2, label: "cat" });
     Matter.Composite.add(engine.world, [floor, shelf, wheel, exit, cat]);
     placed.forEach(p => {
       let b;
@@ -63,16 +64,18 @@ function GameCanvas({ placed, running, attempt, onWin }: { placed: Placed[]; run
       else b = Matter.Bodies.circle(p.x, p.y, 30, { isStatic: true, isSensor: true, label: "fan" });
       Matter.Composite.add(engine.world, b);
     });
-    let motor = false, won = false, raf = 0, last = performance.now();
+    let motor = false, motorStartedAt = 0, won = false, raf = 0, last = performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
-      if (labels.includes("wheel") && labels.includes("ball")) motor = true;
+      if (labels.includes("wheel") && labels.includes("ball") && !motor) { motor = true; motorStartedAt = performance.now(); }
       if (labels.includes("exit") && labels.includes("cat") && !won) { won = true; onWin(); }
     }));
     const drawGear = (x:number,y:number,r:number,turn:number) => { ctx.save(); ctx.translate(x,y); ctx.rotate(turn); ctx.fillStyle="#d39a28"; for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(r-5,-5,12,10)} ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173d50";ctx.beginPath();ctx.arc(0,0,r*.28,0,Math.PI*2);ctx.fill();ctx.restore(); };
     const render = (now:number) => {
       const dt = Math.min(32, now-last); last=now; if (running) Matter.Engine.update(engine,dt);
-      if (running && motor) Matter.Body.setVelocity(cat,{x:2.5,y:cat.velocity.y});
+      // Das Laufband gibt eine konstante Transportgeschwindigkeit vor. Keine
+      // wiederholten Kräfte: Die Katze wird also nicht ungewollt beschleunigt.
+      if (running && motor) Matter.Body.setPosition(cat,{x:Math.min(850,115+(now-motorStartedAt)*.075),y:454});
       for (const b of Matter.Composite.allBodies(engine.world)) if (running && b.label==="balloon") Matter.Body.applyForce(b,b.position,{x:0,y:-.0007});
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
@@ -97,7 +100,7 @@ function GameCanvas({ placed, running, attempt, onWin }: { placed: Placed[]; run
 
 export default function Home() {
   const [name,setName]=useState(""); const [draft,setDraft]=useState(""); const [level,setLevel]=useState(0);
-  const [selected,setSelected]=useState<Part>("ball"); const [placed,setPlaced]=useState<Placed[]>([]); const [running,setRunning]=useState(false); const [attempt,setAttempt]=useState(0); const [won,setWon]=useState(false); const [score,setScore]=useState(0); const [showScores,setShowScores]=useState(false);
+  const [selected,setSelected]=useState<Part>("ball"); const [placed,setPlaced]=useState<Placed[]>([]); const [running,setRunning]=useState(false); const [attempt,setAttempt]=useState(0); const [won,setWon]=useState(false); const [score,setScore]=useState(0); const [showScores,setShowScores]=useState(false); const [showPhysics,setShowPhysics]=useState(false);
   useEffect(()=>{const timer=window.setTimeout(()=>setName(localStorage.getItem("machine-user")||""),0);return()=>window.clearTimeout(timer)},[]);
   const login=()=>{const n=draft.trim();if(n){localStorage.setItem("machine-user",n);setName(n)}};
   const boardClick=(e:React.MouseEvent<HTMLDivElement>)=>{if(running)return;const r=e.currentTarget.getBoundingClientRect();setPlaced(p=>[...p,{id:Date.now(),type:selected,x:(e.clientX-r.left)/r.width*900,y:(e.clientY-r.top)/r.height*520,rotation:selected==="ramp"?-.22:0}])};
@@ -112,7 +115,8 @@ export default function Home() {
       <section className="board-wrap"><div className="board" onClick={boardClick}><GameCanvas placed={placed} running={running} attempt={attempt} onWin={win}/>{!running&&placed.length===0&&<div className="board-tip">Wähle ein Bauteil und klicke hier, um es zu platzieren.</div>}{won&&<div className="win"><span>★</span><h2>Es funktioniert!</h2><p>Die Katze hat den Ausgang erreicht.</p><button onClick={()=>{setLevel(l=>Math.min(24,l+1));reset()}}>Nächstes Level →</button></div>}</div><div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div></section>
       <aside><h2>BAUTEILE</h2>{PARTS.map(p=><button key={p.type} className={selected===p.type?"selected":""} onClick={()=>setSelected(p.type)} disabled={running}><span className={`part ${p.type}`}>{p.icon}</span><label>{p.name}</label><b>{p.count}</b></button>)}<div className="tip"><b>💡 TIPP</b><p>Eine schwere Kugel kann den Mausradmotor starten.</p></div></aside>
     </div>
-    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}>↻ <span>ZURÜCKSETZEN</span></button><button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={running||placed.length===0}>{running?"MASCHINE LÄUFT …":"MASCHINE STARTEN"}<i>▶</i></button><button className="levels" onClick={()=>setLevel(l=>(l+1)%25)}>☷ <span>LEVEL {level+1}/25</span></button></footer>
+    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}>↻ <span>ZURÜCKSETZEN</span></button><button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={running||placed.length===0}>{running?"MASCHINE LÄUFT …":"MASCHINE STARTEN"}<i>▶</i></button><button className="levels" onClick={()=>setShowPhysics(true)}>⚛ <span>PHYSIK</span></button><button className="levels" onClick={()=>setLevel(l=>(l+1)%25)}>☷ <span>LEVEL {level+1}/25</span></button></footer>
     {showScores&&<div className="modal" onClick={()=>setShowScores(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowScores(false)}>×</button><p className="eyebrow">WERKSTATTHALLE</p><h2>Bestenliste</h2>{highScores.length?highScores.map((s,i)=><div className="rank" key={i}><b>{i+1}</b><span>{s.name}</span><strong>{s.score.toLocaleString("de-DE")}</strong></div>):<p className="empty">Noch ist die Tafel jungfräulich. Bring zuerst eine Maschine zum Laufen!</p>}</section></div>}
+    {showPhysics&&<div className="modal physics-modal" onClick={()=>setShowPhysics(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowPhysics(false)}>×</button><p className="eyebrow">PROFESSOR KNALLKOPFS</p><h2>Physik-Handbuch</h2><p className="physics-intro">Die Engine bewegt Körper. Diese Regeln bestimmen, was ihre Begegnung im Spiel auslöst.</p><div className="interaction-table"><table><thead><tr><th>Auslöser</th><th>Ziel</th><th>Wann?</th><th>Wirkung</th><th>Stand</th></tr></thead><tbody>{INTERACTIONS.map((row,i)=><tr key={i}><td>{row.source}</td><td>{row.target}</td><td>{row.trigger}</td><td>{row.effect}</td><td><span className={`status ${row.status}`}>{row.status}</span></td></tr>)}</tbody></table></div></section></div>}
   </main>;
 }
