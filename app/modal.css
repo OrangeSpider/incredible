@@ -1,0 +1,5 @@
+.modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:#160d08cc;backdrop-filter:blur(5px)}
+.modal section{position:relative;width:min(430px,90vw);padding:32px 38px;background:var(--cream);border:7px solid #9e6328;border-radius:18px;box-shadow:0 20px 70px #000}
+.modal h2{font-size:35px;margin:5px 0 20px}.close{position:absolute;right:12px;top:10px;border:0;background:transparent;font-size:30px;cursor:pointer}
+.rank{display:grid;grid-template-columns:35px 1fr auto;align-items:center;padding:11px;border-bottom:1px dashed #a27c4f;font:15px Arial}
+.rank>b{width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--blue);color:white}.rank strong{color:var(--red)}.empty{font:15px/1.5 Arial;color:#77553c}

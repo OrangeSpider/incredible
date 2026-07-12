@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
+import "./modal.css";
 
 type Part = "ball" | "ramp" | "balloon" | "fan";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
@@ -96,20 +97,22 @@ function GameCanvas({ placed, running, attempt, onWin }: { placed: Placed[]; run
 
 export default function Home() {
   const [name,setName]=useState(""); const [draft,setDraft]=useState(""); const [level,setLevel]=useState(0);
-  const [selected,setSelected]=useState<Part>("ball"); const [placed,setPlaced]=useState<Placed[]>([]); const [running,setRunning]=useState(false); const [attempt,setAttempt]=useState(0); const [won,setWon]=useState(false); const [score,setScore]=useState(12480);
+  const [selected,setSelected]=useState<Part>("ball"); const [placed,setPlaced]=useState<Placed[]>([]); const [running,setRunning]=useState(false); const [attempt,setAttempt]=useState(0); const [won,setWon]=useState(false); const [score,setScore]=useState(0); const [showScores,setShowScores]=useState(false);
   useEffect(()=>{const timer=window.setTimeout(()=>setName(localStorage.getItem("machine-user")||""),0);return()=>window.clearTimeout(timer)},[]);
   const login=()=>{const n=draft.trim();if(n){localStorage.setItem("machine-user",n);setName(n)}};
   const boardClick=(e:React.MouseEvent<HTMLDivElement>)=>{if(running)return;const r=e.currentTarget.getBoundingClientRect();setPlaced(p=>[...p,{id:Date.now(),type:selected,x:(e.clientX-r.left)/r.width*900,y:(e.clientY-r.top)/r.height*520,rotation:selected==="ramp"?-.22:0}])};
   const reset=()=>{setRunning(false);setPlaced([]);setWon(false);setAttempt(a=>a+1)};
-  const win=()=>{setWon(true);setRunning(false);setScore(s=>s+Math.max(500,1800-placed.length*120))};
+  const win=()=>{setWon(true);setRunning(false);setScore(s=>{const next=s+Math.max(500,1800-placed.length*120);const board=JSON.parse(localStorage.getItem("machine-scores")||"[]") as {name:string;score:number}[];localStorage.setItem("machine-scores",JSON.stringify([...board,{name,score:next}].sort((a,b)=>b.score-a.score).slice(0,10)));return next})};
+  const highScores=(()=>{if(typeof window==="undefined")return[] as {name:string;score:number}[];try{return JSON.parse(localStorage.getItem("machine-scores")||"[]") as {name:string;score:number}[]}catch{return[]}})();
   if(!name) return <main className="login"><section className="login-card"><div className="professor">⚙</div><p className="eyebrow">WERKSTATTZUGANG</p><h1>Die Unglaubliche<br/><span>Maschine</span></h1><p>Ein Name genügt. Kein Passwort, kein Papierkram – Professor Knallkopf vertraut dir.</p><label>Dein Spielername<input autoFocus value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} placeholder="z. B. Stefan"/></label><button onClick={login}>Werkstatt betreten <b>→</b></button></section></main>;
   return <main className="game-shell">
-    <header><div className="score"><span>★</span><b>{score.toLocaleString("de-DE")}</b></div><div className="brand"><small>PROFESSOR KNALLKOPFS</small><strong>Die Unglaubliche Maschine</strong></div><div className="level-chip">LEVEL <b>{String(level+1).padStart(2,"0")}</b> / 25</div><button className="user" onClick={()=>{localStorage.removeItem("machine-user");setName("")}}>⚙ {name}⌄</button></header>
+    <header><button className="score" onClick={()=>setShowScores(true)}><span>★</span><b>{score.toLocaleString("de-DE")}</b></button><div className="brand"><small>PROFESSOR KNALLKOPFS</small><strong>Die Unglaubliche Maschine</strong></div><div className="level-chip">LEVEL <b>{String(level+1).padStart(2,"0")}</b> / 25</div><button className="user" onClick={()=>{localStorage.removeItem("machine-user");setName("")}}>⚙ {name}⌄</button></header>
     <section className="mission"><span>ZIEL</span><b>{LEVELS[level][1]}</b><em>Hinweis: {LEVELS[level][2]}</em></section>
     <div className="workspace">
       <section className="board-wrap"><div className="board" onClick={boardClick}><GameCanvas placed={placed} running={running} attempt={attempt} onWin={win}/>{!running&&placed.length===0&&<div className="board-tip">Wähle ein Bauteil und klicke hier, um es zu platzieren.</div>}{won&&<div className="win"><span>★</span><h2>Es funktioniert!</h2><p>Die Katze hat den Ausgang erreicht.</p><button onClick={()=>{setLevel(l=>Math.min(24,l+1));reset()}}>Nächstes Level →</button></div>}</div><div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div></section>
       <aside><h2>BAUTEILE</h2>{PARTS.map(p=><button key={p.type} className={selected===p.type?"selected":""} onClick={()=>setSelected(p.type)} disabled={running}><span className={`part ${p.type}`}>{p.icon}</span><label>{p.name}</label><b>{p.count}</b></button>)}<div className="tip"><b>💡 TIPP</b><p>Eine schwere Kugel kann den Mausradmotor starten.</p></div></aside>
     </div>
-    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}>↻ <span>ZURÜCKSETZEN</span></button><button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={running||placed.length===0}>{running?"MASCHINE LÄUFT …":"MASCHINE STARTEN"}<i>▶</i></button><button className="levels" onClick={()=>setLevel(l=>(l+1)%25)}>☷ <span>LEVELS</span></button></footer>
+    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}>↻ <span>ZURÜCKSETZEN</span></button><button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={running||placed.length===0}>{running?"MASCHINE LÄUFT …":"MASCHINE STARTEN"}<i>▶</i></button><button className="levels" onClick={()=>setLevel(l=>(l+1)%25)}>☷ <span>LEVEL {level+1}/25</span></button></footer>
+    {showScores&&<div className="modal" onClick={()=>setShowScores(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowScores(false)}>×</button><p className="eyebrow">WERKSTATTHALLE</p><h2>Bestenliste</h2>{highScores.length?highScores.map((s,i)=><div className="rank" key={i}><b>{i+1}</b><span>{s.name}</span><strong>{s.score.toLocaleString("de-DE")}</strong></div>):<p className="empty">Noch ist die Tafel jungfräulich. Bring zuerst eine Maschine zum Laufen!</p>}</section></div>}
   </main>;
 }
