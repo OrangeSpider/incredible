@@ -8,7 +8,10 @@ export const LEVEL_GOALS:GoalSpec[]=[
   {mode:"all",conditions:[{signal:"balloon.passed.target_ring",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"bowling_ball.entered.basket",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"weight.height",operator:"gte",value:230}]},
-  {mode:"all",conditions:[{signal:"blind.open",operator:"occurred"},{signal:"monkey.wheel.rotating",operator:"occurred"},{signal:"crate.entered.exit",operator:"occurred"}]},
+  {mode:"all",conditions:[{signal:"balloon.popped_by_needle",operator:"occurred"}]},
+  {mode:"all",conditions:[{signal:"mouse.entered.hole",operator:"occurred"}]},
+  {mode:"all",conditions:[{signal:"target_gear.rotating",operator:"occurred"}]},
+  {mode:"all",conditions:[{signal:"cannonball.hit.target",operator:"occurred"}]},
 ];
 
 export const GOAL_MODES=[
@@ -26,4 +29,6 @@ export const FORCE_SOURCES=[
   {gadget:"Laufband",kind:"Kontaktkraft",direction:"Links oder rechts",rule:"Wirkt auf alle Körper mit Kontakt zur Bandoberfläche"},
   {gadget:"Ventilator",kind:"Strömungskraft",direction:"Entlang des Luftkegels",rule:"Nimmt mit Entfernung ab; endet spätestens bei doppelter Sichtweite"},
   {gadget:"Trampolin",kind:"Stoßimpuls",direction:"Von der Fläche weg, überwiegend nach oben",rule:"Lenkt eintreffende Bewegung um"},
+  {gadget:"Seil",kind:"Kraftübertragung",direction:"Entlang jedes Seilabschnitts – vertikal, horizontal oder schräg",rule:"Überträgt ausschließlich Zug; Rollen ändern die Richtung der Kraft"},
+  {gadget:"Kanone",kind:"Explosionsimpuls",direction:"Entlang des Kanonenrohrs",rule:"Wird nach vollständig abgebrannter Lunte einmalig freigesetzt"},
 ] as const;

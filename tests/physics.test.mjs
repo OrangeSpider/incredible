@@ -58,17 +58,34 @@ test("level 4 trampoline can redirect the falling ball into the basket",()=>{
 });
 
 test("level 5 converts the ball fall distance into weight lift",()=>{
-  const initialBallY=60,finalBallY=456;
-  const weightY=Math.max(175,430-Math.max(0,finalBallY-initialBallY));
+  const initialBallY=60,finalBallY=456,fall=finalBallY-initialBallY,pulleyX=420,tension=Math.min(1,fall/260);
+  const weightY=Math.max(175,430-fall),weightX=760+(pulleyX-760)*tension;
   assert.ok(weightY<=230,"the available fall distance must lift the weight to its target height");
+  assert.equal(weightX,pulleyX,"rope tension must also pull sideways toward an offset pulley");
 });
 
-test("level 6 stationary monkey powers the conveyor only after both triggers",()=>{
-  const state=(ropeInstalled,ballY,beltConnected)=>{const blindOpen=ropeInstalled&&ballY>400;return{blindOpen,wheelRotating:blindOpen,conveyorMoving:blindOpen&&beltConnected,monkeyX:715}};
-  assert.equal(state(false,456,true).wheelRotating,false);
-  assert.equal(state(true,300,true).wheelRotating,false);
-  assert.equal(state(true,456,false).wheelRotating,true);
-  assert.equal(state(true,456,false).conveyorMoving,false);
-  assert.equal(state(true,456,true).conveyorMoving,true);
-  assert.equal(state(true,456,true).monkeyX,715,"the monkey gadget must remain stationary");
+test("level 6 needle pops balloons but has no generic collision action",()=>{
+  const effect=(needleTarget)=>needleTarget==="balloon"?"popped":"none";
+  assert.equal(effect("balloon"),"popped");assert.equal(effect("bowlingBall"),"none");assert.equal(effect("cat"),"none");
+});
+
+test("level 7 mouse flees only when the cat is on the same height",()=>{
+  const flees=(catY,mouseY)=>Math.abs(catY-mouseY)<35;
+  assert.equal(flees(370,390),true);assert.equal(flees(370,430),false);
+});
+
+test("level 8 three intermediate gears connect drive and target",()=>{
+  const gears=[{x:250,id:0},{x:334,id:1},{x:418,id:2},{x:502,id:3},{x:590,id:4}],depth=new Map([[0,0]]),queue=[gears[0]];
+  while(queue.length){const current=queue.shift();for(const candidate of gears){if(depth.has(candidate.id))continue;if(Math.abs(Math.abs(current.x-candidate.x)-84)<14){depth.set(candidate.id,depth.get(current.id)+1);queue.push(candidate)}}}
+  assert.equal(depth.has(4),true);assert.equal(depth.get(4)%2,0,"four gear contacts preserve the source direction");
+});
+
+test("level 9 cannonball is smaller, lighter and can hit the target",()=>{
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}}),angle=-.28;
+  const target=Matter.Bodies.circle(825,230,48,{isStatic:true,isSensor:true,label:"target"});
+  const shot=Matter.Bodies.circle(500+Math.cos(angle)*58,300+Math.sin(angle)*58,11,{density:.0025,label:"shot"});
+  Matter.Body.setVelocity(shot,{x:Math.cos(angle)*14,y:Math.sin(angle)*14});Matter.Composite.add(engine.world,[target,shot]);let hit=false;
+  Matter.Events.on(engine,"collisionStart",event=>event.pairs.forEach(pair=>{const labels=[pair.bodyA.label,pair.bodyB.label];if(labels.includes("target")&&labels.includes("shot"))hit=true}));
+  for(let tick=0;tick<300&&!hit;tick++)Matter.Engine.update(engine,16.666);
+  assert.equal(hit,true);assert.ok(shot.circleRadius<18);assert.ok(shot.density<.006);
 });

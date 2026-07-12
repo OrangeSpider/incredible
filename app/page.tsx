@@ -6,7 +6,7 @@ import "./modal.css";
 import { INTERACTIONS } from "@/game/interactions";
 import { FORCE_SOURCES,GOAL_MODES } from "@/game/rules";
 
-type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "rope";
+type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
 const FAN_VISIBLE_RANGE=210;
 const FAN_MAX_RANGE=FAN_VISIBLE_RANGE*2;
@@ -17,10 +17,10 @@ const LEVELS = [
   ["Rückenwind", "Treibe den Ballon durch den Zielring", "Richte den Ventilator aus und nutze den Auftrieb"],
   ["Sprungkraft", "Befördere die Bowlingkugel in den Korb", "Das Trampolin lenkt Fallbewegung nach oben um"],
   ["Flaschenzug", "Hebe das Gewicht bis zur roten Markierung", "Kugel, Seil und Rolle übertragen die Kraft"],
-  ["Bananenmotor", "Öffne die Jalousie und befördere die Kiste zum Ausgang", "Die sichtbare Banane startet das stationäre Affenfahrrad"],
-  ["Nasse Füße", "Lass das Boot am Ausgang anlegen", "Wasser trägt, wenn es tief genug ist"],
-  ["Gegen den Strom", "Bring den Korken nach oben", "Verdrängung ist dein Freund"],
-  ["Heißer Draht", "Lass die Rakete starten", "Die Lunte braucht Feuer"],
+  ["Nadelprobe", "Lass den Luftballon an der Nadel platzen", "Nur der Ballon reagiert auf die Spitze"],
+  ["Mäuseflucht", "Lass die Maus ihr Loch erreichen", "Die Maus flieht nur, wenn die Katze auf gleicher Höhe ist"],
+  ["Zahn um Zahn", "Übertrage die Drehung bis zum Zielrad", "Benachbarte Zahnräder greifen nur bei passendem Abstand"],
+  ["Feuer frei!", "Zünde die Lunte und triff die Zielscheibe", "Die Kanone feuert erst, wenn die Lunte vollständig abgebrannt ist"],
   ["Zahn um Zahn", "Drehe das goldene Zahnrad", "Achte auf die Drehrichtung"],
   ["Freier Fall", "Fange drei Bälle im Eimer", "Timing schlägt Tempo"],
   ["Katzenkino", "Locke die Katze durch zwei Türen", "Die Maus muss sichtbar bleiben"],
@@ -44,7 +44,10 @@ const BUILD_TIPS=[
   "Platziere den Ventilator, drehe ihn zum Zielring und korrigiere den Weg mit Planken.",
   "Setze das Trampolin unter den Fallweg der Kugel und richte den Sprung zum Korb aus.",
   "Platziere Kugel und Rolle und füge das Seil hinzu. Die Kugel muss möglichst weit fallen können.",
-  "Leite die Kugel nach unten, setze das Zugseil ein und verbinde das Affenrad per Riemen mit dem Laufband.",
+  "Setze die Nadel in den Weg des Ballons und lenke ihn mit dem Ventilator hinein.",
+  "Platziere die Maus auf Höhe der Katze. Nur dann erkennt sie die Gefahr und flieht.",
+  "Baue mit drei Zahnrädern eine lückenlose Verbindung zwischen Antrieb und Zielrad.",
+  "Platziere Kanone und Luntenteile als Kette von der Kerze bis zur Kanone. Richte anschließend das Rohr aus.",
 ] as const;
 const WIN_TEXT=[
   "Die Katze wurde vom angetriebenen Laufband zum Ausgang gebracht.",
@@ -52,7 +55,10 @@ const WIN_TEXT=[
   "Der Luftstrom hat den Ballon sauber durch den Zielring getragen.",
   "Das Trampolin hat die Bowlingkugel in den Korb umgelenkt.",
   "Der Seilzug hat das Gewicht bis zur Markierung gehoben.",
-  "Die Affe blieb am Platz, ihr Fahrrad trieb aber das Laufband bis zum Ziel an.",
+  "Die Nadel hat ausschließlich den Ballon zum Platzen gebracht.",
+  "Die Maus war auf gleicher Höhe und erreichte flüchtend ihr Loch.",
+  "Alle Zahnräder griffen ineinander und drehten das Zielrad.",
+  "Die Lunte brannte vollständig ab und die Kanonenkugel traf das Ziel.",
 ] as const;
 const LEVEL_HINTS=[
   "Ohne sichtbaren Riemen überträgt das Mausrad keine Kraft.",
@@ -60,7 +66,10 @@ const LEVEL_HINTS=[
   "Der Luftstrom reicht höchstens doppelt so weit wie der sichtbare Kegel.",
   "Die Neigung des Trampolins bestimmt die seitliche Komponente des Sprungs.",
   "Ein Seil überträgt Zug, aber keinen Druck. Die Fallstrecke der Kugel wird zur Hubstrecke.",
-  "Jalousie öffnen startet das Treten. Ohne Riemen erreicht die Drehkraft das Laufband trotzdem nicht.",
+  "Die Nadel übt auf andere Körper keine besondere Wirkung aus.",
+  "Die Höhendifferenz zwischen Katze und Maus muss klein genug sein.",
+  "Berührende Zahnräder drehen sich immer in entgegengesetzte Richtungen.",
+  "Luntenteile müssen Feuer und Kanone als zusammenhängende Kette verbinden.",
 ] as const;
 
 const partsForLevel = (level:number): { type: Part; icon: string; name: string; count: number }[] => {
@@ -83,12 +92,10 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
     {type:"pulley",icon:"◉",name:"Seilrolle",count:1},
     {type:"rope",icon:"∿",name:"Seil",count:1},
   ];
-  return [
-    {type:"ball",icon:"●",name:"Bowlingkugel",count:1},
-    {type:"rope",icon:"∿",name:"Zugseil",count:1},
-    {type:"belt",icon:"⛓",name:"Antriebsriemen",count:1},
-    {type:"ramp",icon:"╱",name:"Holzplanke",count:2},
-  ];
+  if(level===5)return [{type:"needle",icon:"▲",name:"Nadel",count:1},{type:"fan",icon:"✣",name:"Ventilator",count:1}];
+  if(level===6)return [{type:"mouse",icon:"●",name:"Maus",count:1}];
+  if(level===7)return [{type:"gear",icon:"⚙",name:"Zahnrad",count:3}];
+  return [{type:"cannon",icon:"◒",name:"Kanone",count:1},{type:"fuse",icon:"⌁",name:"Luntenstück",count:5}];
 };
 
 function drawRope(ctx:CanvasRenderingContext2D,from:{x:number;y:number},pulley:{x:number;y:number},to:{x:number;y:number},now:number,moving:boolean){
@@ -127,6 +134,14 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
     }else if(level===4){
       weight=Matter.Bodies.rectangle(760,430,64,64,{isStatic:true,label:"weight"});
       Matter.Composite.add(engine.world,weight);
+    }else if(level===5){
+      balloon=Matter.Bodies.circle(180,420,24,{density:.00012,frictionAir:.025,label:"levelBalloon"});Matter.Composite.add(engine.world,balloon);
+    }else if(level===6){
+      cat=Matter.Bodies.rectangle(135,370,60,48,{isStatic:true,label:"cat"});Matter.Composite.add(engine.world,cat);
+    }else if(level===7){
+      const source=Matter.Bodies.circle(250,300,42,{isStatic:true,isSensor:true,label:"gearSource"});const target=Matter.Bodies.circle(590,300,42,{isStatic:true,isSensor:true,label:"gearTarget"});Matter.Composite.add(engine.world,[source,target]);
+    }else if(level===8){
+      const target=Matter.Bodies.circle(825,230,48,{isStatic:true,isSensor:true,label:"cannonTarget"});Matter.Composite.add(engine.world,target);
     }
     placed.forEach(p => {
       let b;
@@ -135,18 +150,28 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       else if (p.type === "fan") b = Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,isSensor:true,angle:p.rotation,label:"fan"});
       else if(p.type==="trampoline")b=Matter.Bodies.rectangle(p.x,p.y,135,18,{isStatic:true,isSensor:true,angle:p.rotation,label:"trampoline"});
       else if(p.type==="pulley")b=Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,isSensor:true,label:"pulley"});
-      if(b){b.plugin={...b.plugin,placedId:p.id};Matter.Composite.add(engine.world,b)}
+      else if(p.type==="needle")b=Matter.Bodies.rectangle(p.x,p.y,16,70,{isStatic:true,isSensor:true,angle:p.rotation,label:"needle"});
+      else if(p.type==="mouse")b=Matter.Bodies.circle(p.x,p.y,22,{isStatic:true,isSensor:true,label:"mouse"});
+      else if(p.type==="gear")b=Matter.Bodies.circle(p.x,p.y,42,{isStatic:true,isSensor:true,label:"gear"});
+      else if(p.type==="cannon")b=Matter.Bodies.rectangle(p.x,p.y,90,44,{isStatic:true,isSensor:true,angle:p.rotation,label:"cannon"});
+      else if(p.type==="fuse")b=Matter.Bodies.rectangle(p.x,p.y,110,8,{isStatic:true,isSensor:true,angle:p.rotation,label:"fuse"});
+      if(b){b.plugin={...b.plugin,placedId:p.id,fuseIndex:p.type==="fuse"?placed.filter(x=>x.type==="fuse").findIndex(x=>x.id===p.id):-1};Matter.Composite.add(engine.world,b)}
     });
     const beltConnected=placed.some(p=>p.type==="belt");
     const ropeInstalled=placed.some(p=>p.type==="rope"),placedBall=Matter.Composite.allBodies(engine.world).find(body=>body.label==="ball")??null;
     const pulleyBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="pulley")??null,initialBallY=placedBall?.position.y??0;
-    let motor=false,motorStartedAt=0,balloonPopped=false,blindOpen=false,monkeyStartedAt=0,crateX=515,won=false,raf=0,last=performance.now();
+    const mouseBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="mouse")??null;
+    const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
+    const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");const fuseReachable=new Set<number>(),fuseQueue=fuseBodies.filter(body=>Math.hypot(body.position.x-100,body.position.y-420)<120);fuseQueue.forEach(body=>fuseReachable.add(body.id));while(fuseQueue.length){const current=fuseQueue.shift()!;for(const candidate of fuseBodies){if(!fuseReachable.has(candidate.id)&&Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y)<120){fuseReachable.add(candidate.id);fuseQueue.push(candidate)}}}const fuseIgnited=fuseReachable.size>0,fuseReady=!!cannonBody&&fuseBodies.some(body=>fuseReachable.has(body.id)&&Math.hypot(body.position.x-cannonBody.position.x,body.position.y-cannonBody.position.y)<125);
+    let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,cannonFired=false,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       if (labels.includes("wheel") && labels.includes("ball") && beltConnected && !motor) { motor = true; motorStartedAt = performance.now(); }
       if (labels.includes("exit") && labels.includes("cat") && !won) { won = true; onWin(); }
       if (labels.includes("candle") && labels.includes("levelBalloon") && !won) { balloonPopped=true; won=true; onWin(); }
       if (labels.includes("targetRing") && labels.includes("levelBalloon") && !won) { won=true; onWin(); }
+      if(labels.includes("needle")&&labels.includes("levelBalloon")&&!won){balloonPopped=true;won=true;onWin()}
+      if(labels.includes("cannonball")&&labels.includes("cannonTarget")&&!won){won=true;onWin()}
       if(labels.includes("trampoline")&&labels.includes("levelBall")&&levelBall){
         const trampoline=bodyA.label==="trampoline"?bodyA:bodyB;
         Matter.Body.setVelocity(levelBall,{x:Math.sin(trampoline.angle)*20,y:-Math.abs(Math.cos(trampoline.angle))*20});
@@ -161,20 +186,19 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       if (running && motor && cat) Matter.Body.setPosition(cat,{x:Math.min(850,555+(now-motorStartedAt)*.075),y:365});
       if(running&&balloon&&!balloonPopped){
         Matter.Body.applyForce(balloon,balloon.position,{x:0,y:level===1?-.00035:-.00023});
-        if(level===2)Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fan").forEach(fan=>{
+        if(level===2||level===5)Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fan").forEach(fan=>{
           const dx=balloon!.position.x-fan.position.x,dy=balloon!.position.y-fan.position.y,c=Math.cos(fan.angle),s=Math.sin(fan.angle);
           const forward=dx*c+dy*s,side=-dx*s+dy*c;
           if(forward>0&&forward<FAN_MAX_RANGE&&Math.abs(side)<100+forward*.3){const force=.00035*(1-forward/FAN_MAX_RANGE);Matter.Body.applyForce(balloon!,balloon!.position,{x:c*force,y:s*force})}
         });
       }
       if(running&&level===4&&ropeInstalled&&pulleyBody&&placedBall&&weight){
-        const fall=Math.max(0,placedBall.position.y-initialBallY);Matter.Body.setPosition(weight,{x:760,y:Math.max(175,430-fall)});
+        const fall=Math.max(0,placedBall.position.y-initialBallY),tension=Math.min(1,fall/260);Matter.Body.setPosition(weight,{x:760+(pulleyBody.position.x-760)*tension,y:Math.max(175,430-fall)});
         if(weight.position.y<=230&&!won){won=true;onWin()}
       }
-      if(running&&level===5&&ropeInstalled&&placedBall){
-        if(!blindOpen&&placedBall.position.y>400){blindOpen=true;monkeyStartedAt=now}
-        if(blindOpen&&beltConnected){crateX=Math.min(815,515+(now-monkeyStartedAt)*.055);if(crateX>=790&&!won){won=true;onWin()}}
-      }
+      if(running&&level===6&&mouseBody&&cat){if(!mouseFleeAt&&Math.abs(mouseBody.position.y-cat.position.y)<35&&mouseBody.position.x>cat.position.x)mouseFleeAt=now;if(mouseFleeAt){Matter.Body.setPosition(mouseBody,{x:Math.min(835,mouseBody.position.x+dt*.09),y:mouseBody.position.y});Matter.Body.setPosition(cat,{x:Math.min(760,cat.position.x+dt*.055),y:cat.position.y});if(mouseBody.position.x>=810&&!won){won=true;onWin()}}}
+      if(running&&level===7&&gearsConnected){if(!gearTurnAt)gearTurnAt=now;if(now-gearTurnAt>1100&&!won){won=true;onWin()}}
+      if(running&&level===8&&fuseIgnited){if(!fuseLitAt)fuseLitAt=now;const fireAfter=1600+fuseBodies.length*280;if(fuseReady&&cannonBody&&!cannonFired&&now-fuseLitAt>fireAfter){cannonFired=true;const direction={x:Math.cos(cannonBody.angle),y:Math.sin(cannonBody.angle)};const shot=Matter.Bodies.circle(cannonBody.position.x+direction.x*58,cannonBody.position.y+direction.y*58,11,{density:.0025,restitution:.3,label:"cannonball"});Matter.Body.setVelocity(shot,{x:direction.x*14,y:direction.y*14});Matter.Composite.add(engine.world,shot)}}
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
       ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40);
@@ -192,15 +216,13 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         ctx.strokeStyle="#bd3428";ctx.lineWidth=4;ctx.setLineDash([10,7]);ctx.beginPath();ctx.moveTo(700,230);ctx.lineTo(825,230);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIELHÖHE",704,215);
         if(ropeInstalled&&pulleyBody&&placedBall&&weight)drawRope(ctx,placedBall.position,pulleyBody.position,weight.position,now,running);
       }else if(level===5){
-        const pulley={x:505,y:135},blindHeight=blindOpen?22:112,pedalTurn=blindOpen?(now-monkeyStartedAt)/90:0;
-        ctx.fillStyle="#dfc187";ctx.fillRect(535,85,285,285);ctx.strokeStyle="#76502e";ctx.lineWidth=6;ctx.strokeRect(535,85,285,285);
-        if(ropeInstalled&&placedBall)drawRope(ctx,placedBall.position,pulley,{x:555,y:310},now,running);
-        ctx.fillStyle="#f0c52f";ctx.font="35px serif";ctx.fillText("🍌",574,220);
-        ctx.fillStyle="#d8b16a";ctx.fillRect(555,105,90,blindHeight);ctx.strokeStyle="#9a713d";ctx.lineWidth=2;for(let y=118;y<105+blindHeight;y+=13){ctx.beginPath();ctx.moveTo(555,y);ctx.lineTo(645,y);ctx.stroke()}
-        ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(pulley.x,pulley.y,31,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#d39a28";ctx.lineWidth=8;ctx.beginPath();ctx.arc(pulley.x,pulley.y,21,0,Math.PI*2);ctx.stroke();
-        ctx.font="42px serif";ctx.fillText("🐒",690,246);ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.save();ctx.translate(715,293);ctx.rotate(pedalTurn);ctx.beginPath();ctx.arc(0,0,34,0,Math.PI*2);ctx.stroke();for(let a=0;a<Math.PI*2;a+=Math.PI/3){ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*30,Math.sin(a)*30);ctx.stroke()}ctx.restore();ctx.beginPath();ctx.moveTo(715,327);ctx.lineTo(680,355);ctx.lineTo(752,355);ctx.closePath();ctx.stroke();
-        ctx.fillStyle="#93511f";ctx.fillRect(485,410,340,28);ctx.fillStyle="#d84a32";for(let x=500;x<815;x+=34)ctx.fillText("›",x,435);ctx.fillStyle="#8f3928";ctx.fillRect(crateX-25,375,50,35);ctx.fillStyle="#f4d28f";ctx.font="bold 12px system-ui";ctx.fillText("KISTE",crateX-21,397);ctx.fillStyle="#173f50";ctx.fillRect(825,350,55,100);ctx.fillStyle="#f1d28d";ctx.fillText("ZIEL",837,380);
-        if(beltConnected){ctx.strokeStyle="#4f3828";ctx.lineWidth=7;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(740,305);ctx.lineTo(610,410);ctx.stroke();ctx.setLineDash([])}
+        ctx.fillStyle="#6b391e";ctx.font="bold 14px system-ui";ctx.fillText("Die Nadel reagiert ausschließlich auf den Ballon.",285,32);
+      }else if(level===6){
+        ctx.fillStyle="#173f50";ctx.fillRect(820,330,65,120);ctx.fillStyle="#f1d28d";ctx.font="bold 13px system-ui";ctx.fillText("MAUS-",830,365);ctx.fillText("LOCH",834,382);
+      }else if(level===7){
+        ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ANTRIEB",220,230);ctx.fillText("ZIELRAD",565,230);
+      }else if(level===8){
+        ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);ctx.fillStyle="#f1cb62";ctx.fillRect(91,390,22,52);ctx.fillStyle="#ff7a22";ctx.beginPath();ctx.moveTo(102,390);ctx.quadraticCurveTo(84,374,102,355);ctx.quadraticCurveTo(120,375,102,390);ctx.fill();ctx.strokeStyle="#c73b2e";ctx.lineWidth=9;ctx.beginPath();ctx.arc(825,230,48,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIEL",808,300);
       }
       for(const b of Matter.Composite.allBodies(engine.world)){
         const {x,y}=b.position;ctx.save();ctx.translate(x,y);ctx.rotate(b.angle);
@@ -213,7 +235,13 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         if(b.label==="pulley"){ctx.fillStyle="#d39a28";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.stroke()}
         if(b.label==="weight"){ctx.fillStyle="#555d60";ctx.fillRect(-32,-32,64,64);ctx.fillStyle="#f0d59a";ctx.font="bold 14px system-ui";ctx.fillText("50 kg",-21,5)}
         if(b.label==="cat"){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}
-        if(b.plugin?.placedId===selectedId&&!running){ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);if(b.label==="ramp"||b.label==="trampoline")ctx.strokeRect(-84,-20,168,40);else{ctx.beginPath();ctx.arc(0,0,42,0,Math.PI*2);ctx.stroke()}ctx.setLineDash([])}ctx.restore();
+        if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
+        if(b.label==="mouse"){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}
+        if(["gear","gearSource","gearTarget"].includes(b.label)){const depth=gearDepth.get(b.id);ctx.rotate(running&&depth!==undefined?(now/170)*(depth%2?-1:1):0);ctx.fillStyle=b.label==="gearTarget"?"#bf432d":"#d39a28";for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(34,-6,15,12)}ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
+        if(b.label==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42)}
+        if(b.label==="fuse"){const progress=fuseLitAt?Math.min(1,(now-fuseLitAt)/(1600+fuseBodies.length*280)):0,order=(b.plugin?.fuseIndex??0)/Math.max(1,fuseBodies.length),reached=fuseReachable.has(b.id);ctx.strokeStyle=reached&&progress>=order?"#e34a24":"#4f3d2b";ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-55,0);ctx.quadraticCurveTo(0,8,55,0);ctx.stroke();if(reached&&progress>=order&&progress<order+1/Math.max(1,fuseBodies.length)){ctx.fillStyle="#ffb126";ctx.beginPath();ctx.arc(45,0,8,0,Math.PI*2);ctx.fill()}}
+        if(b.label==="cannonball"){ctx.fillStyle="#333f43";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
+        if(b.plugin?.placedId===selectedId&&!running){ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);if(["ramp","trampoline","fuse","cannon"].includes(b.label))ctx.strokeRect(-64,-28,128,56);else{ctx.beginPath();ctx.arc(0,0,48,0,Math.PI*2);ctx.stroke()}ctx.setLineDash([])}ctx.restore();
       }
       ctx.fillStyle="#4b2b17";ctx.font="bold 15px system-ui";
       if(level===0)ctx.fillText(!beltConnected?"Es fehlt die Verbindung zum Laufband":motor?"Riemen überträgt den Antrieb":"Triff das Mausrad mit einer Kugel",330,260);
@@ -221,7 +249,10 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       if(level===2)ctx.fillText("Richte den Ventilator aus und triff den Zielring",275,32);
       if(level===3)ctx.fillText("Lenke den Fall mit dem Trampolin in den Korb",270,32);
       if(level===4)ctx.fillText(!ropeInstalled?"Seil, Rolle und Kugel bilden den Flaschenzug":"Die fallende Kugel hebt das Gegengewicht",270,32);
-      if(level===5)ctx.fillText(!blindOpen?"Ziehe am Seil, damit die Banane sichtbar wird":!beltConnected?"Die Affe tritt – aber der Antriebsriemen fehlt":"Das Affenrad treibt jetzt das Laufband an",270,32);
+      if(level===5&&!balloonPopped)ctx.fillText("Lenke den Ballon in die platzierte Nadel",300,32);
+      if(level===6)ctx.fillText(!mouseFleeAt?"Katze und Maus müssen auf gleicher Höhe sein":"Die Maus flieht – die Katze ist langsamer",275,32);
+      if(level===7)ctx.fillText(gearsConnected?"Die Zahnradkette greift vollständig ineinander":"Zwischen den Zahnrädern sind noch Lücken",285,32);
+      if(level===8)ctx.fillText(!fuseIgnited?"Kein Luntenteil berührt die Flamme":!fuseReady?"Die Lunte brennt, erreicht aber die Kanone nicht":!fuseLitAt?"Bereit zum Zünden":"Die Lunte brennt zur Kanone …",270,32);
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
     return()=>{cancelAnimationFrame(raf);Matter.Engine.clear(engine)};
@@ -236,25 +267,25 @@ export default function Home() {
   const login=()=>{const n=draft.trim();if(n){localStorage.setItem("machine-user",n);setName(n)}};
   const inventory=partsForLevel(level);
   const boardPoint=(e:React.PointerEvent<HTMLDivElement>)=>{const r=e.currentTarget.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*900,y:(e.clientY-r.top)/r.height*520}};
-  const boardPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{if(running)return;const point=boardPoint(e);const movable=placed.filter(p=>p.type!=="belt"&&p.type!=="rope").map(p=>({...p,d:Math.hypot(p.x-point.x,p.y-point.y)})).sort((a,b)=>a.d-b.d)[0];if(movable&&movable.d<48){e.currentTarget.setPointerCapture(e.pointerId);setSelectedId(movable.id);setDrag({id:movable.id,dx:movable.x-point.x,dy:movable.y-point.y});return}const allowed=inventory.find(i=>i.type===selected);if(!allowed)return;const used=placed.filter(p=>p.type===selected).length;if(used>=allowed.count)return;const id=Date.now();setSelectedId(id);setPlaced(p=>[...p,{id,type:selected,x:point.x,y:point.y,rotation:selected==="ramp"||selected==="trampoline"?-.28:0}])};
+  const boardPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{if(running)return;const point=boardPoint(e);const movable=placed.filter(p=>p.type!=="belt"&&p.type!=="rope").map(p=>({...p,d:Math.hypot(p.x-point.x,p.y-point.y)})).sort((a,b)=>a.d-b.d)[0];if(movable&&movable.d<52){e.currentTarget.setPointerCapture(e.pointerId);setSelectedId(movable.id);setDrag({id:movable.id,dx:movable.x-point.x,dy:movable.y-point.y});return}const allowed=inventory.find(i=>i.type===selected);if(!allowed)return;const used=placed.filter(p=>p.type===selected).length;if(used>=allowed.count)return;const id=Date.now();setSelectedId(id);const initialRotation=selected==="ramp"||selected==="trampoline"||selected==="cannon"?-.28:0;setPlaced(p=>[...p,{id,type:selected,x:point.x,y:point.y,rotation:initialRotation}])};
   const boardPointerMove=(e:React.PointerEvent<HTMLDivElement>)=>{if(!drag||running)return;const point=boardPoint(e);setPlaced(items=>items.map(p=>p.id===drag.id?{...p,x:Math.max(25,Math.min(875,point.x+drag.dx)),y:Math.max(25,Math.min(475,point.y+drag.dy))}:p))};
   const reset=()=>{setRunning(false);setPlaced([]);setSelectedId(null);setWon(false);setAttempt(a=>a+1)};
-  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","ball"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
+  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","needle","mouse","gear","cannon"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
   const rotateSelected=(direction:-1|1)=>setPlaced(items=>items.map(p=>p.id===selectedId?{...p,rotation:p.rotation+direction*Math.PI/12}:p));
-  const selectedPlaced=placed.find(p=>p.id===selectedId),canRotate=selectedPlaced&&(selectedPlaced.type==="ramp"||selectedPlaced.type==="fan"||selectedPlaced.type==="trampoline");
+  const selectedPlaced=placed.find(p=>p.id===selectedId),canRotate=selectedPlaced&&["ramp","fan","trampoline","needle","cannon","fuse"].includes(selectedPlaced.type);
   const win=()=>{setWon(true);setRunning(false);setScore(s=>{const next=s+Math.max(500,1800-placed.length*120);const board=JSON.parse(localStorage.getItem("machine-scores")||"[]") as {name:string;score:number}[];localStorage.setItem("machine-scores",JSON.stringify([...board,{name,score:next}].sort((a,b)=>b.score-a.score).slice(0,10)));return next})};
   const highScores=(()=>{if(typeof window==="undefined")return[] as {name:string;score:number}[];try{return JSON.parse(localStorage.getItem("machine-scores")||"[]") as {name:string;score:number}[]}catch{return[]}})();
   if(!name) return <main className="login"><section className="login-card"><div className="professor">⚙</div><p className="eyebrow">WERKSTATTZUGANG</p><h1>Die Unglaubliche<br/><span>Maschine</span></h1><p>Ein Name genügt. Kein Passwort, kein Papierkram – Professor Knallkopf vertraut dir.</p><label>Dein Spielername<input autoFocus value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} placeholder="z. B. Stefan"/></label><button onClick={login}>Werkstatt betreten <b>→</b></button></section></main>;
   return <main className="game-shell">
-    <header><button className="score" onClick={()=>setShowScores(true)}><span>★</span><b>{score.toLocaleString("de-DE")}</b></button><div className="brand"><small>PROFESSOR KNALLKOPFS</small><strong>Die Unglaubliche Maschine</strong></div><button className="level-chip" onClick={()=>setShowLevels(true)}>LEVEL <b>{String(level+1).padStart(2,"0")}</b> / 06⌄</button><button className="user" onClick={()=>{localStorage.removeItem("machine-user");setName("")}}>⚙ {name}⌄</button></header>
+    <header><button className="score" onClick={()=>setShowScores(true)}><span>★</span><b>{score.toLocaleString("de-DE")}</b></button><div className="brand"><small>PROFESSOR KNALLKOPFS</small><strong>Die Unglaubliche Maschine</strong></div><button className="level-chip" onClick={()=>setShowLevels(true)}>LEVEL <b>{String(level+1).padStart(2,"0")}</b> / 09⌄</button><button className="user" onClick={()=>{localStorage.removeItem("machine-user");setName("")}}>⚙ {name}⌄</button></header>
     <section className="mission"><span>ZIEL</span><b>{LEVELS[level][1]}</b><em>Hinweis: {LEVELS[level][2]}</em></section>
     <div className="workspace">
-      <section className="board-wrap"><div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={()=>setDrag(null)} onPointerCancel={()=>setDrag(null)}><GameCanvas level={level} placed={placed} selectedId={selectedId} running={running} attempt={attempt} onWin={win}/>{!running&&placed.length===0&&<div className="board-tip">{BUILD_TIPS[level]}</div>}{won&&<div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{WIN_TEXT[level]}</p>{level<5?<button onClick={()=>changeLevel(level+1)}>Nächstes Level →</button>:<button onClick={()=>{setWon(false);reset()}}>Noch einmal bauen ↻</button>}</div>}</div><div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div></section>
+      <section className="board-wrap"><div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={()=>setDrag(null)} onPointerCancel={()=>setDrag(null)}><GameCanvas level={level} placed={placed} selectedId={selectedId} running={running} attempt={attempt} onWin={win}/>{!running&&placed.length===0&&<div className="board-tip">{BUILD_TIPS[level]}</div>}{won&&<div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{WIN_TEXT[level]}</p>{level<8?<button onClick={()=>changeLevel(level+1)}>Nächstes Level →</button>:<button onClick={()=>{setWon(false);reset()}}>Noch einmal bauen ↻</button>}</div>}</div><div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div></section>
       <aside><h2>BAUTEILE</h2>{inventory.map(p=>{const remaining=p.count-placed.filter(x=>x.type===p.type).length;return <button key={p.type} className={selected===p.type?"selected":""} onClick={()=>setSelected(p.type)} disabled={running||remaining===0}><span className={`part ${p.type}`}>{p.icon}</span><label>{p.name}</label><b>{remaining}</b></button>})}<div className="tip"><b>💡 TIPP</b><p>{LEVEL_HINTS[level]}</p></div></aside>
     </div>
-    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}>↻ <span>ZURÜCKSETZEN</span></button>{level>0&&<><button className="reset" onClick={()=>rotateSelected(-1)} disabled={running||!canRotate}>↶ <span>LINKS DREHEN</span></button><button className="reset" onClick={()=>rotateSelected(1)} disabled={running||!canRotate}>↷ <span>RECHTS DREHEN</span></button></>}{running?<button className="stop" onClick={()=>setRunning(false)}>■ MASCHINE ABBRECHEN</button>:<button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={placed.length===0}>MASCHINE STARTEN<i>▶</i></button>}<button className="levels" onClick={()=>setShowPhysics(true)}>⚛ <span>PHYSIK</span></button><button className="levels" onClick={()=>setShowLevels(true)}>☷ <span>LEVEL {level+1}/6</span></button></footer>
+    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}>↻ <span>ZURÜCKSETZEN</span></button>{level>0&&<><button className="reset" onClick={()=>rotateSelected(-1)} disabled={running||!canRotate}>↶ <span>LINKS DREHEN</span></button><button className="reset" onClick={()=>rotateSelected(1)} disabled={running||!canRotate}>↷ <span>RECHTS DREHEN</span></button></>}{running?<button className="stop" onClick={()=>setRunning(false)}>■ MASCHINE ABBRECHEN</button>:<button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={placed.length===0}>MASCHINE STARTEN<i>▶</i></button>}<button className="levels" onClick={()=>setShowPhysics(true)}>⚛ <span>PHYSIK</span></button><button className="levels" onClick={()=>setShowLevels(true)}>☷ <span>LEVEL {level+1}/9</span></button></footer>
     {showScores&&<div className="modal" onClick={()=>setShowScores(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowScores(false)}>×</button><p className="eyebrow">WERKSTATTHALLE</p><h2>Bestenliste</h2>{highScores.length?highScores.map((s,i)=><div className="rank" key={i}><b>{i+1}</b><span>{s.name}</span><strong>{s.score.toLocaleString("de-DE")}</strong></div>):<p className="empty">Noch ist die Tafel jungfräulich. Bring zuerst eine Maschine zum Laufen!</p>}</section></div>}
-    {showLevels&&<div className="modal" onClick={()=>setShowLevels(false)}><section className="level-dialog" onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowLevels(false)}>×</button><p className="eyebrow">ENTWICKLER-DIREKTZUGRIFF</p><h2>Level wählen</h2><div className="level-grid">{LEVELS.slice(0,6).map((item,i)=><button key={i} className={i===level?"current":""} onClick={()=>changeLevel(i)}><b>{String(i+1).padStart(2,"0")}</b><span>{item[0]}</span><small>{item[1]}</small></button>)}</div></section></div>}
+    {showLevels&&<div className="modal" onClick={()=>setShowLevels(false)}><section className="level-dialog" onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowLevels(false)}>×</button><p className="eyebrow">ENTWICKLER-DIREKTZUGRIFF</p><h2>Level wählen</h2><div className="level-grid">{LEVELS.slice(0,9).map((item,i)=><button key={i} className={i===level?"current":""} onClick={()=>changeLevel(i)}><b>{String(i+1).padStart(2,"0")}</b><span>{item[0]}</span><small>{item[1]}</small></button>)}</div></section></div>}
     {showPhysics&&<div className="modal physics-modal" onClick={()=>setShowPhysics(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowPhysics(false)}>×</button><p className="eyebrow">PROFESSOR KNALLKOPFS</p><h2>Physik-Handbuch</h2><div className="handbook-scroll"><h3>Kraftquellen</h3><p className="physics-intro">Diese Gadgets bringen Energie oder gerichtete Bewegung in die Maschine.</p><div className="interaction-table"><table><thead><tr><th>Gadget</th><th>Kraftart</th><th>Richtung</th><th>Regel</th></tr></thead><tbody>{FORCE_SOURCES.map((row,i)=><tr key={i}><td>{row.gadget}</td><td>{row.kind}</td><td>{row.direction}</td><td>{row.rule}</td></tr>)}</tbody></table></div><h3>Abstrakte Zielprüfung</h3><p className="physics-intro">Gadgets erzeugen nur Signale und Zustände. Eine getrennte GoalSpec kombiniert sie zum jeweiligen Levelziel.</p><div className="interaction-table"><table><thead><tr><th>Modus</th><th>Bedeutung</th><th>Beispiel</th></tr></thead><tbody>{GOAL_MODES.map((row,i)=><tr key={i}><td><b>{row.mode}</b></td><td>{row.meaning}</td><td>{row.example}</td></tr>)}</tbody></table></div><h3>Objektinteraktionen</h3><div className="interaction-table"><table><thead><tr><th>Auslöser</th><th>Ziel</th><th>Wann?</th><th>Wirkung</th><th>Stand</th></tr></thead><tbody>{INTERACTIONS.map((row,i)=><tr key={i}><td>{row.source}</td><td>{row.target}</td><td>{row.trigger}</td><td>{row.effect}</td><td><span className={`status ${row.status}`}>{row.status}</span></td></tr>)}</tbody></table></div></div></section></div>}
   </main>;
 }
