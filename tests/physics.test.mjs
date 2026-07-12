@@ -36,8 +36,8 @@ test("level 3 fan can steer the balloon through the target ring", () => {
     Matter.Body.applyForce(balloon,balloon.position,{x:0,y:-.00023});
     const dx=balloon.position.x-fan.x,dy=balloon.position.y-fan.y,c=Math.cos(fan.angle),s=Math.sin(fan.angle);
     const forward=dx*c+dy*s,side=-dx*s+dy*c;
-    if(forward>0&&forward<750&&Math.abs(side)<100+forward*.3){
-      const force=.00009*(1-forward/1000);
+    if(forward>0&&forward<420&&Math.abs(side)<100+forward*.3){
+      const force=.00035*(1-forward/420);
       Matter.Body.applyForce(balloon,balloon.position,{x:c*force,y:s*force});
     }
     Matter.Engine.update(engine,16.666);

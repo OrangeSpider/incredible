@@ -7,6 +7,8 @@ import { INTERACTIONS } from "@/game/interactions";
 
 type Part = "ball" | "ramp" | "belt" | "fan";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
+const FAN_VISIBLE_RANGE=210;
+const FAN_MAX_RANGE=FAN_VISIBLE_RANGE*2;
 
 const LEVELS = [
   ["Der erste Anstoß", "Bring die Katze zum Ausgang", "Mausmotor und Laufband"],
@@ -101,7 +103,7 @@ function GameCanvas({ level, placed, running, attempt, onWin }: { level:number; 
         if(level===2)Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fan").forEach(fan=>{
           const dx=balloon!.position.x-fan.position.x,dy=balloon!.position.y-fan.position.y,c=Math.cos(fan.angle),s=Math.sin(fan.angle);
           const forward=dx*c+dy*s,side=-dx*s+dy*c;
-          if(forward>0&&forward<750&&Math.abs(side)<100+forward*.3){const force=.00009*(1-forward/1000);Matter.Body.applyForce(balloon!,balloon!.position,{x:c*force,y:s*force})}
+          if(forward>0&&forward<FAN_MAX_RANGE&&Math.abs(side)<100+forward*.3){const force=.00035*(1-forward/FAN_MAX_RANGE);Matter.Body.applyForce(balloon!,balloon!.position,{x:c*force,y:s*force})}
         });
       }
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
@@ -121,7 +123,7 @@ function GameCanvas({ level, placed, running, attempt, onWin }: { level:number; 
         if(b.label==="ball"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,18,0,7);ctx.fill();ctx.fillStyle="#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
         if(b.label==="ramp"){ctx.fillStyle="#8d5426";ctx.fillRect(-75,-7,150,14);ctx.strokeStyle="#4e2a14";ctx.strokeRect(-75,-7,150,14)}
         if(b.label==="levelBalloon"&&!balloonPopped){ctx.fillStyle="#1976b9";ctx.beginPath();ctx.ellipse(0,0,22,28,0,0,7);ctx.fill();ctx.strokeStyle="#305468";ctx.beginPath();ctx.moveTo(0,28);ctx.lineTo(0,62);ctx.stroke()}
-        if(b.label==="fan"){ctx.fillStyle="#18475a";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.fillStyle="#d6a12c";ctx.font="35px serif";ctx.fillText("✣",-18,12);ctx.strokeStyle="#54a8c2";ctx.setLineDash([8,8]);ctx.beginPath();ctx.moveTo(35,-20);ctx.lineTo(210,-65);ctx.moveTo(35,20);ctx.lineTo(210,65);ctx.stroke();ctx.setLineDash([])}
+        if(b.label==="fan"){ctx.fillStyle="#18475a";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.fillStyle="#d6a12c";ctx.font="35px serif";ctx.fillText("✣",-18,12);ctx.strokeStyle="#54a8c2";ctx.setLineDash([8,8]);ctx.beginPath();ctx.moveTo(35,-20);ctx.lineTo(FAN_VISIBLE_RANGE,-65);ctx.moveTo(35,20);ctx.lineTo(FAN_VISIBLE_RANGE,65);ctx.stroke();ctx.setLineDash([])}
         if(b.label==="cat"){ctx.font="54px serif";ctx.fillText("🐈",-34,20)} ctx.restore();
       }
       ctx.fillStyle="#4b2b17";ctx.font="bold 15px system-ui";
@@ -153,7 +155,7 @@ export default function Home() {
     <section className="mission"><span>ZIEL</span><b>{LEVELS[level][1]}</b><em>Hinweis: {LEVELS[level][2]}</em></section>
     <div className="workspace">
       <section className="board-wrap"><div className="board" onClick={boardClick}><GameCanvas level={level} placed={placed} running={running} attempt={attempt} onWin={win}/>{!running&&placed.length===0&&<div className="board-tip">{level===0?"Verbinde zuerst Mausrad und Laufband – und bring dann das Rad in Schwung.":level===1?"Platziere Holzplanken zwischen Ballon und Kerze. Die letzte Planke kannst du unten drehen.":"Platziere den Ventilator, drehe ihn zum Zielring und korrigiere den Weg bei Bedarf mit Planken."}</div>}{won&&<div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{level===0?"Die Katze wurde vom angetriebenen Laufband zum Ausgang gebracht.":level===1?"Der Ballon hat die Kerzenflamme erreicht – Plopp!":"Der Luftstrom hat den Ballon sauber durch den Zielring getragen."}</p>{level<2?<button onClick={()=>changeLevel(level+1)}>Nächstes Level →</button>:<button onClick={()=>{setWon(false);reset()}}>Noch einmal bauen ↻</button>}</div>}</div><div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div></section>
-      <aside><h2>BAUTEILE</h2>{inventory.map(p=>{const remaining=p.count-placed.filter(x=>x.type===p.type).length;return <button key={p.type} className={selected===p.type?"selected":""} onClick={()=>setSelected(p.type)} disabled={running||remaining===0}><span className={`part ${p.type}`}>{p.icon}</span><label>{p.name}</label><b>{remaining}</b></button>})}<div className="tip"><b>💡 TIPP</b><p>{level===0?"Ohne sichtbaren Riemen überträgt das Mausrad keine Kraft.":level===1?"Ein aufsteigender Ballon gleitet an der Unterseite einer schrägen Planke entlang.":"Der Luftkegel wird schwächer, je weiter der Ballon vom Ventilator entfernt ist."}</p></div></aside>
+      <aside><h2>BAUTEILE</h2>{inventory.map(p=>{const remaining=p.count-placed.filter(x=>x.type===p.type).length;return <button key={p.type} className={selected===p.type?"selected":""} onClick={()=>setSelected(p.type)} disabled={running||remaining===0}><span className={`part ${p.type}`}>{p.icon}</span><label>{p.name}</label><b>{remaining}</b></button>})}<div className="tip"><b>💡 TIPP</b><p>{level===0?"Ohne sichtbaren Riemen überträgt das Mausrad keine Kraft.":level===1?"Ein aufsteigender Ballon gleitet an der Unterseite einer schrägen Planke entlang.":"Der Luftstrom reicht höchstens doppelt so weit wie der sichtbare Kegel und wird dabei stetig schwächer."}</p></div></aside>
     </div>
     <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}>↻ <span>ZURÜCKSETZEN</span></button>{level>0&&<button className="reset" onClick={rotateLast} disabled={running||!placed.some(p=>p.type==="ramp"||p.type==="fan")}>⟳ <span>LETZTES TEIL</span></button>}<button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={running||placed.length===0}>{running?"MASCHINE LÄUFT …":"MASCHINE STARTEN"}<i>▶</i></button><button className="levels" onClick={()=>setShowPhysics(true)}>⚛ <span>PHYSIK</span></button><button className="levels" onClick={()=>changeLevel((level+1)%3)}>☷ <span>LEVEL {level+1}/3</span></button></footer>
     {showScores&&<div className="modal" onClick={()=>setShowScores(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowScores(false)}>×</button><p className="eyebrow">WERKSTATTHALLE</p><h2>Bestenliste</h2>{highScores.length?highScores.map((s,i)=><div className="rank" key={i}><b>{i+1}</b><span>{s.name}</span><strong>{s.score.toLocaleString("de-DE")}</strong></div>):<p className="empty">Noch ist die Tafel jungfräulich. Bring zuerst eine Maschine zum Laufen!</p>}</section></div>}
