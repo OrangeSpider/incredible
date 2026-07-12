@@ -20,3 +20,27 @@ test("level 2 has a solvable five-plank route to the candle", () => {
   }
   assert.equal(hit,true,"the reference plank arrangement must pop the balloon");
 });
+
+test("level 3 fan can steer the balloon through the target ring", () => {
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
+  const balloon=Matter.Bodies.circle(210,420,24,{density:.00012,frictionAir:.025,label:"balloon"});
+  const ring=Matter.Bodies.circle(780,150,45,{isStatic:true,isSensor:true,label:"ring"});
+  Matter.Composite.add(engine.world,[balloon,ring]);
+  const fan={x:130,y:440,angle:-Math.PI/12};
+  let hit=false;
+  Matter.Events.on(engine,"collisionStart",event=>event.pairs.forEach(pair=>{
+    const labels=[pair.bodyA.label,pair.bodyB.label];
+    if(labels.includes("balloon")&&labels.includes("ring"))hit=true;
+  }));
+  for(let tick=0;tick<900&&!hit;tick++){
+    Matter.Body.applyForce(balloon,balloon.position,{x:0,y:-.00023});
+    const dx=balloon.position.x-fan.x,dy=balloon.position.y-fan.y,c=Math.cos(fan.angle),s=Math.sin(fan.angle);
+    const forward=dx*c+dy*s,side=-dx*s+dy*c;
+    if(forward>0&&forward<750&&Math.abs(side)<100+forward*.3){
+      const force=.00009*(1-forward/1000);
+      Matter.Body.applyForce(balloon,balloon.position,{x:c*force,y:s*force});
+    }
+    Matter.Engine.update(engine,16.666);
+  }
+  assert.equal(hit,true,"a correctly aimed fan must carry the balloon through the ring");
+});
