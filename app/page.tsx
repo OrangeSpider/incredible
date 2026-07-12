@@ -17,7 +17,7 @@ const LEVELS = [
   ["Rückenwind", "Treibe den Ballon durch den Zielring", "Richte den Ventilator aus und nutze den Auftrieb"],
   ["Sprungkraft", "Befördere die Bowlingkugel in den Korb", "Das Trampolin lenkt Fallbewegung nach oben um"],
   ["Flaschenzug", "Hebe das Gewicht bis zur roten Markierung", "Kugel, Seil und Rolle übertragen die Kraft"],
-  ["Bananenblick", "Ziehe die Jalousie und bring die Affe zur Banane", "Die Affe fährt erst, wenn sie die Banane sehen kann"],
+  ["Bananenmotor", "Öffne die Jalousie und befördere die Kiste zum Ausgang", "Die sichtbare Banane startet das stationäre Affenfahrrad"],
   ["Nasse Füße", "Lass das Boot am Ausgang anlegen", "Wasser trägt, wenn es tief genug ist"],
   ["Gegen den Strom", "Bring den Korken nach oben", "Verdrängung ist dein Freund"],
   ["Heißer Draht", "Lass die Rakete starten", "Die Lunte braucht Feuer"],
@@ -44,7 +44,7 @@ const BUILD_TIPS=[
   "Platziere den Ventilator, drehe ihn zum Zielring und korrigiere den Weg mit Planken.",
   "Setze das Trampolin unter den Fallweg der Kugel und richte den Sprung zum Korb aus.",
   "Platziere Kugel und Rolle und füge das Seil hinzu. Die Kugel muss möglichst weit fallen können.",
-  "Leite die Kugel mit einer Planke nach unten. Das Zugseil öffnet dabei die Sicht auf die Banane.",
+  "Leite die Kugel nach unten, setze das Zugseil ein und verbinde das Affenrad per Riemen mit dem Laufband.",
 ] as const;
 const WIN_TEXT=[
   "Die Katze wurde vom angetriebenen Laufband zum Ausgang gebracht.",
@@ -52,7 +52,7 @@ const WIN_TEXT=[
   "Der Luftstrom hat den Ballon sauber durch den Zielring getragen.",
   "Das Trampolin hat die Bowlingkugel in den Korb umgelenkt.",
   "Der Seilzug hat das Gewicht bis zur Markierung gehoben.",
-  "Die Affe hat die Banane gesehen und ist zu ihr gefahren.",
+  "Die Affe blieb am Platz, ihr Fahrrad trieb aber das Laufband bis zum Ziel an.",
 ] as const;
 const LEVEL_HINTS=[
   "Ohne sichtbaren Riemen überträgt das Mausrad keine Kraft.",
@@ -60,7 +60,7 @@ const LEVEL_HINTS=[
   "Der Luftstrom reicht höchstens doppelt so weit wie der sichtbare Kegel.",
   "Die Neigung des Trampolins bestimmt die seitliche Komponente des Sprungs.",
   "Ein Seil überträgt Zug, aber keinen Druck. Die Fallstrecke der Kugel wird zur Hubstrecke.",
-  "Erst die sichtbare Banane aktiviert die Affe – vorher bleibt das Fahrrad stehen.",
+  "Jalousie öffnen startet das Treten. Ohne Riemen erreicht die Drehkraft das Laufband trotzdem nicht.",
 ] as const;
 
 const partsForLevel = (level:number): { type: Part; icon: string; name: string; count: number }[] => {
@@ -86,9 +86,15 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
   return [
     {type:"ball",icon:"●",name:"Bowlingkugel",count:1},
     {type:"rope",icon:"∿",name:"Zugseil",count:1},
+    {type:"belt",icon:"⛓",name:"Antriebsriemen",count:1},
     {type:"ramp",icon:"╱",name:"Holzplanke",count:2},
   ];
 };
+
+function drawRope(ctx:CanvasRenderingContext2D,from:{x:number;y:number},pulley:{x:number;y:number},to:{x:number;y:number},now:number,moving:boolean){
+  const radius=30,wobble=moving?Math.sin(now*.012)*5:0,left={x:pulley.x-radius,y:pulley.y},right={x:pulley.x+radius,y:pulley.y};
+  ctx.save();ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.quadraticCurveTo((from.x+left.x)/2,(from.y+left.y)/2+12+wobble,left.x,left.y);ctx.arc(pulley.x,pulley.y,radius,Math.PI,Math.PI*2);ctx.quadraticCurveTo((right.x+to.x)/2,(right.y+to.y)/2+12-wobble,to.x,to.y);ctx.stroke();ctx.strokeStyle="#b99362";ctx.lineWidth=1.5;ctx.setLineDash([5,6]);ctx.stroke();ctx.restore();
+}
 
 function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { level:number; placed: Placed[]; selectedId:number|null; running: boolean; attempt: number; onWin: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -131,10 +137,10 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       else if(p.type==="pulley")b=Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,isSensor:true,label:"pulley"});
       if(b){b.plugin={...b.plugin,placedId:p.id};Matter.Composite.add(engine.world,b)}
     });
-    const beltConnected=level===0&&placed.some(p=>p.type==="belt");
+    const beltConnected=placed.some(p=>p.type==="belt");
     const ropeInstalled=placed.some(p=>p.type==="rope"),placedBall=Matter.Composite.allBodies(engine.world).find(body=>body.label==="ball")??null;
     const pulleyBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="pulley")??null,initialBallY=placedBall?.position.y??0;
-    let motor=false,motorStartedAt=0,balloonPopped=false,blindOpen=false,monkeyStartedAt=0,monkeyX=130,won=false,raf=0,last=performance.now();
+    let motor=false,motorStartedAt=0,balloonPopped=false,blindOpen=false,monkeyStartedAt=0,crateX=515,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       if (labels.includes("wheel") && labels.includes("ball") && beltConnected && !motor) { motor = true; motorStartedAt = performance.now(); }
@@ -167,7 +173,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       }
       if(running&&level===5&&ropeInstalled&&placedBall){
         if(!blindOpen&&placedBall.position.y>400){blindOpen=true;monkeyStartedAt=now}
-        if(blindOpen){monkeyX=Math.min(780,130+(now-monkeyStartedAt)*.07);if(monkeyX>=750&&!won){won=true;onWin()}}
+        if(blindOpen&&beltConnected){crateX=Math.min(815,515+(now-monkeyStartedAt)*.055);if(crateX>=790&&!won){won=true;onWin()}}
       }
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
@@ -184,12 +190,17 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         ctx.strokeStyle="#7a421e";ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(715,145);ctx.lineTo(720,210);ctx.quadraticCurveTo(760,235,805,210);ctx.lineTo(808,145);ctx.stroke();ctx.fillStyle="#a52d24";ctx.font="bold 14px system-ui";ctx.fillText("KORB",742,250);
       }else if(level===4){
         ctx.strokeStyle="#bd3428";ctx.lineWidth=4;ctx.setLineDash([10,7]);ctx.beginPath();ctx.moveTo(700,230);ctx.lineTo(825,230);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIELHÖHE",704,215);
-        if(ropeInstalled&&pulleyBody&&placedBall&&weight){ctx.strokeStyle="#6b4930";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(placedBall.position.x,placedBall.position.y);ctx.lineTo(pulleyBody.position.x,pulleyBody.position.y);ctx.lineTo(weight.position.x,weight.position.y);ctx.stroke()}
+        if(ropeInstalled&&pulleyBody&&placedBall&&weight)drawRope(ctx,placedBall.position,pulleyBody.position,weight.position,now,running);
       }else if(level===5){
-        ctx.fillStyle="#f0c52f";ctx.font="48px serif";ctx.fillText("🍌",760,405);
-        ctx.fillStyle="#5d371e";ctx.fillRect(520,70,12,340);ctx.fillStyle="#d8b16a";const blindHeight=blindOpen?35:260;ctx.fillRect(532,85,150,blindHeight);ctx.strokeStyle="#9a713d";for(let y=100;y<85+blindHeight;y+=16){ctx.beginPath();ctx.moveTo(532,y);ctx.lineTo(682,y);ctx.stroke()}
-        ctx.font="50px serif";ctx.fillText("🐒",monkeyX-25,385);ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(monkeyX-18,410,17,0,7);ctx.arc(monkeyX+25,410,17,0,7);ctx.stroke();ctx.beginPath();ctx.moveTo(monkeyX-18,410);ctx.lineTo(monkeyX+2,380);ctx.lineTo(monkeyX+25,410);ctx.moveTo(monkeyX+2,380);ctx.lineTo(monkeyX+32,380);ctx.stroke();
-        if(ropeInstalled&&placedBall){ctx.strokeStyle="#6b4930";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(placedBall.position.x,placedBall.position.y);ctx.lineTo(500,90);ctx.lineTo(500,390);ctx.stroke()}
+        const pulley={x:505,y:135},blindHeight=blindOpen?22:112,pedalTurn=blindOpen?(now-monkeyStartedAt)/90:0;
+        ctx.fillStyle="#dfc187";ctx.fillRect(535,85,285,285);ctx.strokeStyle="#76502e";ctx.lineWidth=6;ctx.strokeRect(535,85,285,285);
+        if(ropeInstalled&&placedBall)drawRope(ctx,placedBall.position,pulley,{x:555,y:310},now,running);
+        ctx.fillStyle="#f0c52f";ctx.font="35px serif";ctx.fillText("🍌",574,220);
+        ctx.fillStyle="#d8b16a";ctx.fillRect(555,105,90,blindHeight);ctx.strokeStyle="#9a713d";ctx.lineWidth=2;for(let y=118;y<105+blindHeight;y+=13){ctx.beginPath();ctx.moveTo(555,y);ctx.lineTo(645,y);ctx.stroke()}
+        ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(pulley.x,pulley.y,31,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#d39a28";ctx.lineWidth=8;ctx.beginPath();ctx.arc(pulley.x,pulley.y,21,0,Math.PI*2);ctx.stroke();
+        ctx.font="42px serif";ctx.fillText("🐒",690,246);ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.save();ctx.translate(715,293);ctx.rotate(pedalTurn);ctx.beginPath();ctx.arc(0,0,34,0,Math.PI*2);ctx.stroke();for(let a=0;a<Math.PI*2;a+=Math.PI/3){ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*30,Math.sin(a)*30);ctx.stroke()}ctx.restore();ctx.beginPath();ctx.moveTo(715,327);ctx.lineTo(680,355);ctx.lineTo(752,355);ctx.closePath();ctx.stroke();
+        ctx.fillStyle="#93511f";ctx.fillRect(485,410,340,28);ctx.fillStyle="#d84a32";for(let x=500;x<815;x+=34)ctx.fillText("›",x,435);ctx.fillStyle="#8f3928";ctx.fillRect(crateX-25,375,50,35);ctx.fillStyle="#f4d28f";ctx.font="bold 12px system-ui";ctx.fillText("KISTE",crateX-21,397);ctx.fillStyle="#173f50";ctx.fillRect(825,350,55,100);ctx.fillStyle="#f1d28d";ctx.fillText("ZIEL",837,380);
+        if(beltConnected){ctx.strokeStyle="#4f3828";ctx.lineWidth=7;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(740,305);ctx.lineTo(610,410);ctx.stroke();ctx.setLineDash([])}
       }
       for(const b of Matter.Composite.allBodies(engine.world)){
         const {x,y}=b.position;ctx.save();ctx.translate(x,y);ctx.rotate(b.angle);
@@ -210,7 +221,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       if(level===2)ctx.fillText("Richte den Ventilator aus und triff den Zielring",275,32);
       if(level===3)ctx.fillText("Lenke den Fall mit dem Trampolin in den Korb",270,32);
       if(level===4)ctx.fillText(!ropeInstalled?"Seil, Rolle und Kugel bilden den Flaschenzug":"Die fallende Kugel hebt das Gegengewicht",270,32);
-      if(level===5)ctx.fillText(!blindOpen?"Ziehe am Seil, damit die Banane sichtbar wird":"Die Affe hat die Banane entdeckt!",270,32);
+      if(level===5)ctx.fillText(!blindOpen?"Ziehe am Seil, damit die Banane sichtbar wird":!beltConnected?"Die Affe tritt – aber der Antriebsriemen fehlt":"Das Affenrad treibt jetzt das Laufband an",270,32);
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
     return()=>{cancelAnimationFrame(raf);Matter.Engine.clear(engine)};

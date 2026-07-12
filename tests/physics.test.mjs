@@ -63,9 +63,12 @@ test("level 5 converts the ball fall distance into weight lift",()=>{
   assert.ok(weightY<=230,"the available fall distance must lift the weight to its target height");
 });
 
-test("level 6 monkey starts only after rope movement reveals the banana",()=>{
-  const starts=(ropeInstalled,ballY)=>ropeInstalled&&ballY>400;
-  assert.equal(starts(false,456),false);
-  assert.equal(starts(true,300),false);
-  assert.equal(starts(true,456),true);
+test("level 6 stationary monkey powers the conveyor only after both triggers",()=>{
+  const state=(ropeInstalled,ballY,beltConnected)=>{const blindOpen=ropeInstalled&&ballY>400;return{blindOpen,wheelRotating:blindOpen,conveyorMoving:blindOpen&&beltConnected,monkeyX:715}};
+  assert.equal(state(false,456,true).wheelRotating,false);
+  assert.equal(state(true,300,true).wheelRotating,false);
+  assert.equal(state(true,456,false).wheelRotating,true);
+  assert.equal(state(true,456,false).conveyorMoving,false);
+  assert.equal(state(true,456,true).conveyorMoving,true);
+  assert.equal(state(true,456,true).monkeyX,715,"the monkey gadget must remain stationary");
 });
