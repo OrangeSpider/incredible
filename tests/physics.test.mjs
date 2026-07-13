@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
+import {availableLiftKg,BOWLING_PULL_KG,canLift,LEVEL_FIVE_LOAD_KG,loadRiseFromPull,supportingStrands} from "../game/pulley.ts";
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
@@ -58,11 +59,21 @@ test("level 4 trampoline can redirect the falling ball into the basket",()=>{
   assert.equal(hit,true,"an angled trampoline must redirect the ball into the basket");
 });
 
-test("level 5 converts the ball fall distance into weight lift",()=>{
-  const initialBallY=60,finalBallY=456,fall=finalBallY-initialBallY,pulleyX=420,tension=Math.min(1,fall/260);
-  const weightY=Math.max(175,430-fall),weightX=760+(pulleyX-760)*tension;
-  assert.ok(weightY<=230,"the available fall distance must lift the weight to its target height");
-  assert.equal(weightX,pulleyX,"rope tension must also pull sideways toward an offset pulley");
+test("a fixed pulley only redirects force while moving pulleys create mechanical advantage",()=>{
+  assert.equal(supportingStrands(0),0,"a fixed pulley adds no supporting strand to a moving load");
+  assert.equal(supportingStrands(1),2);
+  assert.equal(supportingStrands(2),4);
+});
+
+test("block and tackle conserves rope length by trading force for distance",()=>{
+  assert.equal(loadRiseFromPull(400,2),200);
+  assert.equal(loadRiseFromPull(400,4),100,"a 4:1 tackle needs four metres of pull for one metre of lift");
+});
+
+test("level 5 needs two reeved moving pulleys to lift 50 kg",()=>{
+  assert.equal(canLift(BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,2),false);
+  assert.equal(canLift(BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,4),true);
+  assert.ok(availableLiftKg(BOWLING_PULL_KG,4)>=LEVEL_FIVE_LOAD_KG);
 });
 
 test("level 6 needle pops balloons but has no generic collision action",()=>{

@@ -7,8 +7,9 @@ import { INTERACTIONS } from "@/game/interactions";
 import { FORCE_SOURCES,GOAL_MODES } from "@/game/rules";
 import { createBucketAssembly,WATER_SHAPE_RULES } from "@/game/water";
 import { applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_WIDTH } from "@/game/seesaw";
+import { BOWLING_PULL_KG,canLift,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,supportingStrands } from "@/game/pulley";
 
-type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
+type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "movingPulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
 const FAN_VISIBLE_RANGE=210;
 const FAN_MAX_RANGE=FAN_VISIBLE_RANGE*2;
@@ -19,7 +20,7 @@ const LEVELS = [
   ["Plopp!", "Bring den Ballon zur Kerzenflamme", "Lenke seinen Auftrieb mit Holzplanken"],
   ["Rückenwind", "Treibe den Ballon durch den Zielring", "Richte den Ventilator aus und nutze den Auftrieb"],
   ["Sprungkraft", "Befördere die Bowlingkugel in den Korb", "Das Trampolin lenkt Fallbewegung nach oben um"],
-  ["Flaschenzug", "Hebe das Gewicht bis zur roten Markierung", "Kugel, Seil und Rolle übertragen die Kraft"],
+  ["Flaschenzug", "Hebe das 50-kg-Gewicht bis zur roten Markierung", "Verschalte Festrollen und lose Rollen zu vier tragenden Seilabschnitten"],
   ["Nadelprobe", "Lass den Luftballon an der Nadel platzen", "Nur der Ballon reagiert auf die Spitze"],
   ["Mäuseflucht", "Lass die Maus ihr Loch erreichen", "Die Maus flieht nur, wenn die Katze auf gleicher Höhe ist"],
   ["Zahn um Zahn", "Übertrage die Drehung bis zum Zielrad", "Benachbarte Zahnräder greifen nur bei passendem Abstand"],
@@ -47,7 +48,7 @@ const BUILD_TIPS=[
   "Platziere Holzplanken zwischen Ballon und Kerze. Planken lassen sich ziehen und drehen.",
   "Platziere den Ventilator, drehe ihn zum Zielring und korrigiere den Weg mit Planken.",
   "Setze das Trampolin unter den Fallweg der Kugel und richte den Sprung zum Korb aus.",
-  "Platziere Kugel und Rolle und füge das Seil hinzu. Die Kugel muss möglichst weit fallen können.",
+  "Baue zwei Rollenpaare: Festrollen oben, lose Rollen darunter. Füge das Seil hinzu und lass die Kugel am freien Ende fallen.",
   "Setze die Nadel in den Weg des Ballons und lenke ihn mit dem Ventilator hinein.",
   "Platziere die Maus auf Höhe der Katze. Nur dann erkennt sie die Gefahr und flieht.",
   "Baue mit drei Zahnrädern eine lückenlose Verbindung zwischen Antrieb und Zielrad.",
@@ -60,7 +61,7 @@ const WIN_TEXT=[
   "Der Ballon hat die Kerzenflamme erreicht – Plopp!",
   "Der Luftstrom hat den Ballon sauber durch den Zielring getragen.",
   "Das Trampolin hat die Bowlingkugel in den Korb umgelenkt.",
-  "Der Seilzug hat das Gewicht bis zur Markierung gehoben.",
+  "Vier tragende Seilabschnitte haben die Kraft vervierfacht und das Gewicht gehoben.",
   "Die Nadel hat ausschließlich den Ballon zum Platzen gebracht.",
   "Die Maus war auf gleicher Höhe und erreichte flüchtend ihr Loch.",
   "Alle Zahnräder griffen ineinander und drehten das Zielrad.",
@@ -73,7 +74,7 @@ const LEVEL_HINTS=[
   "Ein aufsteigender Ballon gleitet an der Unterseite einer schrägen Planke entlang.",
   "Der Luftstrom reicht höchstens doppelt so weit wie der sichtbare Kegel.",
   "Die Neigung des Trampolins bestimmt die seitliche Komponente des Sprungs.",
-  "Ein Seil überträgt Zug, aber keinen Druck. Die Fallstrecke der Kugel wird zur Hubstrecke.",
+  "Eine Festrolle lenkt nur um. Jede lose Rolle ergänzt zwei tragende Seilabschnitte: weniger Zugkraft, aber entsprechend mehr Zugweg.",
   "Die Nadel übt auf andere Körper keine besondere Wirkung aus.",
   "Die Höhendifferenz zwischen Katze und Maus muss klein genug sein.",
   "Berührende Zahnräder drehen sich immer in entgegengesetzte Richtungen.",
@@ -99,7 +100,8 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
   ];
   if(level===4)return [
     {type:"ball",icon:"●",name:"Bowlingkugel",count:1},
-    {type:"pulley",icon:"◉",name:"Seilrolle",count:1},
+    {type:"pulley",icon:"◉",name:"Festrolle",count:2},
+    {type:"movingPulley",icon:"◎",name:"Lose Rolle",count:2},
     {type:"rope",icon:"∿",name:"Seil",count:1},
   ];
   if(level===5)return [{type:"needle",icon:"▲",name:"Nadel",count:1},{type:"fan",icon:"✣",name:"Ventilator",count:1}];
@@ -110,9 +112,17 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
   return [{type:"seesaw",icon:"⚖",name:"Wippe",count:1},{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
 };
 
-function drawRope(ctx:CanvasRenderingContext2D,from:{x:number;y:number},pulley:{x:number;y:number},to:{x:number;y:number},now:number,moving:boolean){
-  const radius=30,wobble=moving?Math.sin(now*.012)*5:0,left={x:pulley.x-radius,y:pulley.y},right={x:pulley.x+radius,y:pulley.y};
-  ctx.save();ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.quadraticCurveTo((from.x+left.x)/2,(from.y+left.y)/2+12+wobble,left.x,left.y);ctx.arc(pulley.x,pulley.y,radius,Math.PI,Math.PI*2);ctx.quadraticCurveTo((right.x+to.x)/2,(right.y+to.y)/2+12-wobble,to.x,to.y);ctx.stroke();ctx.strokeStyle="#b99362";ctx.lineWidth=1.5;ctx.setLineDash([5,6]);ctx.stroke();ctx.restore();
+function drawBlockAndTackle(ctx:CanvasRenderingContext2D,fixed:Matter.Body[],moving:Matter.Body[],freeEnd:{x:number;y:number},now:number,running:boolean){
+  const pairs=Math.min(fixed.length,moving.length);if(!pairs)return;
+  const anchor={x:moving[0].position.x-52,y:Math.max(38,fixed[0].position.y-36)},wobble=running?Math.sin(now*.012)*2:0;
+  ctx.save();ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();ctx.moveTo(anchor.x,anchor.y);
+  for(let i=0;i<pairs;i++){
+    const lower=moving[i].position,upper=fixed[i].position;
+    ctx.lineTo(lower.x-30,lower.y+wobble);ctx.arc(lower.x,lower.y,30,Math.PI,0,true);
+    ctx.lineTo(upper.x+30,upper.y-wobble);ctx.arc(upper.x,upper.y,30,0,Math.PI,true);
+  }
+  ctx.lineTo(freeEnd.x,freeEnd.y);ctx.stroke();ctx.strokeStyle="#b99362";ctx.lineWidth=1.5;ctx.setLineDash([5,6]);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(anchor.x,anchor.y,7,0,Math.PI*2);ctx.fill();ctx.restore();
 }
 
 const clamp01=(value:number)=>Math.max(0,Math.min(1,value));
@@ -189,6 +199,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       else if (p.type === "fan") b = Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,angle:p.rotation,label:"fan"});
       else if(p.type==="trampoline")b=Matter.Bodies.rectangle(p.x,p.y,135,18,{isStatic:true,angle:p.rotation,label:"trampoline"});
       else if(p.type==="pulley")b=Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,label:"pulley"});
+      else if(p.type==="movingPulley")b=Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,label:"movingPulley"});
       else if(p.type==="needle")b=Matter.Bodies.rectangle(p.x,p.y,16,70,{isStatic:true,angle:p.rotation,label:"needle"});
       else if(p.type==="mouse")b=Matter.Bodies.circle(p.x,p.y,22,{isStatic:true,label:"mouse"});
       else if(p.type==="gear")b=Matter.Bodies.circle(p.x,p.y,42,{isStatic:true,label:"gear"});
@@ -204,7 +215,9 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
     });
     const beltConnected=placed.some(p=>p.type==="belt");
     const ropeInstalled=placed.some(p=>p.type==="rope"),placedBall=Matter.Composite.allBodies(engine.world).find(body=>body.label==="ball")??null;
-    const pulleyBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="pulley")??null,initialBallY=placedBall?.position.y??0;
+    const fixedPulleys=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="pulley").sort((a,b)=>a.position.x-b.position.x),movingPulleys=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="movingPulley").sort((a,b)=>a.position.x-b.position.x),initialBallY=placedBall?.position.y??0;
+    const pulleyPairs=Math.min(fixedPulleys.length,movingPulleys.length),reevedPairs=Math.min(pulleyPairs,fixedPulleys.filter((body,index)=>movingPulleys[index]&&body.position.y+65<movingPulleys[index].position.y).length),strands=supportingStrands(reevedPairs),liftPossible=canLift(BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,strands),initialMovingPositions=movingPulleys.map(body=>({...body.position}));
+    if(level===4&&weight&&movingPulleys.length){const lowerCenterX=movingPulleys.reduce((sum,body)=>sum+body.position.x,0)/movingPulleys.length;Matter.Body.setPosition(weight,{x:lowerCenterX,y:430})}
     const mouseBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="mouse")??null;
     const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
     const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");const fuseReachable=new Set<number>(),fuseQueue=fuseBodies.filter(body=>Math.hypot(body.position.x-100,body.position.y-420)<120);fuseQueue.forEach(body=>fuseReachable.add(body.id));while(fuseQueue.length){const current=fuseQueue.shift()!;for(const candidate of fuseBodies){if(!fuseReachable.has(candidate.id)&&Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y)<120){fuseReachable.add(candidate.id);fuseQueue.push(candidate)}}}const fuseIgnited=fuseReachable.size>0,fuseReady=!!cannonBody&&fuseBodies.some(body=>fuseReachable.has(body.id)&&Math.hypot(body.position.x-cannonBody.position.x,body.position.y-cannonBody.position.y)<125);
@@ -246,9 +259,10 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
           if(forward>0&&forward<FAN_MAX_RANGE&&Math.abs(side)<100+forward*.3){const force=.00035*(1-forward/FAN_MAX_RANGE);Matter.Body.applyForce(balloon!,balloon!.position,{x:c*force,y:s*force})}
         });
       }
-      if(running&&level===4&&ropeInstalled&&pulleyBody&&placedBall&&weight){
-        const fall=Math.max(0,placedBall.position.y-initialBallY),tension=Math.min(1,fall/260);Matter.Body.setPosition(weight,{x:760+(pulleyBody.position.x-760)*tension,y:Math.max(175,430-fall)});
-        if(weight.position.y<=230&&!won){won=true;onWin()}
+      if(running&&level===4&&ropeInstalled&&reevedPairs>0&&placedBall&&weight){
+        const pull=Math.max(0,placedBall.position.y-initialBallY),rise=liftPossible?loadRiseFromPull(pull,strands):0,newY=Math.max(LEVEL_FIVE_TARGET_Y-4,430-rise);
+        Matter.Body.setPosition(weight,{x:weight.position.x,y:newY});movingPulleys.forEach((body,index)=>Matter.Body.setPosition(body,{x:initialMovingPositions[index].x,y:initialMovingPositions[index].y-rise}));
+        if(weight.position.y<=LEVEL_FIVE_TARGET_Y&&!won){won=true;onWin()}
       }
       if(running&&level===6&&mouseBody&&cat){if(!mouseFleeAt&&Math.abs(mouseBody.position.y-cat.position.y)<35&&mouseBody.position.x>cat.position.x)mouseFleeAt=now;if(mouseFleeAt){Matter.Body.setPosition(mouseBody,{x:Math.min(835,mouseBody.position.x+dt*.09),y:mouseBody.position.y});Matter.Body.setPosition(cat,{x:Math.min(760,cat.position.x+dt*.055),y:cat.position.y});if(mouseBody.position.x>=810&&!won){won=true;onWin()}}}
       if(running&&waterBodies.length){for(const animal of [cat,mouseBody]){if(!animal)continue;let nearest:Matter.Body|null=null,distance=Infinity;for(const drop of waterBodies){const d=Math.hypot(animal.position.x-drop.position.x,animal.position.y-drop.position.y);if(d<distance){nearest=drop;distance=d}}if(nearest&&distance<62){const direction=animal.position.x<nearest.position.x?-1:1;Matter.Body.setPosition(animal,{x:Math.max(30,Math.min(870,animal.position.x+direction*dt*.13)),y:animal.position.y})}}}
@@ -272,8 +286,10 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       }else if(level===3){
         ctx.strokeStyle="#7a421e";ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(715,145);ctx.lineTo(720,210);ctx.quadraticCurveTo(760,235,805,210);ctx.lineTo(808,145);ctx.stroke();ctx.fillStyle="#a52d24";ctx.font="bold 14px system-ui";ctx.fillText("KORB",742,250);
       }else if(level===4){
-        ctx.strokeStyle="#bd3428";ctx.lineWidth=4;ctx.setLineDash([10,7]);ctx.beginPath();ctx.moveTo(700,230);ctx.lineTo(825,230);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIELHÖHE",704,215);
-        if(ropeInstalled&&pulleyBody&&placedBall&&weight)drawRope(ctx,placedBall.position,pulleyBody.position,weight.position,now,running);
+        ctx.strokeStyle="#bd3428";ctx.lineWidth=4;ctx.setLineDash([10,7]);ctx.beginPath();ctx.moveTo(650,LEVEL_FIVE_TARGET_Y);ctx.lineTo(850,LEVEL_FIVE_TARGET_Y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIELHÖHE",654,LEVEL_FIVE_TARGET_Y-15);
+        if(ropeInstalled&&placedBall)drawBlockAndTackle(ctx,fixedPulleys.slice(0,reevedPairs),movingPulleys.slice(0,reevedPairs),placedBall.position,now,running);
+        if(movingPulleys.length&&weight){const left=Math.min(...movingPulleys.map(body=>body.position.x)),right=Math.max(...movingPulleys.map(body=>body.position.x));ctx.strokeStyle="#4c5960";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(left,movingPulleys[0].position.y+31);ctx.lineTo(right,movingPulleys.at(-1)!.position.y+31);ctx.moveTo((left+right)/2,movingPulleys[0].position.y+31);ctx.lineTo(weight.position.x,weight.position.y-32);ctx.stroke()}
+        if(strands>0){ctx.fillStyle="#173f50";ctx.font="bold 13px system-ui";ctx.fillText(`${strands} tragende Seilabschnitte · ${strands}:1`,36,55)}
       }else if(level===5){
         ctx.fillStyle="#6b391e";ctx.font="bold 14px system-ui";ctx.fillText("Die Nadel reagiert ausschließlich auf den Ballon.",285,32);
       }else if(level===6){
@@ -298,6 +314,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         if(b.label==="trampoline"){ctx.fillStyle="#c33a2c";ctx.fillRect(-68,-9,136,18);ctx.strokeStyle="#173f50";ctx.lineWidth=4;ctx.strokeRect(-68,-9,136,18);ctx.strokeStyle="#f4c64e";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-14);ctx.lineTo(0,-55);ctx.lineTo(-8,-43);ctx.moveTo(0,-55);ctx.lineTo(8,-43);ctx.stroke()}
         if(b.label==="seesaw"){const half=SEESAW_WIDTH/2;ctx.fillStyle="#ad6a2d";ctx.fillRect(-half,-9,SEESAW_WIDTH,18);ctx.fillStyle="#e3aa54";ctx.fillRect(-half,-9,SEESAW_WIDTH,5);ctx.strokeStyle="#51301a";ctx.lineWidth=3;ctx.strokeRect(-half,-9,SEESAW_WIDTH,18);ctx.fillStyle="#173f50";for(const side of [-1,1]){ctx.beginPath();ctx.arc(side*(half-10),0,6,0,Math.PI*2);ctx.fill()}ctx.save();ctx.rotate(-b.angle);ctx.fillStyle="#a43a27";ctx.beginPath();ctx.moveTo(-27,46);ctx.lineTo(27,46);ctx.lineTo(0,8);ctx.closePath();ctx.fill();ctx.strokeStyle="#65251b";ctx.stroke();ctx.restore()}
         if(b.label==="pulley"){ctx.fillStyle="#d39a28";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.stroke()}
+        if(b.label==="movingPulley"){ctx.fillStyle="#4f9da8";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.stroke();ctx.fillStyle="#f4e5c0";ctx.font="bold 10px system-ui";ctx.fillText("LOSE",-15,4)}
         if(b.label==="weight"){ctx.fillStyle="#555d60";ctx.fillRect(-32,-32,64,64);ctx.fillStyle="#f0d59a";ctx.font="bold 14px system-ui";ctx.fillText("50 kg",-21,5)}
         if(b.label==="steelBeam"){ctx.fillStyle="#6e858d";ctx.fillRect(-118,-9,236,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-118,-9,236,4);ctx.fillStyle="#3e5963";for(let rivet=-100;rivet<=100;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="woodWall"){ctx.fillStyle="#9b5e2a";ctx.fillRect(-12,-90,24,180);ctx.strokeStyle="#5a321a";for(let plank=-80;plank<90;plank+=28){ctx.strokeRect(-12,plank,24,28);ctx.beginPath();ctx.moveTo(-8,plank+7);ctx.lineTo(8,plank+20);ctx.stroke()}}
@@ -319,7 +336,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       if(level===1&&!balloonPopped)ctx.fillText("Lenke den Ballon mit den Planken zur Flamme",275,32);
       if(level===2)ctx.fillText("Richte den Ventilator aus und triff den Zielring",275,32);
       if(level===3)ctx.fillText("Lenke den Fall mit dem Trampolin in den Korb",270,32);
-      if(level===4)ctx.fillText(!ropeInstalled?"Seil, Rolle und Kugel bilden den Flaschenzug":"Die fallende Kugel hebt das Gegengewicht",270,32);
+      if(level===4)ctx.fillText(!ropeInstalled?"Füge das durchgehende Seil hinzu":reevedPairs<2?"Ein Rollenpaar reicht für 50 kg noch nicht":liftPossible?"4:1 – vier Meter Zugweg ergeben einen Meter Hub":"Die Zugkraft reicht nicht",270,32);
       if(level===5&&!balloonPopped)ctx.fillText("Lenke den Ballon in die platzierte Nadel",300,32);
       if(level===6)ctx.fillText(!mouseFleeAt?"Katze und Maus müssen auf gleicher Höhe sein":"Die Maus flieht – die Katze ist langsamer",275,32);
       if(level===7)ctx.fillText(gearsConnected?"Die Zahnradkette greift vollständig ineinander":"Zwischen den Zahnrädern sind noch Lücken",285,32);

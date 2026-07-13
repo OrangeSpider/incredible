@@ -11,3 +11,4 @@ footer button span{display:block;font-size:11px;letter-spacing:.03em;white-space
 .stop{min-width:260px;background:#784639!important;color:#fff0bd!important;border-color:#c5a283!important}
 @media(max-width:850px){footer{flex-wrap:wrap;height:auto}.reset,.levels{min-width:52px;padding:0 10px!important}.start{min-width:190px}.start span{font-size:14px}}
 .part.seesaw{color:#ad6a2d}
+.part.movingPulley{color:#4f9da8}
