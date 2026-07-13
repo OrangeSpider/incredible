@@ -2,6 +2,7 @@ export const LEVEL_FIVE_LOAD_KG=50;
 export const BOWLING_PULL_KG=16;
 export const LEVEL_FIVE_TARGET_Y=330;
 export const PULLEY_GRAVITY_PX=260;
+export const PULLEY_DAMPING_PER_SECOND=1.15;
 
 export type PulleyRouteKind="anchor"|"moving"|"fixed"|"pull";
 export type DynamicGroup="static"|"ball"|"block";
@@ -39,6 +40,11 @@ export function ropeConstraintCorrection(points:RopePoint[],restLength:number,ba
   const geometry=ropeGeometry(points),stretch=Math.max(0,geometry.length-restLength),ballNorm=geometry.ballGradient.x**2+geometry.ballGradient.y**2,blockNorm=geometry.blockGradient.x**2+geometry.blockGradient.y**2,denominator=ballNorm/ballMass+blockNorm/blockMass;
   if(stretch===0||denominator<1e-9)return{stretch:0,ball:{x:0,y:0},block:{x:0,y:0},...geometry};
   return{stretch,ball:{x:-stretch*geometry.ballGradient.x/(ballMass*denominator),y:-stretch*geometry.ballGradient.y/(ballMass*denominator)},block:{x:-stretch*geometry.blockGradient.x/(blockMass*denominator),y:-stretch*geometry.blockGradient.y/(blockMass*denominator)},...geometry};
+}
+
+/** Rope friction, axle friction and air drag represented as viscous damping. */
+export function dampPulleyVelocity(velocity:{x:number;y:number},seconds:number,damping=PULLEY_DAMPING_PER_SECOND){
+  const factor=Math.exp(-Math.max(0,damping)*Math.max(0,seconds)),x=velocity.x*factor,y=velocity.y*factor;return{x:Math.abs(x)<.18?0:x,y:Math.abs(y)<.18?0:y};
 }
 
 export const loadRiseFromPull=(pullDistance:number,strands:number)=>strands>0?Math.max(0,pullDistance)/strands:0;

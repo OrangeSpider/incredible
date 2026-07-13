@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
-import {analyzePulleyRoute,BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,loadRiseFromPull,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
+import {analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_LOAD_KG,loadRiseFromPull,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
@@ -82,6 +82,12 @@ test("the rope constraint derives corrections from the freely placed geometry",(
 test("a slack or shortening rope never pushes a gadget",()=>{
   const initial=[{x:0,y:0,group:"static"},{x:100,y:0,group:"ball"}],rest=ropeGeometry(initial).length,shorter=[initial[0],{...initial[1],x:80}],correction=ropeConstraintCorrection(shorter,rest,BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG);
   assert.equal(correction.stretch,0);assert.deepEqual(correction.ball,{x:0,y:0});assert.deepEqual(correction.block,{x:0,y:0});
+});
+
+test("pulley friction dissipates oscillation energy and settles tiny movement",()=>{
+  let velocity={x:40,y:-25};for(let frame=0;frame<300;frame++)velocity=dampPulleyVelocity(velocity,1/60);
+  assert.ok(Math.hypot(velocity.x,velocity.y)<.2,"five seconds of axle and rope friction should settle the swinging system");
+  assert.deepEqual(dampPulleyVelocity({x:.1,y:-.1},1/60),{x:0,y:0});
 });
 
 test("level 6 needle pops balloons but has no generic collision action",()=>{
