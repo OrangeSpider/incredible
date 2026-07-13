@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
+import {applySeesawImpact,createSeesaw,createSeesawRope,shortenSeesawRope,SEESAW_WIDTH} from "../game/seesaw.ts";
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
@@ -88,4 +89,35 @@ test("level 9 cannonball is smaller, lighter and can hit the target",()=>{
   Matter.Events.on(engine,"collisionStart",event=>event.pairs.forEach(pair=>{const labels=[pair.bodyA.label,pair.bodyB.label];if(labels.includes("target")&&labels.includes("shot"))hit=true}));
   for(let tick=0;tick<300&&!hit;tick++)Matter.Engine.update(engine,16.666);
   assert.equal(hit,true);assert.ok(shot.circleRadius<18);assert.ok(shot.density<.006);
+});
+
+test("seesaw is 1.5 plank widths and accelerates the opposite payload upward",()=>{
+  assert.equal(SEESAW_WIDTH,155*1.5);
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
+  const assembly=createSeesaw(535,430,0);
+  const impact=Matter.Bodies.circle(420,100,18,{density:.006,label:"impact"});
+  const payload=Matter.Bodies.circle(650,385,16,{density:.0018,label:"payload"});
+  const basket=Matter.Bodies.rectangle(680,150,110,100,{isStatic:true,isSensor:true,label:"basket"});
+  const floor=Matter.Bodies.rectangle(450,500,900,40,{isStatic:true});
+  Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,impact,payload,basket,floor]);
+  let hit=false;
+  Matter.Events.on(engine,"collisionStart",event=>event.pairs.forEach(({bodyA,bodyB})=>{
+    const labels=[bodyA.label,bodyB.label];
+    if(labels.includes("seesaw")&&labels.includes("impact"))applySeesawImpact(engine,assembly.plank,impact);
+    if(labels.includes("basket")&&labels.includes("payload"))hit=true;
+  }));
+  for(let tick=0;tick<900&&!hit;tick++)Matter.Engine.update(engine,16.666);
+  assert.equal(hit,true,"the opposite end must launch its payload into the reference basket");
+});
+
+test("seesaw ropes pull the same end upward or downward depending on anchor",()=>{
+  const simulate=(anchorY)=>{
+    const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}}),assembly=createSeesaw(450,350,0);
+    const rope=createSeesawRope(assembly.plank,{x:560,y:anchorY});
+    Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,rope.constraint]);
+    for(let tick=0;tick<180;tick++){shortenSeesawRope(rope,tick*16.666);Matter.Engine.update(engine,16.666)}
+    return assembly.plank.angle;
+  };
+  assert.ok(simulate(220)<-.5,"an upper right anchor must pull the right end upward");
+  assert.ok(simulate(470)>.5,"a lower right anchor must pull the right end downward");
 });

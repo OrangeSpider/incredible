@@ -13,6 +13,7 @@ export const LEVEL_GOALS:GoalSpec[]=[
   {mode:"all",conditions:[{signal:"target_gear.rotating",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"cannonball.hit.target",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"candle.extinguished_by_water",operator:"occurred"}]},
+  {mode:"all",conditions:[{signal:"seesaw_payload.entered.basket",operator:"occurred"}]},
 ];
 
 export const GOAL_MODES=[
@@ -30,6 +31,7 @@ export const FORCE_SOURCES=[
   {gadget:"Laufband",kind:"Kontaktkraft",direction:"Links oder rechts",rule:"Wirkt auf alle Körper mit Kontakt zur Bandoberfläche"},
   {gadget:"Ventilator",kind:"Strömungskraft",direction:"Entlang des Luftkegels",rule:"Nimmt mit Entfernung ab; endet spätestens bei doppelter Sichtweite"},
   {gadget:"Trampolin",kind:"Stoßimpuls",direction:"Von der Fläche weg, überwiegend nach oben",rule:"Lenkt eintreffende Bewegung um"},
+  {gadget:"Wippe",kind:"Hebelübertragung",direction:"Getroffene Seite abwärts, Gegenseite aufwärts",rule:"Erzeugt keine Energie; sie überträgt Impuls und Drehmoment um ihren festen Drehpunkt"},
   {gadget:"Seil",kind:"Kraftübertragung",direction:"Entlang jedes Seilabschnitts – vertikal, horizontal oder schräg",rule:"Überträgt ausschließlich Zug; Rollen ändern die Richtung der Kraft"},
   {gadget:"Kanone",kind:"Explosionsimpuls",direction:"Entlang des Kanonenrohrs",rule:"Wird nach vollständig abgebrannter Lunte einmalig freigesetzt"},
   {gadget:"Wassereimer",kind:"Gewicht und Schwall",direction:"Schwerkraft und Eimeröffnung",rule:"Kippt um sein Scharnier; Wasserteilchen verlassen die offene Seite"},

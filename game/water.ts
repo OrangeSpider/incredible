@@ -44,7 +44,7 @@ export function createBucketAssembly(x:number,y:number,angle:number):BucketAssem
 }
 
 export const WATER_SHAPE_RULES=[
-  {objects:"Hamsterrad, Ventilator, Trampolin, Kanone, Bowlingkugel, Laufband, Rampe",shape:"Feste Außenkontur",response:"Wasser kollidiert und fließt außen herum"},
+  {objects:"Hamsterrad, Ventilator, Trampolin, Wippe, Kanone, Bowlingkugel, Laufband, Rampe",shape:"Feste Außenkontur",response:"Wasser kollidiert und fließt außen herum"},
   {objects:"Luftballon",shape:"Beweglicher Kreis",response:"Wasser teilt sich an der Hülle; der Ballon bleibt beweglich"},
   {objects:"Seil",shape:"Keine Wasserkollision",response:"Wasser ignoriert das Seil"},
   {objects:"Katze, Maus",shape:"Bewegliche Fluchtzone",response:"Tier flieht vom nächsten Wasserkontakt weg"},
