@@ -1,6 +1,8 @@
 export const LEVEL_FIVE_LOAD_KG=50;
 export const BOWLING_PULL_KG=16;
-export const LEVEL_FIVE_TARGET_Y=330;
+export const LEVEL_FIVE_TARGET_Y=350;
+export const LEVEL_FIVE_INITIAL_WEIGHT_Y=430;
+export const LEVEL_FIVE_WEIGHT_HEIGHT=70;
 export const PULLEY_GRAVITY_PX=260;
 export const PULLEY_DAMPING_PER_SECOND=1.15;
 
@@ -48,3 +50,6 @@ export function dampPulleyVelocity(velocity:{x:number;y:number},seconds:number,d
 }
 
 export const loadRiseFromPull=(pullDistance:number,strands:number)=>strands>0?Math.max(0,pullDistance)/strands:0;
+
+/** The visible top edge of the load, not its hidden centre point, reaches the target. */
+export const pulleyTargetReached=(weightCenterY:number,targetY=LEVEL_FIVE_TARGET_Y,weightHeight=LEVEL_FIVE_WEIGHT_HEIGHT)=>weightCenterY-weightHeight/2<=targetY;

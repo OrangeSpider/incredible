@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
-import {analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_LOAD_KG,loadRiseFromPull,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
+import {analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,pulleyTargetReached,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
@@ -70,6 +70,12 @@ test("the actual rope route determines the supporting strands",()=>{
 test("block and tackle conserves rope length by trading force for distance",()=>{
   assert.equal(loadRiseFromPull(400,2),200);
   assert.equal(loadRiseFromPull(400,4),100,"a 4:1 tackle needs four metres of pull for one metre of lift");
+});
+
+test("level 5 target is reachable with the visible 4:1 pulling distance",()=>{
+  const typicalPullDistance=200,loadRise=loadRiseFromPull(typicalPullDistance,4),finalWeightCenter=LEVEL_FIVE_INITIAL_WEIGHT_Y-loadRise;
+  assert.equal(pulleyTargetReached(finalWeightCenter),true,"the top edge of the 50 kg load should reach the line after a realistic ball drop");
+  assert.equal(pulleyTargetReached(LEVEL_FIVE_TARGET_Y+35.01),false,"the hidden centre point must not be mistaken for the visible top edge");
 });
 
 test("the rope constraint derives corrections from the freely placed geometry",()=>{
