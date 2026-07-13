@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
-import {applySeesawImpact,createSeesaw,createSeesawRope,shortenSeesawRope,SEESAW_WIDTH} from "../game/seesaw.ts";
+import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
@@ -110,14 +110,13 @@ test("seesaw is 1.5 plank widths and accelerates the opposite payload upward",()
   assert.equal(hit,true,"the opposite end must launch its payload into the reference basket");
 });
 
-test("seesaw ropes pull the same end upward or downward depending on anchor",()=>{
-  const simulate=(anchorY)=>{
-    const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}}),assembly=createSeesaw(450,350,0);
-    const rope=createSeesawRope(assembly.plank,{x:560,y:anchorY});
-    Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,rope.constraint]);
-    for(let tick=0;tick<180;tick++){shortenSeesawRope(rope,tick*16.666);Matter.Engine.update(engine,16.666)}
-    return assembly.plank.angle;
-  };
-  assert.ok(simulate(220)<-.5,"an upper right anchor must pull the right end upward");
-  assert.ok(simulate(470)>.5,"a lower right anchor must pull the right end downward");
+test("left impact lowers the left end and the support stops a full rotation",()=>{
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}}),assembly=createSeesaw(450,350,0);
+  const impact=Matter.Bodies.circle(340,250,18,{label:"impact"});
+  Matter.Body.setVelocity(impact,{x:0,y:12});
+  Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,impact]);
+  applySeesawImpact(engine,assembly.plank,impact);
+  assert.ok(assembly.plank.angularVelocity<0,"a hit on the left must rotate the left end downward");
+  for(let tick=0;tick<240;tick++){Matter.Engine.update(engine,16.666);limitSeesawRotation(assembly.plank)}
+  assert.ok(Math.abs(assembly.plank.angle)<=SEESAW_MAX_ANGLE+1e-9,"the red support must act as a hard angular stop");
 });

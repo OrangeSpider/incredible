@@ -2,10 +2,9 @@ import Matter from "matter-js";
 
 export const SEESAW_WIDTH=232.5;
 export const SEESAW_HEIGHT=18;
-export const SEESAW_END_INSET=10;
+export const SEESAW_MAX_ANGLE=22*Math.PI/180;
 
 export type SeesawAssembly={plank:Matter.Body;pivot:Matter.Constraint};
-export type SeesawRope={anchor:{x:number;y:number};side:-1|1;constraint:Matter.Constraint;startLength:number};
 
 export function createSeesaw(x:number,y:number,angle:number):SeesawAssembly{
   const plank=Matter.Bodies.rectangle(x,y,SEESAW_WIDTH,SEESAW_HEIGHT,{
@@ -17,29 +16,12 @@ export function createSeesaw(x:number,y:number,angle:number):SeesawAssembly{
   return{plank,pivot};
 }
 
-export function seesawEndpoint(plank:Matter.Body,side:-1|1){
-  const localX=side*(SEESAW_WIDTH/2-SEESAW_END_INSET);
-  return{x:plank.position.x+Math.cos(plank.angle)*localX,y:plank.position.y+Math.sin(plank.angle)*localX};
-}
-
-export function createSeesawRope(plank:Matter.Body,anchor:{x:number;y:number}):SeesawRope{
-  const relativeX=(anchor.x-plank.position.x)*Math.cos(plank.angle)+(anchor.y-plank.position.y)*Math.sin(plank.angle);
-  const side: -1|1=relativeX<0?-1:1;
-  const pointB={x:side*(SEESAW_WIDTH/2-SEESAW_END_INSET),y:0};
-  const endpoint=seesawEndpoint(plank,side);
-  const startLength=Math.max(36,Math.hypot(anchor.x-endpoint.x,anchor.y-endpoint.y));
-  const constraint=Matter.Constraint.create({pointA:anchor,bodyB:plank,pointB,length:startLength,stiffness:.72,damping:.12,label:"seesawRope"});
-  return{anchor,side,constraint,startLength};
-}
-
-export function shortenSeesawRope(rope:SeesawRope,elapsedMs:number){
-  rope.constraint.length=Math.max(34,rope.startLength-elapsedMs*.045);
-}
-
 export function applySeesawImpact(engine:Matter.Engine,plank:Matter.Body,impactBody:Matter.Body){
   const impactSide=Math.sign(impactBody.position.x-plank.position.x)||1;
   const angularKick=Math.min(.24,Math.max(.08,Math.abs(impactBody.velocity.y)*.018));
-  Matter.Body.setAngularVelocity(plank,-impactSide*angularKick);
+  // Matter.js dreht bei positiven Winkeln im Uhrzeigersinn. Ein Treffer links
+  // braucht daher eine negative Drehung: links abwärts, rechts aufwärts.
+  Matter.Body.setAngularVelocity(plank,impactSide*angularKick);
   let accelerated=0;
   for(const candidate of Matter.Composite.allBodies(engine.world)){
     if(candidate.isStatic||candidate===impactBody||candidate===plank)continue;
@@ -51,4 +33,9 @@ export function applySeesawImpact(engine:Matter.Engine,plank:Matter.Body,impactB
     }
   }
   return accelerated;
+}
+
+export function limitSeesawRotation(plank:Matter.Body){
+  if(plank.angle>SEESAW_MAX_ANGLE){Matter.Body.setAngle(plank,SEESAW_MAX_ANGLE);if(plank.angularVelocity>0)Matter.Body.setAngularVelocity(plank,0)}
+  if(plank.angle<-SEESAW_MAX_ANGLE){Matter.Body.setAngle(plank,-SEESAW_MAX_ANGLE);if(plank.angularVelocity<0)Matter.Body.setAngularVelocity(plank,0)}
 }

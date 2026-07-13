@@ -6,7 +6,7 @@ import "./modal.css";
 import { INTERACTIONS } from "@/game/interactions";
 import { FORCE_SOURCES,GOAL_MODES } from "@/game/rules";
 import { createBucketAssembly,WATER_SHAPE_RULES } from "@/game/water";
-import { applySeesawImpact,createSeesaw,createSeesawRope,seesawEndpoint,shortenSeesawRope,SEESAW_WIDTH,type SeesawRope } from "@/game/seesaw";
+import { applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_WIDTH } from "@/game/seesaw";
 
 type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
@@ -53,7 +53,7 @@ const BUILD_TIPS=[
   "Baue mit drei Zahnrädern eine lückenlose Verbindung zwischen Antrieb und Zielrad.",
   "Platziere Kanone und Luntenteile als Kette von der Kerze bis zur Kanone. Richte anschließend das Rohr aus.",
   "Platziere den Wassereimer links oberhalb der Kerze. Eine Planke über der Steinmauer – vier Schritte nach rechts gedreht – leitet den Schwall zum Ziel.",
-  "Setze die Wippe unter die rote Kugel und lasse die Bowlingkugel auf das gegenüberliegende Ende fallen. Seile können ein Ende zusätzlich zu einem Anker ziehen.",
+  "Setze die Wippe unter die rote Kugel und lasse die Bowlingkugel auf das gegenüberliegende Ende fallen.",
 ] as const;
 const WIN_TEXT=[
   "Die Katze wurde vom angetriebenen Laufband zum Ausgang gebracht.",
@@ -79,7 +79,7 @@ const LEVEL_HINTS=[
   "Berührende Zahnräder drehen sich immer in entgegengesetzte Richtungen.",
   "Luntenteile müssen Feuer und Kanone als zusammenhängende Kette verbinden.",
   "Baue von der Steinmauer eine steile Rinne zur Kerze. Wasser kollidiert mit festen Außenformen; Seile werden ignoriert.",
-  "Die Wippe ist 1,5-mal so breit wie eine Holzplanke. Ein Seilanker oberhalb zieht sein Ende hoch, ein Anker unterhalb zieht es herunter.",
+  "Die Wippe ist 1,5-mal so breit wie eine Holzplanke. Ihr Anschlag am roten Bock verhindert eine vollständige Drehung.",
 ] as const;
 
 const partsForLevel = (level:number): { type: Part; icon: string; name: string; count: number }[] => {
@@ -107,7 +107,7 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
   if(level===7)return [{type:"gear",icon:"⚙",name:"Zahnrad",count:3}];
   if(level===8)return [{type:"cannon",icon:"◒",name:"Kanone",count:1},{type:"fuse",icon:"⌁",name:"Luntenstück",count:5}];
   if(level===9)return [{type:"bucket",icon:"▱",name:"Wassereimer",count:1},{type:"ramp",icon:"╱",name:"Holzplanke",count:2}];
-  return [{type:"seesaw",icon:"⚖",name:"Wippe",count:1},{type:"ball",icon:"●",name:"Bowlingkugel",count:1},{type:"rope",icon:"∿",name:"Zugseil",count:2}];
+  return [{type:"seesaw",icon:"⚖",name:"Wippe",count:1},{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
 };
 
 function drawRope(ctx:CanvasRenderingContext2D,from:{x:number;y:number},pulley:{x:number;y:number},to:{x:number;y:number},now:number,moving:boolean){
@@ -181,7 +181,6 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       const basket=Matter.Bodies.rectangle(680,150,110,100,{isStatic:true,isSensor:true,label:"seesawBasket"});
       Matter.Composite.add(engine.world,[seesawPayload,basket]);
     }
-    const seesawRopes:SeesawRope[]=[];
     let seesawBody:Matter.Body|null=null;
     placed.forEach(p => {
       let b;
@@ -203,7 +202,6 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       }
       if(b){b.plugin={...b.plugin,placedId:p.id,fuseIndex:p.type==="fuse"?placed.filter(x=>x.type==="fuse").findIndex(x=>x.id===p.id):-1};Matter.Composite.add(engine.world,b)}
     });
-    if(seesawBody)placed.filter(p=>p.type==="rope").forEach(p=>{const rope=createSeesawRope(seesawBody!,{x:p.x,y:p.y});seesawRopes.push(rope);Matter.Composite.add(engine.world,rope.constraint)});
     const beltConnected=placed.some(p=>p.type==="belt");
     const ropeInstalled=placed.some(p=>p.type==="rope"),placedBall=Matter.Composite.allBodies(engine.world).find(body=>body.label==="ball")??null;
     const pulleyBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="pulley")??null,initialBallY=placedBall?.position.y??0;
@@ -211,7 +209,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
     const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
     const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");const fuseReachable=new Set<number>(),fuseQueue=fuseBodies.filter(body=>Math.hypot(body.position.x-100,body.position.y-420)<120);fuseQueue.forEach(body=>fuseReachable.add(body.id));while(fuseQueue.length){const current=fuseQueue.shift()!;for(const candidate of fuseBodies){if(!fuseReachable.has(candidate.id)&&Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y)<120){fuseReachable.add(candidate.id);fuseQueue.push(candidate)}}}const fuseIgnited=fuseReachable.size>0,fuseReady=!!cannonBody&&fuseBodies.some(body=>fuseReachable.has(body.id)&&Math.hypot(body.position.x-cannonBody.position.x,body.position.y-cannonBody.position.y)<125);
     const fuseDuration=2*(1600+fuseBodies.length*280),wetFuseIds=new Set<number>(),bucketStartAngle=bucketBody?.angle??0,bucketStartPosition=bucketBody?{...bucketBody.position}:null,bucketPivot=bucketStartPosition?{x:bucketStartPosition.x+Math.cos(bucketStartAngle)*34-Math.sin(bucketStartAngle)*-23,y:bucketStartPosition.y+Math.sin(bucketStartAngle)*34+Math.cos(bucketStartAngle)*-23}:null;
-    let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawRunAt=0,seesawHitAt=0,won=false,raf=0,last=performance.now();
+    let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       const water=bodyA.label==="water"?bodyA:bodyB.label==="water"?bodyB:null;
@@ -256,7 +254,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       if(running&&waterBodies.length){for(const animal of [cat,mouseBody]){if(!animal)continue;let nearest:Matter.Body|null=null,distance=Infinity;for(const drop of waterBodies){const d=Math.hypot(animal.position.x-drop.position.x,animal.position.y-drop.position.y);if(d<distance){nearest=drop;distance=d}}if(nearest&&distance<62){const direction=animal.position.x<nearest.position.x?-1:1;Matter.Body.setPosition(animal,{x:Math.max(30,Math.min(870,animal.position.x+direction*dt*.13)),y:animal.position.y})}}}
       if(running&&level===7&&gearsConnected){if(!gearTurnAt)gearTurnAt=now;if(now-gearTurnAt>1100&&!won){won=true;onWin()}}
       if(running&&level===8&&fuseIgnited){if(!fuseLitAt)fuseLitAt=now;if(!fuseExtinguishedAt&&fuseReady&&cannonBody&&!cannonFired&&now-fuseLitAt>fuseDuration){cannonFired=true;cannonFiredAt=now;const direction={x:Math.cos(cannonBody.angle),y:Math.sin(cannonBody.angle)};const shot=Matter.Bodies.circle(cannonBody.position.x+direction.x*58,cannonBody.position.y+direction.y*58,11,{density:.0025,restitution:.3,label:"cannonball"});Matter.Body.setVelocity(shot,{x:direction.x*14,y:direction.y*14});Matter.Composite.add(engine.world,shot)}}
-      if(running&&seesawRopes.length){if(!seesawRunAt)seesawRunAt=now;seesawRopes.forEach(rope=>shortenSeesawRope(rope,now-seesawRunAt))}
+      if(running&&seesawBody)limitSeesawRotation(seesawBody)
       if(cannonHitAt&&!won&&now-cannonHitAt>520){won=true;onWin()}
       if(candleExtinguishedAt&&!won&&now-candleExtinguishedAt>700){won=true;onWin()}
       if(seesawHitAt&&!won&&now-seesawHitAt>450){won=true;onWin()}
@@ -288,7 +286,6 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         ctx.fillStyle="#7b4c24";ctx.fillRect(770,470,70,10);ctx.fillStyle="#f1cb62";ctx.fillRect(794,390,22,80);if(!candleExtinguished){if(!drawFireSprite(0,Math.floor(now/105)%6,805,371,82,90))drawFallbackFlame(805,380,now)}else{ctx.fillStyle="#8b9ba0";for(let puff=0;puff<4;puff++){ctx.globalAlpha=.55-puff*.1;ctx.beginPath();ctx.arc(802+Math.sin(now*.004+puff)*8,374-puff*9,8+puff*2,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;drawWaterSprite(1,5,805,450,76,38)}ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText("KERZE",785,505);
       }else if(level===10){
         ctx.strokeStyle="#7a421e";ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(635,105);ctx.lineTo(640,165);ctx.quadraticCurveTo(680,190,725,165);ctx.lineTo(728,105);ctx.stroke();ctx.fillStyle="#a52d24";ctx.font="bold 14px system-ui";ctx.fillText("ZIELKORB",646,210);
-        if(seesawBody)for(const rope of seesawRopes){const end=seesawEndpoint(seesawBody,rope.side),pulling=running&&rope.constraint.length<rope.startLength-2,sag=pulling?2:10+Math.sin(now*.01+rope.side)*3;ctx.save();ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(rope.anchor.x,rope.anchor.y);ctx.quadraticCurveTo((rope.anchor.x+end.x)/2,(rope.anchor.y+end.y)/2+sag,end.x,end.y);ctx.stroke();ctx.fillStyle="#b93422";ctx.beginPath();ctx.arc(rope.anchor.x,rope.anchor.y,7,0,Math.PI*2);ctx.fill();ctx.restore()}
       }
       if(waterBodies.length){ctx.strokeStyle="rgba(33,158,211,.34)";ctx.lineWidth=7;ctx.lineCap="round";for(let i=0;i<waterBodies.length;i++)for(let j=i+1;j<waterBodies.length;j++){const a=waterBodies[i].position,b=waterBodies[j].position;if(Math.hypot(a.x-b.x,a.y-b.y)<10){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}
       for(const b of Matter.Composite.allBodies(engine.world)){
@@ -328,7 +325,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       if(level===7)ctx.fillText(gearsConnected?"Die Zahnradkette greift vollständig ineinander":"Zwischen den Zahnrädern sind noch Lücken",285,32);
       if(level===8)ctx.fillText(!fuseIgnited?"Kein Luntenteil berührt die Flamme":fuseExtinguishedAt?"Die nasse Lunte ist erloschen":!fuseReady?"Die Lunte brennt, erreicht aber die Kanone nicht":!fuseLitAt?"Bereit zum Zünden":"Die Lunte brennt langsam zur Kanone …",270,32);
       if(level===9)ctx.fillText(candleExtinguished?"Die Kerze ist gelöscht!":!bucketBody?"Platziere den Wassereimer":"Leite den Schwall um Stahl, Holz und Stein zur Kerze",250,32);
-      if(level===10)ctx.fillText(!seesawBody?"Platziere die Wippe unter der roten Kugel":seesawRopes.length?"Die Seile ziehen an den Wippenenden":"Lass die Bowlingkugel auf das andere Ende fallen",270,32);
+      if(level===10)ctx.fillText(!seesawBody?"Platziere die Wippe unter der roten Kugel":"Lass die Bowlingkugel auf das andere Ende fallen",270,32);
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
     return()=>{cancelAnimationFrame(raf);Matter.Engine.clear(engine)};

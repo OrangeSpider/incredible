@@ -29,7 +29,6 @@ export const INTERACTIONS: Interaction[] = [
   { source: "Seil", target: "Rolle / Gewicht", trigger: "An beiden Enden verbunden", effect: "Überträgt Zugkraft entlang des Seilverlaufs – auch seitlich; Rollen lenken sie um", status: "aktiv" },
   { source: "Bowlingkugel", target: "Trampolin", trigger: "Kollision von oben", effect: "Bewegungsimpuls wird von der Fläche weg nach oben umgelenkt", status: "aktiv" },
   { source: "Fallender Körper", target: "Wippe", trigger: "Aufprall außerhalb des Drehpunkts", effect: "Senkt die getroffene Seite und beschleunigt die gegenüberliegende Seite nach oben", status: "aktiv" },
-  { source: "Seil", target: "Wippenende", trigger: "Seilanker liegt ober- oder unterhalb des Endes", effect: "Überträgt Zug: oberer Anker zieht das Ende hoch, unterer Anker zieht es herunter", status: "aktiv" },
   { source: "Jalousie", target: "Stationäre Affe auf Fahrrad", trigger: "Zugseil wird betätigt und Banane wird sichtbar", effect: "Affe tritt; das Fahrrad erzeugt Drehmoment, bleibt aber am Ort", status: "aktiv" },
   { source: "Affenfahrrad", target: "Laufband", trigger: "Rad und Laufband sind mit einem Riemen verbunden", effect: "Überträgt Drehmoment als lineare Bandbewegung", status: "aktiv" },
   { source: "Laufband", target: "Kiste", trigger: "Kiste berührt das angetriebene Band", effect: "Bewegt die Kiste in Bandrichtung", status: "aktiv" },
