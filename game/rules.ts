@@ -7,7 +7,7 @@ export const LEVEL_GOALS:GoalSpec[]=[
   {mode:"all",conditions:[{signal:"balloon.popped",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"balloon.passed.target_ring",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"bowling_ball.entered.basket",operator:"occurred"}]},
-  {mode:"all",conditions:[{signal:"pulley.supporting_strands",operator:"gte",value:4},{signal:"weight.height",operator:"gte",value:330}]},
+  {mode:"all",conditions:[{signal:"weight.height",operator:"gte",value:330}]},
   {mode:"all",conditions:[{signal:"balloon.popped_by_needle",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"mouse.entered.hole",operator:"occurred"}]},
   {mode:"all",conditions:[{signal:"target_gear.rotating",operator:"occurred"}]},

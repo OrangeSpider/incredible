@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
-import {analyzePulleyRoute,BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,loadRiseFromPull,ropePullAcceleration} from "../game/pulley.ts";
+import {analyzePulleyRoute,BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,loadRiseFromPull,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
@@ -60,11 +60,11 @@ test("level 4 trampoline can redirect the falling ball into the basket",()=>{
 });
 
 test("the actual rope route determines the supporting strands",()=>{
-  assert.equal(analyzePulleyRoute([]).next,"anchor");assert.equal(analyzePulleyRoute(["anchor"]).next,"moving");
-  assert.equal(analyzePulleyRoute(["anchor","fixed","pull"]).complete,false,"a fixed pulley alone is no block and tackle");
+  assert.equal(analyzePulleyRoute([]).open,true);assert.equal(analyzePulleyRoute(["fixed"]).open,true,"any unfinished route remains legal");
+  assert.equal(analyzePulleyRoute(["anchor","fixed","pull"]).tensioned,true,"a fixed pulley may redirect a taut rope without adding lift");
   assert.equal(analyzePulleyRoute(["anchor","moving","fixed","pull"]).supportingStrands,2);
   const compound=analyzePulleyRoute(["anchor","moving","fixed","moving","fixed","pull"]);
-  assert.equal(compound.complete,true);assert.equal(compound.supportingStrands,4);
+  assert.equal(compound.tensioned,true);assert.equal(compound.supportingStrands,4);
 });
 
 test("block and tackle conserves rope length by trading force for distance",()=>{
@@ -72,16 +72,16 @@ test("block and tackle conserves rope length by trading force for distance",()=>
   assert.equal(loadRiseFromPull(400,4),100,"a 4:1 tackle needs four metres of pull for one metre of lift");
 });
 
-test("coupled rope dynamics settle at the lower stop when the load side wins",()=>{
-  const acceleration=ropePullAcceleration(BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,2);assert.ok(acceleration<0);
-  let pull=0,speed=0;for(let tick=0;tick<300;tick++){speed+=acceleration/60;pull=Math.max(0,pull+speed/60);if(pull===0&&speed<0)speed=0}
-  assert.equal(pull,0,"the simulation, not a precomputed gate, must leave the tackle motionless");
+test("the rope constraint derives corrections from the freely placed geometry",()=>{
+  const initial=[{x:0,y:0,group:"static"},{x:0,y:100,group:"block"},{x:100,y:0,group:"static"},{x:100,y:100,group:"ball"}],rest=ropeGeometry(initial).length;
+  const stretched=initial.map(point=>({...point}));stretched[3].y+=20;
+  const correction=ropeConstraintCorrection(stretched,rest,BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG);
+  assert.ok(correction.stretch>0);assert.ok(correction.ball.y<0,"the taut rope must pull the falling ball back");assert.ok(correction.block.y<0,"the same tension must pull the moving pulley block upward");
 });
 
-test("coupled rope dynamics move when the pull side wins",()=>{
-  const acceleration=ropePullAcceleration(BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,4);assert.ok(acceleration>0);
-  let pull=0,speed=0;for(let tick=0;tick<300;tick++){speed+=acceleration/60;pull+=speed/60}
-  assert.ok(pull>0);assert.equal(loadRiseFromPull(pull,4),pull/4);
+test("a slack or shortening rope never pushes a gadget",()=>{
+  const initial=[{x:0,y:0,group:"static"},{x:100,y:0,group:"ball"}],rest=ropeGeometry(initial).length,shorter=[initial[0],{...initial[1],x:80}],correction=ropeConstraintCorrection(shorter,rest,BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG);
+  assert.equal(correction.stretch,0);assert.deepEqual(correction.ball,{x:0,y:0});assert.deepEqual(correction.block,{x:0,y:0});
 });
 
 test("level 6 needle pops balloons but has no generic collision action",()=>{

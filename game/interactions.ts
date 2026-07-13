@@ -28,6 +28,7 @@ export const INTERACTIONS: Interaction[] = [
   { source: "Zahnrad", target: "Zahnrad", trigger: "Zahnkränze berühren sich mit passendem Achsabstand", effect: "Überträgt Drehung mit umgekehrter Richtung", status: "aktiv" },
   { source: "Seil", target: "Festrolle", trigger: "Seil liegt in der Rollenrille", effect: "Die fest montierte Achse bleibt stehen; nur Seil und Rolle laufen und lenken die Zugkraft um", status: "aktiv" },
   { source: "Seil", target: "Lose Rolle / Gewicht", trigger: "Seil umschlingt die lose Rolle", effect: "Rollenachse und angehängte Last bewegen sich gemeinsam; alle tragenden Seilabschnitte liefern ihre Zugkraft", status: "aktiv" },
+  { source: "Offenes Seilende", target: "Beliebiger Aufbau", trigger: "Mindestens ein Seilende ist nicht an Festpunkt oder Zugkörper gebunden", effect: "Das Seil bleibt schlaff und kann keine Druck- oder Zwangskraft übertragen; die übrigen Körper bewegen sich trotzdem", status: "aktiv" },
   { source: "Bowlingkugel", target: "Trampolin", trigger: "Kollision von oben", effect: "Bewegungsimpuls wird von der Fläche weg nach oben umgelenkt", status: "aktiv" },
   { source: "Fallender Körper", target: "Wippe", trigger: "Aufprall außerhalb des Drehpunkts", effect: "Senkt die getroffene Seite und beschleunigt die gegenüberliegende Seite nach oben", status: "aktiv" },
   { source: "Jalousie", target: "Stationäre Affe auf Fahrrad", trigger: "Zugseil wird betätigt und Banane wird sichtbar", effect: "Affe tritt; das Fahrrad erzeugt Drehmoment, bleibt aber am Ort", status: "aktiv" },

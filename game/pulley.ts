@@ -4,45 +4,41 @@ export const LEVEL_FIVE_TARGET_Y=330;
 export const PULLEY_GRAVITY_PX=260;
 
 export type PulleyRouteKind="anchor"|"moving"|"fixed"|"pull";
+export type DynamicGroup="static"|"ball"|"block";
+export type RopePoint={x:number;y:number;group:DynamicGroup};
 
 export type PulleyRouteAnalysis={
-  validPrefix:boolean;
-  complete:boolean;
+  tensioned:boolean;
+  open:boolean;
   movingPulleyCount:number;
   supportingStrands:number;
-  next:"anchor"|"moving"|"fixed"|"moving-or-pull"|"complete";
 };
 
 /**
- * One continuous rope is reeved as
- * anchor -> moving -> fixed -> [moving -> fixed]... -> pull body.
- * The route, not the inventory, determines the supporting strands.
+ * Any route is legal. It becomes taut only when one end is fixed and the
+ * opposite end is the pulling body. Moving pulleys count only when the rope
+ * actually passes around them, i.e. while they are internal route nodes.
  */
 export function analyzePulleyRoute(route:PulleyRouteKind[]):PulleyRouteAnalysis{
-  if(route.length===0)return{validPrefix:true,complete:false,movingPulleyCount:0,supportingStrands:0,next:"anchor"};
-  if(route[0]!=="anchor")return{validPrefix:false,complete:false,movingPulleyCount:0,supportingStrands:0,next:"anchor"};
-  let movingPulleyCount=0,validPrefix=true,complete=false;
-  for(let index=1;index<route.length;index++){
-    const kind=route[index];
-    if(index%2===1){
-      if(kind==="moving")movingPulleyCount++;
-      else if(kind==="pull"&&index===route.length-1&&index>=3)complete=true;
-      else validPrefix=false;
-    }else if(kind!=="fixed")validPrefix=false;
-  }
-  if(route.at(-1)==="pull"&&!complete)validPrefix=false;
-  const next=!validPrefix?"anchor":complete?"complete":route.length===1?"moving":route.length%2===1?"moving-or-pull":"fixed";
-  return{validPrefix,complete:validPrefix&&complete,movingPulleyCount,supportingStrands:movingPulleyCount*2,next};
+  const first=route[0],last=route.at(-1),tensioned=route.length>=2&&((first==="anchor"&&last==="pull")||(first==="pull"&&last==="anchor"));
+  const movingPulleyCount=route.slice(1,-1).filter(kind=>kind==="moving").length;
+  return{tensioned,open:!tensioned,movingPulleyCount,supportingStrands:movingPulleyCount*2};
 }
 
-/**
- * Generalized acceleration for an ideal rope. q grows when the pull body moves
- * down; the load then rises by q/N. A negative result means the load side wins.
- */
-export function ropePullAcceleration(inputKg:number,loadKg:number,strands:number,gravity=PULLEY_GRAVITY_PX){
-  if(strands<=0)return 0;
-  const effectiveMass=inputKg+loadKg/(strands*strands);
-  return gravity*(inputKg-loadKg/strands)/effectiveMass;
+export function ropeGeometry(points:RopePoint[]){
+  let length=0;const ball={x:0,y:0},block={x:0,y:0};
+  const add=(group:DynamicGroup,x:number,y:number)=>{if(group==="ball"){ball.x+=x;ball.y+=y}else if(group==="block"){block.x+=x;block.y+=y}};
+  for(let index=0;index<points.length-1;index++){
+    const a=points[index],b=points[index+1],dx=a.x-b.x,dy=a.y-b.y,distance=Math.max(1,Math.hypot(dx,dy)),ux=dx/distance,uy=dy/distance;length+=distance;add(a.group,ux,uy);add(b.group,-ux,-uy);
+  }
+  return{length,ballGradient:ball,blockGradient:block};
+}
+
+/** Position correction for a mass-weighted, inextensible but non-pushing rope. */
+export function ropeConstraintCorrection(points:RopePoint[],restLength:number,ballMass:number,blockMass:number){
+  const geometry=ropeGeometry(points),stretch=Math.max(0,geometry.length-restLength),ballNorm=geometry.ballGradient.x**2+geometry.ballGradient.y**2,blockNorm=geometry.blockGradient.x**2+geometry.blockGradient.y**2,denominator=ballNorm/ballMass+blockNorm/blockMass;
+  if(stretch===0||denominator<1e-9)return{stretch:0,ball:{x:0,y:0},block:{x:0,y:0},...geometry};
+  return{stretch,ball:{x:-stretch*geometry.ballGradient.x/(ballMass*denominator),y:-stretch*geometry.ballGradient.y/(ballMass*denominator)},block:{x:-stretch*geometry.blockGradient.x/(blockMass*denominator),y:-stretch*geometry.blockGradient.y/(blockMass*denominator)},...geometry};
 }
 
 export const loadRiseFromPull=(pullDistance:number,strands:number)=>strands>0?Math.max(0,pullDistance)/strands:0;
