@@ -7,10 +7,12 @@ import { INTERACTIONS } from "@/game/interactions";
 import { FORCE_SOURCES,GOAL_MODES } from "@/game/rules";
 import { createBucketAssembly,WATER_SHAPE_RULES } from "@/game/water";
 import { applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_WIDTH } from "@/game/seesaw";
-import { BOWLING_PULL_KG,canLift,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,supportingStrands } from "@/game/pulley";
+import { analyzePulleyRoute,BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,PulleyRouteKind,ropePullAcceleration } from "@/game/pulley";
 
 type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "movingPulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
+type RopeNode={kind:"anchor"}|{kind:"part";placedId:number};
+const ROPE_ANCHOR={x:92,y:64};
 const FAN_VISIBLE_RANGE=210;
 const FAN_MAX_RANGE=FAN_VISIBLE_RANGE*2;
 const ACTIVE_LEVEL_COUNT=11;
@@ -20,7 +22,7 @@ const LEVELS = [
   ["Plopp!", "Bring den Ballon zur Kerzenflamme", "Lenke seinen Auftrieb mit Holzplanken"],
   ["Rückenwind", "Treibe den Ballon durch den Zielring", "Richte den Ventilator aus und nutze den Auftrieb"],
   ["Sprungkraft", "Befördere die Bowlingkugel in den Korb", "Das Trampolin lenkt Fallbewegung nach oben um"],
-  ["Flaschenzug", "Hebe das 50-kg-Gewicht bis zur roten Markierung", "Verschalte Festrollen und lose Rollen zu vier tragenden Seilabschnitten"],
+  ["Flaschenzug", "Hebe das 50-kg-Gewicht bis zur roten Markierung", "Lege ein durchgehendes Seil über sichtbare Anschlusspunkte"],
   ["Nadelprobe", "Lass den Luftballon an der Nadel platzen", "Nur der Ballon reagiert auf die Spitze"],
   ["Mäuseflucht", "Lass die Maus ihr Loch erreichen", "Die Maus flieht nur, wenn die Katze auf gleicher Höhe ist"],
   ["Zahn um Zahn", "Übertrage die Drehung bis zum Zielrad", "Benachbarte Zahnräder greifen nur bei passendem Abstand"],
@@ -48,7 +50,7 @@ const BUILD_TIPS=[
   "Platziere Holzplanken zwischen Ballon und Kerze. Planken lassen sich ziehen und drehen.",
   "Platziere den Ventilator, drehe ihn zum Zielring und korrigiere den Weg mit Planken.",
   "Setze das Trampolin unter den Fallweg der Kugel und richte den Sprung zum Korb aus.",
-  "Baue zwei Rollenpaare: Festrollen oben, lose Rollen darunter. Füge das Seil hinzu und lass die Kugel am freien Ende fallen.",
+  "Platziere Rollen und Kugel. Wähle dann das Seil: Festpunkt → lose Rolle → Festrolle → … → Kugel.",
   "Setze die Nadel in den Weg des Ballons und lenke ihn mit dem Ventilator hinein.",
   "Platziere die Maus auf Höhe der Katze. Nur dann erkennt sie die Gefahr und flieht.",
   "Baue mit drei Zahnrädern eine lückenlose Verbindung zwischen Antrieb und Zielrad.",
@@ -61,7 +63,7 @@ const WIN_TEXT=[
   "Der Ballon hat die Kerzenflamme erreicht – Plopp!",
   "Der Luftstrom hat den Ballon sauber durch den Zielring getragen.",
   "Das Trampolin hat die Bowlingkugel in den Korb umgelenkt.",
-  "Vier tragende Seilabschnitte haben die Kraft vervierfacht und das Gewicht gehoben.",
+  "Die gekoppelte Seilkraft hat den unteren Rollenblock samt Gewicht angehoben.",
   "Die Nadel hat ausschließlich den Ballon zum Platzen gebracht.",
   "Die Maus war auf gleicher Höhe und erreichte flüchtend ihr Loch.",
   "Alle Zahnräder griffen ineinander und drehten das Zielrad.",
@@ -74,7 +76,7 @@ const LEVEL_HINTS=[
   "Ein aufsteigender Ballon gleitet an der Unterseite einer schrägen Planke entlang.",
   "Der Luftstrom reicht höchstens doppelt so weit wie der sichtbare Kegel.",
   "Die Neigung des Trampolins bestimmt die seitliche Komponente des Sprungs.",
-  "Eine Festrolle lenkt nur um. Jede lose Rolle ergänzt zwei tragende Seilabschnitte: weniger Zugkraft, aber entsprechend mehr Zugweg.",
+  "Die Simulation entscheidet aus Masse und Seilverlauf: Ist die Zugseite zu leicht, bleibt das System einfach stehen.",
   "Die Nadel übt auf andere Körper keine besondere Wirkung aus.",
   "Die Höhendifferenz zwischen Katze und Maus muss klein genug sein.",
   "Berührende Zahnräder drehen sich immer in entgegengesetzte Richtungen.",
@@ -100,8 +102,8 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
   ];
   if(level===4)return [
     {type:"ball",icon:"●",name:"Bowlingkugel",count:1},
-    {type:"pulley",icon:"◉",name:"Festrolle",count:2},
-    {type:"movingPulley",icon:"◎",name:"Lose Rolle",count:2},
+    {type:"pulley",icon:"◉",name:"Festrolle",count:3},
+    {type:"movingPulley",icon:"◎",name:"Lose Rolle",count:3},
     {type:"rope",icon:"∿",name:"Seil",count:1},
   ];
   if(level===5)return [{type:"needle",icon:"▲",name:"Nadel",count:1},{type:"fan",icon:"✣",name:"Ventilator",count:1}];
@@ -112,22 +114,26 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
   return [{type:"seesaw",icon:"⚖",name:"Wippe",count:1},{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
 };
 
-function drawBlockAndTackle(ctx:CanvasRenderingContext2D,fixed:Matter.Body[],moving:Matter.Body[],freeEnd:{x:number;y:number},now:number,running:boolean){
+function drawBlockAndTackle(ctx:CanvasRenderingContext2D,anchor:{x:number;y:number},fixed:Matter.Body[],moving:Matter.Body[],freeEnd:{x:number;y:number}|null,now:number,running:boolean){
   const pairs=Math.min(fixed.length,moving.length);if(!pairs)return;
-  const anchor={x:moving[0].position.x-52,y:Math.max(38,fixed[0].position.y-36)},wobble=running?Math.sin(now*.012)*2:0;
+  const wobble=running?Math.sin(now*.012)*2:0;
   ctx.save();ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();ctx.moveTo(anchor.x,anchor.y);
   for(let i=0;i<pairs;i++){
     const lower=moving[i].position,upper=fixed[i].position;
     ctx.lineTo(lower.x-30,lower.y+wobble);ctx.arc(lower.x,lower.y,30,Math.PI,0,true);
     ctx.lineTo(upper.x+30,upper.y-wobble);ctx.arc(upper.x,upper.y,30,0,Math.PI,true);
   }
-  ctx.lineTo(freeEnd.x,freeEnd.y);ctx.stroke();ctx.strokeStyle="#b99362";ctx.lineWidth=1.5;ctx.setLineDash([5,6]);ctx.stroke();ctx.setLineDash([]);
+  if(freeEnd)ctx.lineTo(freeEnd.x,freeEnd.y);else{const last=fixed[pairs-1].position;ctx.lineTo(last.x-14,last.y+58)}ctx.stroke();ctx.strokeStyle="#b99362";ctx.lineWidth=1.5;ctx.setLineDash([5,6]);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(anchor.x,anchor.y,7,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+
+function routeKindForPart(type:Part):PulleyRouteKind|null{
+  if(type==="movingPulley")return"moving";if(type==="pulley")return"fixed";if(type==="ball")return"pull";return null;
 }
 
 const clamp01=(value:number)=>Math.max(0,Math.min(1,value));
 
-function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { level:number; placed: Placed[]; selectedId:number|null; running: boolean; attempt: number; onWin: () => void }) {
+function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, attempt, onWin }: { level:number; placed: Placed[]; ropePath:RopeNode[]; ropeMode:boolean; selectedId:number|null; running: boolean; attempt: number; onWin: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
@@ -194,7 +200,7 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
     let seesawBody:Matter.Body|null=null;
     placed.forEach(p => {
       let b;
-      if (p.type === "ball") b = Matter.Bodies.circle(p.x, p.y, 18, { restitution: .35, density: .006, label: "ball" });
+      if (p.type === "ball") b = Matter.Bodies.circle(p.x, p.y, 18, { isStatic:level===4,restitution: .35, density: .006, label: "ball" });
       else if (p.type === "ramp") b = Matter.Bodies.rectangle(p.x, p.y, 155, 14, { isStatic: true, angle: p.rotation, label: "ramp" });
       else if (p.type === "fan") b = Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,angle:p.rotation,label:"fan"});
       else if(p.type==="trampoline")b=Matter.Bodies.rectangle(p.x,p.y,135,18,{isStatic:true,angle:p.rotation,label:"trampoline"});
@@ -213,16 +219,18 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       }
       if(b){b.plugin={...b.plugin,placedId:p.id,fuseIndex:p.type==="fuse"?placed.filter(x=>x.type==="fuse").findIndex(x=>x.id===p.id):-1};Matter.Composite.add(engine.world,b)}
     });
-    const beltConnected=placed.some(p=>p.type==="belt");
-    const ropeInstalled=placed.some(p=>p.type==="rope"),placedBall=Matter.Composite.allBodies(engine.world).find(body=>body.label==="ball")??null;
-    const fixedPulleys=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="pulley").sort((a,b)=>a.position.x-b.position.x),movingPulleys=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="movingPulley").sort((a,b)=>a.position.x-b.position.x),initialBallY=placedBall?.position.y??0;
-    const pulleyPairs=Math.min(fixedPulleys.length,movingPulleys.length),reevedPairs=Math.min(pulleyPairs,fixedPulleys.filter((body,index)=>movingPulleys[index]&&body.position.y+65<movingPulleys[index].position.y).length),strands=supportingStrands(reevedPairs),liftPossible=canLift(BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,strands),initialMovingPositions=movingPulleys.map(body=>({...body.position}));
-    if(level===4&&weight&&movingPulleys.length){const lowerCenterX=movingPulleys.reduce((sum,body)=>sum+body.position.x,0)/movingPulleys.length;Matter.Body.setPosition(weight,{x:lowerCenterX,y:430})}
+    const beltConnected=placed.some(p=>p.type==="belt"),allBodies=Matter.Composite.allBodies(engine.world),bodyByPlacedId=new Map<number,Matter.Body>();
+    allBodies.forEach(body=>{const placedId=body.plugin?.placedId;if(typeof placedId==="number")bodyByPlacedId.set(placedId,body)});
+    const placedById=new Map(placed.map(part=>[part.id,part])),routeKinds=ropePath.map(node=>node.kind==="anchor"?"anchor":routeKindForPart(placedById.get(node.placedId)?.type??"rope")).filter((kind):kind is PulleyRouteKind=>kind!==null),routeAnalysis=analyzePulleyRoute(routeKinds);
+    const routeFixed=ropePath.flatMap(node=>node.kind==="part"&&placedById.get(node.placedId)?.type==="pulley"?[bodyByPlacedId.get(node.placedId)].filter((body):body is Matter.Body=>!!body):[]),routeMoving=ropePath.flatMap(node=>node.kind==="part"&&placedById.get(node.placedId)?.type==="movingPulley"?[bodyByPlacedId.get(node.placedId)].filter((body):body is Matter.Body=>!!body):[]);
+    const finalNode=ropePath.at(-1),placedBall=finalNode?.kind==="part"&&placedById.get(finalNode.placedId)?.type==="ball"?(bodyByPlacedId.get(finalNode.placedId)??null):null,initialBallY=placedBall?.position.y??0,geometryValid=routeMoving.every((body,index)=>routeFixed[index]&&routeFixed[index].position.y+65<body.position.y),ropeReady=routeAnalysis.complete&&geometryValid&&!!placedBall;
+    const strands=ropeReady?routeAnalysis.supportingStrands:0,initialMovingPositions=routeMoving.map(body=>({...body.position})),initialWeightY=430,pulleyAcceleration=ropePullAcceleration(BOWLING_PULL_KG,LEVEL_FIVE_LOAD_KG,strands);
+    if(level===4&&weight&&routeMoving.length){const lowerCenterX=routeMoving.reduce((sum,body)=>sum+body.position.x,0)/routeMoving.length;Matter.Body.setPosition(weight,{x:lowerCenterX,y:initialWeightY})}
     const mouseBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="mouse")??null;
     const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
     const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");const fuseReachable=new Set<number>(),fuseQueue=fuseBodies.filter(body=>Math.hypot(body.position.x-100,body.position.y-420)<120);fuseQueue.forEach(body=>fuseReachable.add(body.id));while(fuseQueue.length){const current=fuseQueue.shift()!;for(const candidate of fuseBodies){if(!fuseReachable.has(candidate.id)&&Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y)<120){fuseReachable.add(candidate.id);fuseQueue.push(candidate)}}}const fuseIgnited=fuseReachable.size>0,fuseReady=!!cannonBody&&fuseBodies.some(body=>fuseReachable.has(body.id)&&Math.hypot(body.position.x-cannonBody.position.x,body.position.y-cannonBody.position.y)<125);
     const fuseDuration=2*(1600+fuseBodies.length*280),wetFuseIds=new Set<number>(),bucketStartAngle=bucketBody?.angle??0,bucketStartPosition=bucketBody?{...bucketBody.position}:null,bucketPivot=bucketStartPosition?{x:bucketStartPosition.x+Math.cos(bucketStartAngle)*34-Math.sin(bucketStartAngle)*-23,y:bucketStartPosition.y+Math.sin(bucketStartAngle)*34+Math.cos(bucketStartAngle)*-23}:null;
-    let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,won=false,raf=0,last=performance.now();
+    let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,ropePull=0,ropeSpeed=0,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       const water=bodyA.label==="water"?bodyA:bodyB.label==="water"?bodyB:null;
@@ -259,9 +267,9 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
           if(forward>0&&forward<FAN_MAX_RANGE&&Math.abs(side)<100+forward*.3){const force=.00035*(1-forward/FAN_MAX_RANGE);Matter.Body.applyForce(balloon!,balloon!.position,{x:c*force,y:s*force})}
         });
       }
-      if(running&&level===4&&ropeInstalled&&reevedPairs>0&&placedBall&&weight){
-        const pull=Math.max(0,placedBall.position.y-initialBallY),rise=liftPossible?loadRiseFromPull(pull,strands):0,newY=Math.max(LEVEL_FIVE_TARGET_Y-4,430-rise);
-        Matter.Body.setPosition(weight,{x:weight.position.x,y:newY});movingPulleys.forEach((body,index)=>Matter.Body.setPosition(body,{x:initialMovingPositions[index].x,y:initialMovingPositions[index].y-rise}));
+      if(running&&level===4&&ropeReady&&placedBall&&weight){
+        const seconds=dt/1000,maxPull=Math.max(0,462-initialBallY);ropeSpeed+=pulleyAcceleration*seconds;ropePull=Math.max(0,Math.min(maxPull,ropePull+ropeSpeed*seconds));if((ropePull===0&&ropeSpeed<0)||(ropePull===maxPull&&ropeSpeed>0))ropeSpeed=0;
+        const rise=loadRiseFromPull(ropePull,strands),newY=initialWeightY-rise,turn=ropePull/30;Matter.Body.setPosition(placedBall,{x:placedBall.position.x,y:initialBallY+ropePull});Matter.Body.setPosition(weight,{x:weight.position.x,y:newY});routeFixed.forEach(body=>Matter.Body.setAngle(body,turn));routeMoving.forEach((body,index)=>{Matter.Body.setPosition(body,{x:initialMovingPositions[index].x,y:initialMovingPositions[index].y-rise});Matter.Body.setAngle(body,-turn)});
         if(weight.position.y<=LEVEL_FIVE_TARGET_Y&&!won){won=true;onWin()}
       }
       if(running&&level===6&&mouseBody&&cat){if(!mouseFleeAt&&Math.abs(mouseBody.position.y-cat.position.y)<35&&mouseBody.position.x>cat.position.x)mouseFleeAt=now;if(mouseFleeAt){Matter.Body.setPosition(mouseBody,{x:Math.min(835,mouseBody.position.x+dt*.09),y:mouseBody.position.y});Matter.Body.setPosition(cat,{x:Math.min(760,cat.position.x+dt*.055),y:cat.position.y});if(mouseBody.position.x>=810&&!won){won=true;onWin()}}}
@@ -287,8 +295,10 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         ctx.strokeStyle="#7a421e";ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(715,145);ctx.lineTo(720,210);ctx.quadraticCurveTo(760,235,805,210);ctx.lineTo(808,145);ctx.stroke();ctx.fillStyle="#a52d24";ctx.font="bold 14px system-ui";ctx.fillText("KORB",742,250);
       }else if(level===4){
         ctx.strokeStyle="#bd3428";ctx.lineWidth=4;ctx.setLineDash([10,7]);ctx.beginPath();ctx.moveTo(650,LEVEL_FIVE_TARGET_Y);ctx.lineTo(850,LEVEL_FIVE_TARGET_Y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("ZIELHÖHE",654,LEVEL_FIVE_TARGET_Y-15);
-        if(ropeInstalled&&placedBall)drawBlockAndTackle(ctx,fixedPulleys.slice(0,reevedPairs),movingPulleys.slice(0,reevedPairs),placedBall.position,now,running);
-        if(movingPulleys.length&&weight){const left=Math.min(...movingPulleys.map(body=>body.position.x)),right=Math.max(...movingPulleys.map(body=>body.position.x));ctx.strokeStyle="#4c5960";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(left,movingPulleys[0].position.y+31);ctx.lineTo(right,movingPulleys.at(-1)!.position.y+31);ctx.moveTo((left+right)/2,movingPulleys[0].position.y+31);ctx.lineTo(weight.position.x,weight.position.y-32);ctx.stroke()}
+        if(ropePath.length>1&&!routeAnalysis.complete){const previewPoints=ropePath.map(node=>node.kind==="anchor"?ROPE_ANCHOR:bodyByPlacedId.get(node.placedId)?.position).filter((point):point is {x:number;y:number}=>!!point);ctx.save();ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.lineCap="round";ctx.setLineDash([8,6]);ctx.beginPath();previewPoints.forEach((point,index)=>index?ctx.lineTo(point.x,point.y):ctx.moveTo(point.x,point.y));ctx.stroke();ctx.restore()}
+        if(routeAnalysis.complete)drawBlockAndTackle(ctx,ROPE_ANCHOR,routeFixed,routeMoving,placedBall?.position??null,now,running);
+        else if(ropePath.length===1){ctx.strokeStyle="#6b4930";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(ROPE_ANCHOR.x,ROPE_ANCHOR.y);ctx.lineTo(ROPE_ANCHOR.x,ROPE_ANCHOR.y+34);ctx.stroke()}
+        if(routeMoving.length&&weight){const left=Math.min(...routeMoving.map(body=>body.position.x)),right=Math.max(...routeMoving.map(body=>body.position.x)),top=Math.min(...routeMoving.map(body=>body.position.y))-37,bottom=Math.max(...routeMoving.map(body=>body.position.y))+37,hookX=(left+right)/2,hookY=bottom+25;ctx.save();ctx.strokeStyle="#4c5960";ctx.lineWidth=5;ctx.strokeRect(left-38,top,right-left+76,bottom-top);ctx.beginPath();ctx.moveTo(left,Math.min(...routeMoving.map(body=>body.position.y)));ctx.lineTo(hookX,hookY);if(right!==left){ctx.moveTo(right,Math.max(...routeMoving.map(body=>body.position.y)));ctx.lineTo(hookX,hookY)}ctx.stroke();ctx.fillStyle="#f4e5c0";ctx.beginPath();ctx.arc(hookX,hookY,9,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.lineWidth=3;ctx.beginPath();const chainEnd=weight.position.y-39;for(let y=hookY+12;y<chainEnd;y+=13){ctx.ellipse(hookX,y,5,8,0,0,Math.PI*2)}ctx.stroke();ctx.restore()}
         if(strands>0){ctx.fillStyle="#173f50";ctx.font="bold 13px system-ui";ctx.fillText(`${strands} tragende Seilabschnitte · ${strands}:1`,36,55)}
       }else if(level===5){
         ctx.fillStyle="#6b391e";ctx.font="bold 14px system-ui";ctx.fillText("Die Nadel reagiert ausschließlich auf den Ballon.",285,32);
@@ -313,9 +323,9 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         if(b.label==="levelBall"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.fill();ctx.fillStyle="#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
         if(b.label==="trampoline"){ctx.fillStyle="#c33a2c";ctx.fillRect(-68,-9,136,18);ctx.strokeStyle="#173f50";ctx.lineWidth=4;ctx.strokeRect(-68,-9,136,18);ctx.strokeStyle="#f4c64e";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-14);ctx.lineTo(0,-55);ctx.lineTo(-8,-43);ctx.moveTo(0,-55);ctx.lineTo(8,-43);ctx.stroke()}
         if(b.label==="seesaw"){const half=SEESAW_WIDTH/2;ctx.fillStyle="#ad6a2d";ctx.fillRect(-half,-9,SEESAW_WIDTH,18);ctx.fillStyle="#e3aa54";ctx.fillRect(-half,-9,SEESAW_WIDTH,5);ctx.strokeStyle="#51301a";ctx.lineWidth=3;ctx.strokeRect(-half,-9,SEESAW_WIDTH,18);ctx.fillStyle="#173f50";for(const side of [-1,1]){ctx.beginPath();ctx.arc(side*(half-10),0,6,0,Math.PI*2);ctx.fill()}ctx.save();ctx.rotate(-b.angle);ctx.fillStyle="#a43a27";ctx.beginPath();ctx.moveTo(-27,46);ctx.lineTo(27,46);ctx.lineTo(0,8);ctx.closePath();ctx.fill();ctx.strokeStyle="#65251b";ctx.stroke();ctx.restore()}
-        if(b.label==="pulley"){ctx.fillStyle="#d39a28";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.stroke()}
-        if(b.label==="movingPulley"){ctx.fillStyle="#4f9da8";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.stroke();ctx.fillStyle="#f4e5c0";ctx.font="bold 10px system-ui";ctx.fillText("LOSE",-15,4)}
-        if(b.label==="weight"){ctx.fillStyle="#555d60";ctx.fillRect(-32,-32,64,64);ctx.fillStyle="#f0d59a";ctx.font="bold 14px system-ui";ctx.fillText("50 kg",-21,5)}
+        if(b.label==="pulley"){ctx.fillStyle="#d39a28";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.stroke();ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(18,0);ctx.stroke()}
+        if(b.label==="movingPulley"){ctx.fillStyle="#4f9da8";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.stroke();ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(18,0);ctx.stroke();ctx.save();ctx.rotate(-b.angle);ctx.fillStyle="#f4e5c0";ctx.font="bold 10px system-ui";ctx.fillText("LOSE",-15,4);ctx.restore()}
+        if(b.label==="weight"){ctx.strokeStyle="#303b40";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,-39,9,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#555d60";ctx.fillRect(-32,-32,64,64);ctx.fillStyle="#f0d59a";ctx.font="bold 14px system-ui";ctx.fillText("50 kg",-21,5)}
         if(b.label==="steelBeam"){ctx.fillStyle="#6e858d";ctx.fillRect(-118,-9,236,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-118,-9,236,4);ctx.fillStyle="#3e5963";for(let rivet=-100;rivet<=100;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="woodWall"){ctx.fillStyle="#9b5e2a";ctx.fillRect(-12,-90,24,180);ctx.strokeStyle="#5a321a";for(let plank=-80;plank<90;plank+=28){ctx.strokeRect(-12,plank,24,28);ctx.beginPath();ctx.moveTo(-8,plank+7);ctx.lineTo(8,plank+20);ctx.stroke()}}
         if(b.label==="stoneWall"){ctx.fillStyle="#7d817e";ctx.fillRect(-21,-85,42,170);ctx.strokeStyle="#4e5554";ctx.lineWidth=2;for(let row=-85;row<85;row+=24){ctx.beginPath();ctx.moveTo(-21,row);ctx.lineTo(21,row);ctx.stroke();const seam=(Math.floor((row+85)/24)%2===0)?0:-10;ctx.beginPath();ctx.moveTo(seam,row);ctx.lineTo(seam,row+24);ctx.stroke()}}
@@ -331,12 +341,13 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
         if(b.label==="seesawPayload"){ctx.fillStyle="#c73b2e";ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();ctx.fillStyle="#f4c64e";ctx.beginPath();ctx.arc(-5,-5,4,0,Math.PI*2);ctx.fill()}
         if(b.plugin?.placedId===selectedId&&!running){ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);if(b.label==="seesaw")ctx.strokeRect(-126,-48,252,96);else if(["ramp","trampoline","fuse","cannon","bucket"].includes(b.label))ctx.strokeRect(-64,-38,128,76);else{ctx.beginPath();ctx.arc(0,0,48,0,Math.PI*2);ctx.stroke()}ctx.setLineDash([])}ctx.restore();
       }
+      if(level===4&&ropeMode&&!running){const selectedParts=new Map<number,number>();ropePath.forEach((node,index)=>{if(node.kind==="part")selectedParts.set(node.placedId,index)});const next=routeAnalysis.next,drawPort=(x:number,y:number,allowed:boolean,order?:number,label?:string)=>{ctx.save();ctx.fillStyle=order!==undefined?"#d39a28":allowed?"#2f9b67":"#8b958f";ctx.strokeStyle="#fff4cf";ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,allowed||order!==undefined?13:9,0,Math.PI*2);ctx.fill();ctx.stroke();if(order!==undefined){ctx.fillStyle="#173f50";ctx.font="bold 11px system-ui";ctx.textAlign="center";ctx.fillText(String(order+1),x,y+4)}if(label){ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.textAlign="left";ctx.fillText(label,x+18,y+4)}ctx.restore()};drawPort(ROPE_ANCHOR.x,ROPE_ANCHOR.y,next==="anchor",ropePath[0]?.kind==="anchor"?0:undefined,"FESTPUNKT");for(const part of placed){const kind=routeKindForPart(part.type);if(!kind)continue;const allowed=next==="moving"&&kind==="moving"||next==="fixed"&&kind==="fixed"||next==="moving-or-pull"&&(kind==="moving"||kind==="pull");drawPort(part.x,part.y,allowed,selectedParts.get(part.id),part.type==="pulley"?"FEST":part.type==="movingPulley"?"LOSE":"ZUGENDE")}}
       ctx.fillStyle="#4b2b17";ctx.font="bold 15px system-ui";
       if(level===0)ctx.fillText(!beltConnected?"Es fehlt die Verbindung zum Laufband":motor?"Riemen überträgt den Antrieb":"Triff das Hamsterrad mit einer Kugel",330,260);
       if(level===1&&!balloonPopped)ctx.fillText("Lenke den Ballon mit den Planken zur Flamme",275,32);
       if(level===2)ctx.fillText("Richte den Ventilator aus und triff den Zielring",275,32);
       if(level===3)ctx.fillText("Lenke den Fall mit dem Trampolin in den Korb",270,32);
-      if(level===4)ctx.fillText(!ropeInstalled?"Füge das durchgehende Seil hinzu":reevedPairs<2?"Ein Rollenpaar reicht für 50 kg noch nicht":liftPossible?"4:1 – vier Meter Zugweg ergeben einen Meter Hub":"Die Zugkraft reicht nicht",270,32);
+      if(level===4)ctx.fillText(!ropePath.length?"Wähle das Seil und beginne am grünen Festpunkt":!routeAnalysis.complete?`Seil offen – nächster Anschluss: ${routeAnalysis.next==="fixed"?"Festrolle":"lose Rolle oder Kugel"}`:!geometryValid?"Festrollen müssen oberhalb der losen Rollen liegen":pulleyAcceleration<=0?"Seil gespannt – die Lastseite ist schwerer und bleibt am Boden":"Seil gespannt – Kräfte und Seillänge bestimmen die Bewegung",220,32);
       if(level===5&&!balloonPopped)ctx.fillText("Lenke den Ballon in die platzierte Nadel",300,32);
       if(level===6)ctx.fillText(!mouseFleeAt?"Katze und Maus müssen auf gleicher Höhe sein":"Die Maus flieht – die Katze ist langsamer",275,32);
       if(level===7)ctx.fillText(gearsConnected?"Die Zahnradkette greift vollständig ineinander":"Zwischen den Zahnrädern sind noch Lücken",285,32);
@@ -346,23 +357,25 @@ function GameCanvas({ level, placed, selectedId, running, attempt, onWin }: { le
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
     return()=>{cancelAnimationFrame(raf);Matter.Engine.clear(engine)};
-  },[level,placed,selectedId,running,attempt,onWin]);
+  },[level,placed,ropePath,ropeMode,selectedId,running,attempt,onWin]);
   return <canvas ref={canvasRef} width={900} height={520} aria-label="Spielfeld der unglaublichen Maschine" />;
 }
 
 export default function Home() {
   const [name,setName]=useState(""); const [draft,setDraft]=useState(""); const [level,setLevel]=useState(0);
-  const [selected,setSelected]=useState<Part>("ball"); const [placed,setPlaced]=useState<Placed[]>([]); const [selectedId,setSelectedId]=useState<number|null>(null); const [running,setRunning]=useState(false); const [attempt,setAttempt]=useState(0); const [won,setWon]=useState(false); const [score,setScore]=useState(0); const [showScores,setShowScores]=useState(false); const [showPhysics,setShowPhysics]=useState(false); const [showLevels,setShowLevels]=useState(false); const [drag,setDrag]=useState<{id:number;dx:number;dy:number}|null>(null);
+  const [selected,setSelected]=useState<Part>("ball"); const [placed,setPlaced]=useState<Placed[]>([]); const [ropePath,setRopePath]=useState<RopeNode[]>([]); const [selectedId,setSelectedId]=useState<number|null>(null); const [running,setRunning]=useState(false); const [attempt,setAttempt]=useState(0); const [won,setWon]=useState(false); const [score,setScore]=useState(0); const [showScores,setShowScores]=useState(false); const [showPhysics,setShowPhysics]=useState(false); const [showLevels,setShowLevels]=useState(false); const [drag,setDrag]=useState<{id:number;dx:number;dy:number}|null>(null);
   useEffect(()=>{const timer=window.setTimeout(()=>setName(localStorage.getItem("machine-user")||""),0);return()=>window.clearTimeout(timer)},[]);
   const login=()=>{const n=draft.trim();if(n){localStorage.setItem("machine-user",n);setName(n)}};
   const inventory=partsForLevel(level);
   const boardPoint=(e:React.PointerEvent<HTMLDivElement>)=>{const r=e.currentTarget.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*900,y:(e.clientY-r.top)/r.height*520}};
-  const boardPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{if(running)return;const point=boardPoint(e);const movable=placed.filter(p=>p.type!=="belt").map(p=>({...p,d:Math.hypot(p.x-point.x,p.y-point.y)})).sort((a,b)=>a.d-b.d)[0];if(movable&&movable.d<52){e.currentTarget.setPointerCapture(e.pointerId);setSelectedId(movable.id);setDrag({id:movable.id,dx:movable.x-point.x,dy:movable.y-point.y});return}const allowed=inventory.find(i=>i.type===selected);if(!allowed)return;const used=placed.filter(p=>p.type===selected).length;if(used>=allowed.count)return;const id=Date.now();setSelectedId(id);const initialRotation=["ramp","trampoline","cannon"].includes(selected)?-.28:selected==="bucket"?-.08:0;setPlaced(p=>[...p,{id,type:selected,x:point.x,y:point.y,rotation:initialRotation}])};
+  const boardPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{if(running)return;const point=boardPoint(e);if(selected==="rope"&&level===4){const routeKinds=ropePath.map(node=>node.kind==="anchor"?"anchor":routeKindForPart(placed.find(part=>part.id===node.placedId)?.type??"rope")).filter((kind):kind is PulleyRouteKind=>kind!==null),analysis=analyzePulleyRoute(routeKinds);if(analysis.next==="complete")return;if(analysis.next==="anchor"){if(Math.hypot(point.x-ROPE_ANCHOR.x,point.y-ROPE_ANCHOR.y)<42)setRopePath([{kind:"anchor"}]);return}const candidate=placed.filter(part=>{const kind=routeKindForPart(part.type);if(!kind||ropePath.some(node=>node.kind==="part"&&node.placedId===part.id))return false;return analysis.next==="moving"&&kind==="moving"||analysis.next==="fixed"&&kind==="fixed"||analysis.next==="moving-or-pull"&&(kind==="moving"||kind==="pull")}).map(part=>({...part,d:Math.hypot(part.x-point.x,part.y-point.y)})).sort((a,b)=>a.d-b.d)[0];if(candidate&&candidate.d<48)setRopePath(nodes=>[...nodes,{kind:"part",placedId:candidate.id}]);return}const movable=placed.filter(p=>p.type!=="belt").map(p=>({...p,d:Math.hypot(p.x-point.x,p.y-point.y)})).sort((a,b)=>a.d-b.d)[0];if(movable&&movable.d<52){e.currentTarget.setPointerCapture(e.pointerId);setSelectedId(movable.id);setDrag({id:movable.id,dx:movable.x-point.x,dy:movable.y-point.y});return}const allowed=inventory.find(i=>i.type===selected);if(!allowed||selected==="rope")return;const used=placed.filter(p=>p.type===selected).length;if(used>=allowed.count)return;const id=Date.now();setSelectedId(id);const initialRotation=["ramp","trampoline","cannon"].includes(selected)?-.28:selected==="bucket"?-.08:0;setPlaced(p=>[...p,{id,type:selected,x:point.x,y:point.y,rotation:initialRotation}])};
   const boardPointerMove=(e:React.PointerEvent<HTMLDivElement>)=>{if(!drag||running)return;const point=boardPoint(e);setPlaced(items=>items.map(p=>p.id===drag.id?{...p,x:Math.max(25,Math.min(875,point.x+drag.dx)),y:Math.max(25,Math.min(475,point.y+drag.dy))}:p))};
-  const reset=()=>{setRunning(false);setPlaced([]);setSelectedId(null);setWon(false);setAttempt(a=>a+1)};
-  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","needle","mouse","gear","cannon","bucket","seesaw"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
+  const reset=()=>{setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(a=>a+1)};
+  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","needle","mouse","gear","cannon","bucket","seesaw"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
   const rotateSelected=(direction:-1|1)=>setPlaced(items=>items.map(p=>p.id===selectedId?{...p,rotation:p.rotation+direction*Math.PI/12}:p));
   const selectedPlaced=placed.find(p=>p.id===selectedId),canRotate=selectedPlaced&&["ramp","fan","trampoline","needle","cannon","fuse","bucket","seesaw"].includes(selectedPlaced.type);
+  const removeSelected=()=>{if(selectedId===null)return;setPlaced(items=>items.filter(part=>part.id!==selectedId));setRopePath(nodes=>{const index=nodes.findIndex(node=>node.kind==="part"&&node.placedId===selectedId);return index<0?nodes:nodes.slice(0,index)});setSelectedId(null)};
+  const ropeAnalysis=analyzePulleyRoute(ropePath.map(node=>node.kind==="anchor"?"anchor":routeKindForPart(placed.find(part=>part.id===node.placedId)?.type??"rope")).filter((kind):kind is PulleyRouteKind=>kind!==null));
   const win=()=>{setWon(true);setRunning(false);setScore(s=>{const next=s+Math.max(500,1800-placed.length*120);const board=JSON.parse(localStorage.getItem("machine-scores")||"[]") as {name:string;score:number}[];localStorage.setItem("machine-scores",JSON.stringify([...board,{name,score:next}].sort((a,b)=>b.score-a.score).slice(0,10)));return next})};
   const highScores=(()=>{if(typeof window==="undefined")return[] as {name:string;score:number}[];try{return JSON.parse(localStorage.getItem("machine-scores")||"[]") as {name:string;score:number}[]}catch{return[]}})();
   if(!name) return <main className="login"><section className="login-card"><div className="professor">⚙</div><p className="eyebrow">WERKSTATTZUGANG</p><h1>Die Unglaubliche<br/><span>Maschine</span></h1><p>Ein Name genügt. Kein Passwort, kein Papierkram – Professor Knallkopf vertraut dir.</p><label>Dein Spielername<input autoFocus value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} placeholder="z. B. Stefan"/></label><button onClick={login}>Werkstatt betreten <b>→</b></button></section></main>;
@@ -370,10 +383,10 @@ export default function Home() {
     <header><button className="score" onClick={()=>setShowScores(true)}><span>★</span><b>{score.toLocaleString("de-DE")}</b></button><div className="brand"><small>PROFESSOR KNALLKOPFS</small><strong>Die Unglaubliche Maschine</strong></div><button className="level-chip" onClick={()=>setShowLevels(true)}>LEVEL <b>{String(level+1).padStart(2,"0")}</b> / {ACTIVE_LEVEL_COUNT}⌄</button><button className="user" onClick={()=>{localStorage.removeItem("machine-user");setName("")}}>⚙ {name}⌄</button></header>
     <section className="mission"><span>ZIEL</span><b>{LEVELS[level][1]}</b><em>Hinweis: {LEVELS[level][2]}</em></section>
     <div className="workspace">
-      <section className="board-wrap"><div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={()=>setDrag(null)} onPointerCancel={()=>setDrag(null)}><GameCanvas level={level} placed={placed} selectedId={selectedId} running={running} attempt={attempt} onWin={win}/>{!running&&placed.length===0&&<div className="board-tip">{BUILD_TIPS[level]}</div>}{won&&<div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{WIN_TEXT[level]}</p>{level<ACTIVE_LEVEL_COUNT-1?<button onClick={()=>changeLevel(level+1)}>Nächstes Level →</button>:<button onClick={()=>{setWon(false);reset()}}>Noch einmal bauen ↻</button>}</div>}</div><div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div></section>
-      <aside><h2>BAUTEILE</h2>{inventory.map(p=>{const remaining=p.count-placed.filter(x=>x.type===p.type).length;return <button key={p.type} className={selected===p.type?"selected":""} onClick={()=>setSelected(p.type)} disabled={running||remaining===0}><span className={`part ${p.type}`}>{p.icon}</span><label>{p.name}</label><b>{remaining}</b></button>})}<div className="tip"><b>💡 TIPP</b><p>{LEVEL_HINTS[level]}</p></div></aside>
+      <section className="board-wrap"><div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={()=>setDrag(null)} onPointerCancel={()=>setDrag(null)}><GameCanvas level={level} placed={placed} ropePath={ropePath} ropeMode={selected==="rope"} selectedId={selectedId} running={running} attempt={attempt} onWin={win}/>{!running&&placed.length===0&&<div className="board-tip">{BUILD_TIPS[level]}</div>}{won&&<div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{WIN_TEXT[level]}</p>{level<ACTIVE_LEVEL_COUNT-1?<button onClick={()=>changeLevel(level+1)}>Nächstes Level →</button>:<button onClick={()=>{setWon(false);reset()}}>Noch einmal bauen ↻</button>}</div>}</div><div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div></section>
+      <aside><h2>BAUTEILE</h2>{inventory.map(p=>{const remaining=p.type==="rope"?(ropePath.length?0:1):p.count-placed.filter(x=>x.type===p.type).length;return <button key={p.type} className={selected===p.type?"selected":""} onClick={()=>setSelected(p.type)} disabled={running||(remaining===0&&!(p.type==="rope"&&selected==="rope"))}><span className={`part ${p.type}`}>{p.icon}</span><label>{p.name}</label><b>{remaining}</b></button>})}<div className="tip"><b>💡 TIPP</b><p>{selected==="rope"&&level===4?ropeAnalysis.next==="anchor"?"Klicke zuerst auf den grünen FESTPUNKT.":ropeAnalysis.next==="fixed"?"Klicke jetzt eine Festrolle oberhalb der losen Rolle.":ropeAnalysis.next==="moving-or-pull"?"Klicke eine weitere lose Rolle oder schließe das Seil an die Kugel an.":"Der Seilverlauf ist geschlossen und bleibt beim Verschieben verbunden.":LEVEL_HINTS[level]}</p></div></aside>
     </div>
-    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}><i>↻</i><span>ZURÜCKSETZEN</span></button>{level>0&&<><button className="reset" onClick={()=>rotateSelected(-1)} disabled={running||!canRotate}><i>↶</i><span>LINKS DREHEN</span></button><button className="reset" onClick={()=>rotateSelected(1)} disabled={running||!canRotate}><i>↷</i><span>RECHTS DREHEN</span></button></>}{running?<button className="stop" onClick={()=>setRunning(false)}><i>■</i><span>MASCHINE ABBRECHEN</span></button>:<button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={placed.length===0}><span>MASCHINE STARTEN</span><i>▶</i></button>}<button className="levels" onClick={()=>setShowPhysics(true)}><i>⚙</i><span>PHYSIK</span></button><button className="levels" onClick={()=>setShowLevels(true)}><i>☷</i><span>LEVEL {level+1}/{ACTIVE_LEVEL_COUNT}</span></button></footer>
+    <footer><div><span>VERSUCH</span><b>{attempt+1}</b></div><button className="reset" onClick={reset}><i>↻</i><span>ZURÜCKSETZEN</span></button><button className="delete" onClick={removeSelected} disabled={running||selectedId===null}><i>×</i><span>GADGET ENTFERNEN</span></button>{level===4&&selected==="rope"&&<button className="reset" onClick={()=>setRopePath(nodes=>nodes.slice(0,-1))} disabled={running||ropePath.length===0}><i>↩</i><span>SEILPUNKT ZURÜCK</span></button>}{level>0&&<><button className="reset" onClick={()=>rotateSelected(-1)} disabled={running||!canRotate}><i>↶</i><span>LINKS DREHEN</span></button><button className="reset" onClick={()=>rotateSelected(1)} disabled={running||!canRotate}><i>↷</i><span>RECHTS DREHEN</span></button></>}{running?<button className="stop" onClick={()=>setRunning(false)}><i>■</i><span>MASCHINE ABBRECHEN</span></button>:<button className="start" onClick={()=>{setAttempt(a=>a+1);setRunning(true)}} disabled={placed.length===0||(level===4&&!ropeAnalysis.complete)}><span>MASCHINE STARTEN</span><i>▶</i></button>}<button className="levels" onClick={()=>setShowPhysics(true)}><i>⚙</i><span>PHYSIK</span></button><button className="levels" onClick={()=>setShowLevels(true)}><i>☷</i><span>LEVEL {level+1}/{ACTIVE_LEVEL_COUNT}</span></button></footer>
     {showScores&&<div className="modal" onClick={()=>setShowScores(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowScores(false)}>×</button><p className="eyebrow">WERKSTATTHALLE</p><h2>Bestenliste</h2>{highScores.length?highScores.map((s,i)=><div className="rank" key={i}><b>{i+1}</b><span>{s.name}</span><strong>{s.score.toLocaleString("de-DE")}</strong></div>):<p className="empty">Noch ist die Tafel jungfräulich. Bring zuerst eine Maschine zum Laufen!</p>}</section></div>}
     {showLevels&&<div className="modal" onClick={()=>setShowLevels(false)}><section className="level-dialog" onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowLevels(false)}>×</button><p className="eyebrow">ENTWICKLER-DIREKTZUGRIFF</p><h2>Level wählen</h2><div className="level-grid">{LEVELS.slice(0,ACTIVE_LEVEL_COUNT).map((item,i)=><button key={i} className={i===level?"current":""} onClick={()=>changeLevel(i)}><b>{String(i+1).padStart(2,"0")}</b><span>{item[0]}</span><small>{item[1]}</small></button>)}</div></section></div>}
     {showPhysics&&<div className="modal physics-modal" onClick={()=>setShowPhysics(false)}><section onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setShowPhysics(false)}>×</button><p className="eyebrow">PROFESSOR KNALLKOPFS</p><h2>Physik-Handbuch</h2><div className="handbook-scroll"><h3>Kraftquellen</h3><p className="physics-intro">Diese Gadgets bringen Energie oder gerichtete Bewegung in die Maschine.</p><div className="interaction-table"><table><thead><tr><th>Gadget</th><th>Kraftart</th><th>Richtung</th><th>Regel</th></tr></thead><tbody>{FORCE_SOURCES.map((row,i)=><tr key={i}><td>{row.gadget}</td><td>{row.kind}</td><td>{row.direction}</td><td>{row.rule}</td></tr>)}</tbody></table></div><h3>Wasser-Kollisionsformen</h3><p className="physics-intro">Wasser besteht aus kollidierenden Partikeln. Jede feste Außenkontur lenkt sie um; Löschsensoren reagieren auf Kontakt.</p><div className="interaction-table"><table><thead><tr><th>Objekte</th><th>Physikform</th><th>Wasserreaktion</th></tr></thead><tbody>{WATER_SHAPE_RULES.map((row,i)=><tr key={i}><td>{row.objects}</td><td>{row.shape}</td><td>{row.response}</td></tr>)}</tbody></table></div><h3>Abstrakte Zielprüfung</h3><p className="physics-intro">Gadgets erzeugen nur Signale und Zustände. Eine getrennte GoalSpec kombiniert sie zum jeweiligen Levelziel.</p><div className="interaction-table"><table><thead><tr><th>Modus</th><th>Bedeutung</th><th>Beispiel</th></tr></thead><tbody>{GOAL_MODES.map((row,i)=><tr key={i}><td><b>{row.mode}</b></td><td>{row.meaning}</td><td>{row.example}</td></tr>)}</tbody></table></div><h3>Objektinteraktionen</h3><div className="interaction-table"><table><thead><tr><th>Auslöser</th><th>Ziel</th><th>Wann?</th><th>Wirkung</th><th>Stand</th></tr></thead><tbody>{INTERACTIONS.map((row,i)=><tr key={i}><td>{row.source}</td><td>{row.target}</td><td>{row.trigger}</td><td>{row.effect}</td><td><span className={`status ${row.status}`}>{row.status}</span></td></tr>)}</tbody></table></div></div></section></div>}
