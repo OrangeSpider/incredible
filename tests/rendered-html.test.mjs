@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
 import test from "node:test";
 
 const developmentPreviewMeta =
@@ -30,4 +31,15 @@ test("renders development preview metadata", async () => {
     /^text\/html\b/i,
   );
   assert.match(await response.text(), developmentPreviewMeta);
+});
+
+test("hamster wheel uses a six-frame generated cartoon sprite sheet",async()=>{
+  const [source,sprite]=await Promise.all([
+    readFile(new URL("../app/page.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../public/assets/hamster-wheel-sprites.png",import.meta.url)),
+  ]);
+  assert.match(source,/hamster-wheel-sprites\.png/);
+  assert.deepEqual([...sprite.subarray(0,8)],[137,80,78,71,13,10,26,10],"asset must be a PNG");
+  assert.equal(sprite.readUInt32BE(16),768);
+  assert.equal(sprite.readUInt32BE(20),512,"the 3x2 sheet must contain six square animation cells");
 });

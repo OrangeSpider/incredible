@@ -150,6 +150,12 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       const cellWidth=waterSprites.naturalWidth/6,cellHeight=waterSprites.naturalHeight/3;
       ctx.save();ctx.translate(x,y);ctx.rotate(rotation);ctx.drawImage(waterSprites,frame*cellWidth,row*cellHeight,cellWidth,cellHeight,-width/2,-height/2,width,height);ctx.restore();return true;
     };
+    const hamsterSprites=new Image();hamsterSprites.src="/assets/hamster-wheel-sprites.png";
+    const drawHamsterSprite=(frame:number,x:number,y:number,width:number,height:number)=>{
+      if(!hamsterSprites.complete||!hamsterSprites.naturalWidth)return false;
+      const normalized=((frame%6)+6)%6,columns=3,cellWidth=hamsterSprites.naturalWidth/columns,cellHeight=hamsterSprites.naturalHeight/2,column=normalized%columns,row=Math.floor(normalized/columns);
+      ctx.drawImage(hamsterSprites,column*cellWidth,row*cellHeight,cellWidth,cellHeight,x-width/2,y-height/2,width,height);return true;
+    };
     const drawFallbackFlame=(x:number,y:number,now:number,scale=1)=>{const sway=Math.sin(now*.018)*3*scale;ctx.save();ctx.translate(x,y);ctx.fillStyle="#e94620";ctx.beginPath();ctx.moveTo(-9*scale,10*scale);ctx.quadraticCurveTo((-15+sway)*scale,-4*scale,sway,-18*scale);ctx.quadraticCurveTo((14+sway)*scale,-3*scale,9*scale,10*scale);ctx.fill();ctx.fillStyle="#ffd34f";ctx.beginPath();ctx.ellipse(sway*.35,3*scale,4*scale,8*scale,0,0,Math.PI*2);ctx.fill();ctx.restore()};
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 1, scale: 0.001 } });
     const W = 900, H = 520;
@@ -158,7 +164,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     const waterBodies:Matter.Body[]=[],waterSplashAt=new Map<number,number>();
     let cat:Matter.Body|null=null,wheel:Matter.Body|null=null,candle:Matter.Body|null=null,balloon:Matter.Body|null=null,levelBall:Matter.Body|null=null,weight:Matter.Body|null=null,bucketBody:Matter.Body|null=null,seesawPayload:Matter.Body|null=null;
     if(level===0){
-      wheel=Matter.Bodies.circle(365,345,42,{isStatic:true,label:"wheel"});
+      wheel=Matter.Bodies.rectangle(365,345,104,104,{isStatic:true,label:"wheel"});
       const conveyor=Matter.Bodies.rectangle(610,405,270,24,{isStatic:true,label:"conveyor"});
       const exit=Matter.Bodies.rectangle(835,410,55,130,{isStatic:true,isSensor:true,label:"exit"});
       cat=Matter.Bodies.rectangle(555,365,64,52,{friction:.8,frictionAir:.2,label:"cat"});
@@ -287,8 +293,9 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40);
       if(level===0){
         ctx.fillStyle="#183f49";ctx.fillRect(780,345,105,135);ctx.fillStyle="#eac97a";ctx.font="bold 16px Georgia";ctx.fillText("AUSGANG",790,375);ctx.fillText("→",820,420);
-        drawGear(365,345,42,motor?now/180:0);ctx.fillStyle="#93511f";ctx.fillRect(475,393,270,24);ctx.fillStyle="#d84a32";for(let x=490;x<730;x+=34){ctx.fillText("›",x,412)}
-        if(beltConnected){ctx.save();ctx.strokeStyle="#51351f";ctx.lineWidth=7;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(400,325);ctx.lineTo(510,390);ctx.stroke();ctx.restore()}
+        ctx.fillStyle="#93511f";ctx.fillRect(475,393,270,24);ctx.fillStyle="#d84a32";for(let x=490;x<730;x+=34){ctx.fillText("›",x,412)}
+        if(beltConnected){ctx.save();ctx.strokeStyle="#51351f";ctx.lineWidth=7;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(407,345);ctx.lineTo(510,390);ctx.stroke();ctx.restore()}
+        const hamsterFrame=motor?Math.floor(now/90)%6:0;if(!drawHamsterSprite(hamsterFrame,365,345,116,116))drawGear(365,345,42,motor?now/180:0);
       }else if(level===1){
         ctx.fillStyle="#7b4c24";ctx.fillRect(770,135,72,10);ctx.fillStyle="#f1cb62";ctx.fillRect(793,75,24,64);if(!drawFireSprite(0,Math.floor(now/105)%6,805,51,82,90))drawFallbackFlame(805,58,now,1.05);
       }else if(level===2){
