@@ -53,4 +53,5 @@ test("cat uses a generated three-state animation sprite sheet",async()=>{
   assert.deepEqual([...sprite.subarray(0,8)],[137,80,78,71,13,10,26,10],"asset must be a PNG");
   assert.equal(sprite.readUInt32BE(16),768);
   assert.equal(sprite.readUInt32BE(20),768,"the 3x3 sheet must contain nine square animation cells");
+  assert.equal(sprite[25],6,"the cat sprite sheet must use RGBA pixels with transparency");
 });
