@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
 import {analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,pulleyTargetReached,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
-import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultImpactMode,catapultLaunchVelocity} from "../game/catapult.ts";
+import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultImpactMode,catapultLaunchVelocity,catapultReleasePosition} from "../game/catapult.ts";
 import {animalHasSupport,isAnimalFalling} from "../game/animals.ts";
 
 test("level 1 conveyor supports the cat without triggering fall shock",()=>{
@@ -166,18 +166,19 @@ test("left impact lowers the left end and the support stops a full rotation",()=
 
 test("level 12 launches the startled cat onto the mouse platform",()=>{
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}}),assembly=createSeesaw(CATAPULT_SEESAW.x,CATAPULT_SEESAW.y,0);
-  const cat=Matter.Bodies.rectangle(CATAPULT_CAT_START.x,CATAPULT_CAT_START.y,60,48,{label:"cat"});Matter.Body.setStatic(cat,true);
+  const cat=Matter.Bodies.rectangle(CATAPULT_CAT_START.x,CATAPULT_CAT_START.y,60,48,{friction:.7,restitution:.04,inertia:Infinity,label:"cat"});
   const ball=Matter.Bodies.circle(205,110,18,{density:.006,label:"ball"});
   const platform=Matter.Bodies.rectangle(CATAPULT_PLATFORM.x,CATAPULT_PLATFORM.y,CATAPULT_PLATFORM.width,CATAPULT_PLATFORM.height,{isStatic:true,label:"platform"});
-  Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,cat,ball,platform]);let launched=false,landed=false;
+  Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,cat,ball,platform]);let launched=false,landed=false,minLaunchedX=cat.position.x;
   Matter.Events.on(engine,"collisionStart",event=>event.pairs.forEach(({bodyA,bodyB})=>{
     const labels=[bodyA.label,bodyB.label];
-    if(!launched&&labels.includes("seesaw")&&labels.includes("ball")){launched=true;Matter.Body.setStatic(cat,false);applySeesawImpact(engine,assembly.plank,ball);Matter.Body.setVelocity(cat,catapultLaunchVelocity(ball.velocity.y))}
+    if(!launched&&labels.includes("seesaw")&&labels.includes("ball")){launched=true;applySeesawImpact(engine,assembly.plank,ball);Matter.Body.setPosition(cat,catapultReleasePosition(cat.position));Matter.Body.setVelocity(cat,catapultLaunchVelocity(ball.velocity.y))}
     if(labels.includes("cat")&&labels.includes("platform"))landed=true;
   }));
-  for(let tick=0;tick<500&&!landed;tick++){Matter.Engine.update(engine,16.666);limitSeesawRotation(assembly.plank)}
+  for(let tick=0;tick<500&&!landed;tick++){Matter.Engine.update(engine,16.666);limitSeesawRotation(assembly.plank);if(launched)minLaunchedX=Math.min(minLaunchedX,cat.position.x)}
   assert.equal(launched,true,"the ball must trigger the free side of the seesaw");
   assert.equal(landed,true,"the launch arc must reach the upper platform");
+  assert.ok(minLaunchedX>=CATAPULT_CAT_START.x-1,"the cat must launch toward the platform instead of being kicked left");
 });
 
 test("level 12 lets the cat fall when a ball lowers its side of the seesaw",()=>{

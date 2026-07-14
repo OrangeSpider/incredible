@@ -9,7 +9,7 @@ import { createBucketAssembly,WATER_SHAPE_RULES } from "@/game/water";
 import { applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_WIDTH } from "@/game/seesaw";
 import { analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,PULLEY_GRAVITY_PX,pulleyTargetReached,PulleyRouteKind,ropeConstraintCorrection,ropeGeometry,RopePoint } from "@/game/pulley";
 import {catIsRunning,catSpriteOffsetX,catSpritePose} from "@/game/cat";
-import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultImpactMode,catapultLaunchVelocity} from "@/game/catapult";
+import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultImpactMode,catapultLaunchVelocity,catapultReleasePosition} from "@/game/catapult";
 import {mouseSpriteFrame} from "@/game/mouse";
 import {animalHasSupport,isAnimalFalling} from "@/game/animals";
 import {FuseNetwork} from "@/game/fuse";
@@ -189,6 +189,9 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       const column=((frame%3)+3)%3,cellWidth=mrBlueSprites.naturalWidth/3,cellHeight=mrBlueSprites.naturalHeight/3;
       ctx.drawImage(mrBlueSprites,column*cellWidth,row*cellHeight,cellWidth,cellHeight,x-size/2,y-size/2,size,size);return true;
     };
+    // Die drei Zappelzeichnungen haben unterschiedlich viel transparenten Rand.
+    // Diese optischen Anker halten Mr. Blue am selben Ort, ohne den Sprung zu glätten.
+    const mrBlueFlopOffsets=[{x:-4,y:2},{x:-2,y:2},{x:7,y:2}] as const;
     const drawFallbackFlame=(x:number,y:number,now:number,scale=1)=>{const sway=Math.sin(now*.018)*3*scale;ctx.save();ctx.translate(x,y);ctx.fillStyle="#e94620";ctx.beginPath();ctx.moveTo(-9*scale,10*scale);ctx.quadraticCurveTo((-15+sway)*scale,-4*scale,sway,-18*scale);ctx.quadraticCurveTo((14+sway)*scale,-3*scale,9*scale,10*scale);ctx.fill();ctx.fillStyle="#ffd34f";ctx.beginPath();ctx.ellipse(sway*.35,3*scale,4*scale,8*scale,0,0,Math.PI*2);ctx.fill();ctx.restore()};
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 1, scale: 0.001 } });
     const W = 900, H = 520;
@@ -305,7 +308,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         const impact=bodyA.label==="ball"?bodyA:bodyB;
         if(level===11&&cat&&!catStartledAt){
           catStartledAt=performance.now();catImpactMode=catapultImpactMode(impact.position.x,seesawBody.position.x);applySeesawImpact(engine,seesawBody,impact);
-          if(catImpactMode==="launch")Matter.Body.setVelocity(cat,catapultLaunchVelocity(impact.velocity.y));
+          if(catImpactMode==="launch"){Matter.Body.setPosition(cat,catapultReleasePosition(cat.position));Matter.Body.setVelocity(cat,catapultLaunchVelocity(impact.velocity.y))}
         }else if(level!==11)applySeesawImpact(engine,seesawBody,impact);
       }
       if(level===11&&labels.includes("cat")&&labels.includes("catapultPlatform")&&cat&&catStartledAt&&!catOnPlatformAt){catOnPlatformAt=performance.now();Matter.Body.setStatic(cat,true);Matter.Body.setPosition(cat,{x:Math.max(540,Math.min(680,cat.position.x)),y:CATAPULT_PLATFORM.animalY});Matter.Body.setAngle(cat,0)}
@@ -413,7 +416,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
         if(b.label==="mouse"){const mouseRunning=(level===6&&mouseFleeAt>0)||(level===11&&catOnPlatformAt>0),frame=mouseSpriteFrame(now,mouseRunning);if(!drawMouseSprite(frame,0,-5,60)){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}}
         if(b.label==="fishbowl"){const breakAge=fishBowlBrokenAt?now-fishBowlBrokenAt:-1;if(!fishBowlBrokenAt){if(!drawMrBlueSprite(0,Math.floor(now/460)%3,0,-4,150)){ctx.font="70px serif";ctx.fillText("🐠",-38,22)}}else if(breakAge<FISH_REVEAL_DELAY_MS){drawMrBlueSprite(1,Math.min(2,Math.floor(breakAge/(FISH_REVEAL_DELAY_MS/3))),0,-4,150)}}
-        if(b.label==="fish"&&fishVisible){if(!drawMrBlueSprite(2,Math.floor((now-fishBowlBrokenAt)/150)%3,0,-8,86)){ctx.font="44px serif";ctx.fillText("🐟",-24,15)}}
+        if(b.label==="fish"&&fishVisible){const frame=Math.floor((now-fishBowlBrokenAt)/150)%3,offset=mrBlueFlopOffsets[frame];if(!drawMrBlueSprite(2,frame,offset.x,offset.y,86)){ctx.font="44px serif";ctx.fillText("🐟",-24,15)}}
         if(b.label==="catapultPlatform"){ctx.fillStyle="#6e858d";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,4);ctx.fillStyle="#3e5963";for(let rivet=-170;rivet<=170;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="catapultMouseHole"){ctx.fillStyle="#173f50";ctx.fillRect(-28,-55,56,110);ctx.fillStyle="#f1d28d";ctx.font="bold 12px system-ui";ctx.fillText("MAUS-",-21,-5);ctx.fillText("LOCH",-18,12)}
         if(["gear","gearSource","gearTarget"].includes(b.label)){const depth=gearDepth.get(b.id);ctx.rotate(running&&depth!==undefined?(now/170)*(depth%2?-1:1):0);ctx.fillStyle=b.label==="gearTarget"?"#bf432d":"#d39a28";for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(34,-6,15,12)}ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
