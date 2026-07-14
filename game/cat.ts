@@ -4,8 +4,13 @@ export const CAT_STARTLE_FRAME_MS=220;
 export const CAT_STARTLE_DURATION_MS=CAT_STARTLE_FRAME_MS*3;
 export const CAT_IDLE_FRAME_MS=350;
 const CAT_IDLE_SEQUENCE=[0,0,0,1,2,0,0,0] as const;
+const CAT_IDLE_SOURCE_OFFSETS_X=[0,15,34] as const;
 
 export type CatSpritePose={state:CatAnimationState;row:number;frame:number};
+
+export function catSpriteOffsetX(pose:CatSpritePose,size:number):number{
+  return pose.state==="idle"?CAT_IDLE_SOURCE_OFFSETS_X[pose.frame]*size/256:0;
+}
 
 export function catIsRunning({motor,level,mouseFleeAt}:{motor:boolean;level:number;mouseFleeAt:number}):boolean{
   return motor||(level===6&&mouseFleeAt>0);

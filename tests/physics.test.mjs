@@ -4,6 +4,17 @@ import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
 import {analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,pulleyTargetReached,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
 import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultLaunchVelocity} from "../game/catapult.ts";
+import {animalHasSupport,isAnimalFalling} from "../game/animals.ts";
+
+test("level 1 conveyor supports the cat without triggering fall shock",()=>{
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
+  const conveyor=Matter.Bodies.rectangle(610,405,270,24,{isStatic:true,label:"conveyor"});
+  const cat=Matter.Bodies.rectangle(555,365,64,52,{friction:.8,frictionAir:.2,inertia:Infinity,label:"cat"});
+  Matter.Composite.add(engine.world,[conveyor,cat]);
+  Matter.Engine.update(engine,16.666);
+  assert.equal(animalHasSupport(cat,Matter.Composite.allBodies(engine.world)),true);
+  assert.equal(isAnimalFalling(2,true),false);
+});
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
