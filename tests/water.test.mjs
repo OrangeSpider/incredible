@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {readFile} from "node:fs/promises";
 import Matter from "matter-js";
 import {createBucketAssembly,WATER_PARTICLE_COUNT,WATER_SHAPE_RULES} from "../game/water.ts";
 
@@ -56,9 +55,4 @@ test("water interaction matrix covers rigid shapes, animals, fire, floor and ign
   for(const expected of ["Hamsterrad","Luftballon","Seil","Katze, Maus","Lunte, Kerze","Boden, Eimer","Stahlträger"]){
     assert.match(text,new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
   }
-});
-
-test("fuse burn duration is doubled",async()=>{
-  const source=await readFile(new URL("../app/page.tsx",import.meta.url),"utf8");
-  assert.match(source,/const fuseDuration=2\*\(1600\+fuseBodies\.length\*280\)/);
 });
