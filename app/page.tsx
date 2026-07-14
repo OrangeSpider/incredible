@@ -9,6 +9,7 @@ import { createBucketAssembly,WATER_SHAPE_RULES } from "@/game/water";
 import { applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_WIDTH } from "@/game/seesaw";
 import { analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,PULLEY_GRAVITY_PX,pulleyTargetReached,PulleyRouteKind,ropeConstraintCorrection,ropeGeometry,RopePoint } from "@/game/pulley";
 import {catIsRunning,catSpritePose} from "@/game/cat";
+import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultLaunchVelocity} from "@/game/catapult";
 
 type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "movingPulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
@@ -16,7 +17,7 @@ type RopeNode={kind:"anchor"}|{kind:"part";placedId:number};
 const ROPE_ANCHOR={x:92,y:64};
 const FAN_VISIBLE_RANGE=210;
 const FAN_MAX_RANGE=FAN_VISIBLE_RANGE*2;
-const ACTIVE_LEVEL_COUNT=11;
+const ACTIVE_LEVEL_COUNT=12;
 
 const LEVELS = [
   ["Der erste Anstoß", "Bring die Katze zum Ausgang", "Mausmotor und Laufband"],
@@ -30,7 +31,7 @@ const LEVELS = [
   ["Feuer frei!", "Zünde die Lunte und triff die Zielscheibe", "Die Kanone feuert erst, wenn die Lunte vollständig abgebrannt ist"],
   ["Wasser marsch!", "Lösche die Kerze mit dem Wasser aus dem Eimer", "Der Eimer kippt am Scharnier; Planken lenken den Wasserweg"],
   ["Hebelwirkung", "Katapultiere die rote Kugel in den Korb", "Ein Aufprall senkt eine Seite und beschleunigt die andere nach oben"],
-  ["Freier Fall", "Fange drei Bälle im Eimer", "Timing schlägt Tempo"],
+  ["Katzensprung", "Schleudere die Katze zur Maus auf die obere Ebene", "Die Bowlingkugel muss die freie Seite der Wippe treffen"],
   ["Katzenkino", "Locke die Katze durch zwei Türen", "Die Maus muss sichtbar bleiben"],
   ["Dampfkraft", "Hebe das Gewicht an", "Wasser plus Hitze"],
   ["Seiltanz", "Läute die Glocke", "Verteile das Gewicht"],
@@ -58,6 +59,7 @@ const BUILD_TIPS=[
   "Platziere Kanone und Luntenteile als Kette von der Kerze bis zur Kanone. Richte anschließend das Rohr aus.",
   "Platziere den Wassereimer links oberhalb der Kerze. Eine Planke über der Steinmauer – vier Schritte nach rechts gedreht – leitet den Schwall zum Ziel.",
   "Setze die Wippe unter die rote Kugel und lasse die Bowlingkugel auf das gegenüberliegende Ende fallen.",
+  "Die Katze wartet auf der rechten Wippenseite. Lass die Bowlingkugel weit links auftreffen, damit die Katze auf die obere Ebene fliegt.",
 ] as const;
 const WIN_TEXT=[
   "Die Katze wurde vom angetriebenen Laufband zum Ausgang gebracht.",
@@ -71,6 +73,7 @@ const WIN_TEXT=[
   "Die Lunte brannte vollständig ab und die Kanonenkugel traf das Ziel.",
   "Das Wasser floss um die Hindernisse, sammelte sich am Boden und löschte die Kerze.",
   "Die fallende Bowlingkugel drehte die Wippe und katapultierte die rote Kugel in den Korb.",
+  "Die Wippe schleuderte die erschrockene Katze auf die obere Ebene, wo sie die Maus verfolgte.",
 ] as const;
 const LEVEL_HINTS=[
   "Ohne sichtbaren Riemen überträgt das Hamsterrad keine Kraft.",
@@ -84,6 +87,7 @@ const LEVEL_HINTS=[
   "Luntenteile müssen Feuer und Kanone als zusammenhängende Kette verbinden.",
   "Baue von der Steinmauer eine steile Rinne zur Kerze. Wasser kollidiert mit festen Außenformen; Seile werden ignoriert.",
   "Die Wippe ist 1,5-mal so breit wie eine Holzplanke. Ihr Anschlag am roten Bock verhindert eine vollständige Drehung.",
+  "Nur ein Treffer auf der freien linken Seite löst den Katzensprung aus. Nach der Landung flieht die Maus zum Loch.",
 ] as const;
 
 const partsForLevel = (level:number): { type: Part; icon: string; name: string; count: number }[] => {
@@ -112,7 +116,8 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
   if(level===7)return [{type:"gear",icon:"⚙",name:"Zahnrad",count:3}];
   if(level===8)return [{type:"cannon",icon:"◒",name:"Kanone",count:1},{type:"fuse",icon:"⌁",name:"Luntenstück",count:5}];
   if(level===9)return [{type:"bucket",icon:"▱",name:"Wassereimer",count:1},{type:"ramp",icon:"╱",name:"Holzplanke",count:2}];
-  return [{type:"seesaw",icon:"⚖",name:"Wippe",count:1},{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
+  if(level===10)return [{type:"seesaw",icon:"⚖",name:"Wippe",count:1},{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
+  return [{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
 };
 
 function drawFreeRope(ctx:CanvasRenderingContext2D,points:{x:number;y:number;kind:PulleyRouteKind}[],now:number,running:boolean){
@@ -169,7 +174,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     const floor = Matter.Bodies.rectangle(W / 2, 500, W, 40, { isStatic: true, label:"floor" });
     Matter.Composite.add(engine.world, floor);
     const waterBodies:Matter.Body[]=[],waterSplashAt=new Map<number,number>();
-    let cat:Matter.Body|null=null,wheel:Matter.Body|null=null,candle:Matter.Body|null=null,balloon:Matter.Body|null=null,levelBall:Matter.Body|null=null,weight:Matter.Body|null=null,bucketBody:Matter.Body|null=null,seesawPayload:Matter.Body|null=null;
+    let cat:Matter.Body|null=null,wheel:Matter.Body|null=null,candle:Matter.Body|null=null,balloon:Matter.Body|null=null,levelBall:Matter.Body|null=null,weight:Matter.Body|null=null,bucketBody:Matter.Body|null=null,seesawPayload:Matter.Body|null=null,seesawBody:Matter.Body|null=null;
     if(level===0){
       wheel=Matter.Bodies.rectangle(365,345,104,104,{isStatic:true,label:"wheel"});
       const conveyor=Matter.Bodies.rectangle(610,405,270,24,{isStatic:true,label:"conveyor"});
@@ -209,8 +214,14 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       seesawPayload=Matter.Bodies.circle(650,385,16,{density:.0018,restitution:.35,label:"seesawPayload"});
       const basket=Matter.Bodies.rectangle(680,150,110,100,{isStatic:true,isSensor:true,label:"seesawBasket"});
       Matter.Composite.add(engine.world,[seesawPayload,basket]);
+    }else if(level===11){
+      const assembly=createSeesaw(CATAPULT_SEESAW.x,CATAPULT_SEESAW.y,0);seesawBody=assembly.plank;
+      cat=Matter.Bodies.rectangle(CATAPULT_CAT_START.x,CATAPULT_CAT_START.y,60,48,{label:"cat"});Matter.Body.setStatic(cat,true);
+      const mouse=Matter.Bodies.circle(CATAPULT_MOUSE_START.x,CATAPULT_MOUSE_START.y,22,{isStatic:true,label:"mouse"});
+      const platform=Matter.Bodies.rectangle(CATAPULT_PLATFORM.x,CATAPULT_PLATFORM.y,CATAPULT_PLATFORM.width,CATAPULT_PLATFORM.height,{isStatic:true,label:"catapultPlatform",friction:.8});
+      const hole=Matter.Bodies.rectangle(CATAPULT_MOUSE_HOLE_X+18,CATAPULT_PLATFORM.animalY,55,110,{isStatic:true,isSensor:true,label:"catapultMouseHole"});
+      Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,cat,mouse,platform,hole]);
     }
-    let seesawBody:Matter.Body|null=null;
     placed.forEach(p => {
       let b;
       if (p.type === "ball") b = Matter.Bodies.circle(p.x, p.y, 18, { isStatic:level===4,restitution: .35, density: .006, label: "ball" });
@@ -243,7 +254,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
     const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");const fuseReachable=new Set<number>(),fuseQueue=fuseBodies.filter(body=>Math.hypot(body.position.x-100,body.position.y-420)<120);fuseQueue.forEach(body=>fuseReachable.add(body.id));while(fuseQueue.length){const current=fuseQueue.shift()!;for(const candidate of fuseBodies){if(!fuseReachable.has(candidate.id)&&Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y)<120){fuseReachable.add(candidate.id);fuseQueue.push(candidate)}}}const fuseIgnited=fuseReachable.size>0,fuseReady=!!cannonBody&&fuseBodies.some(body=>fuseReachable.has(body.id)&&Math.hypot(body.position.x-cannonBody.position.x,body.position.y-cannonBody.position.y)<125);
     const fuseDuration=2*(1600+fuseBodies.length*280),wetFuseIds=new Set<number>(),bucketStartAngle=bucketBody?.angle??0,bucketStartPosition=bucketBody?{...bucketBody.position}:null,bucketPivot=bucketStartPosition?{x:bucketStartPosition.x+Math.cos(bucketStartAngle)*34-Math.sin(bucketStartAngle)*-23,y:bucketStartPosition.y+Math.sin(bucketStartAngle)*34+Math.cos(bucketStartAngle)*-23}:null;
-    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0};let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
+    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0};let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,catStartledAt=0,catOnPlatformAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       const water=bodyA.label==="water"?bodyA:bodyB.label==="water"?bodyB:null;
@@ -258,7 +269,13 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         Matter.Body.setVelocity(levelBall,{x:Math.sin(trampoline.angle)*20,y:-Math.abs(Math.cos(trampoline.angle))*20});
       }
       if(labels.includes("basket")&&labels.includes("levelBall")&&!won){won=true;onWin()}
-      if(labels.includes("seesaw")&&labels.includes("ball")&&seesawBody)applySeesawImpact(engine,seesawBody,bodyA.label==="ball"?bodyA:bodyB)
+      if(labels.includes("seesaw")&&labels.includes("ball")&&seesawBody){
+        const impact=bodyA.label==="ball"?bodyA:bodyB;
+        if(level===11&&cat&&!catStartledAt&&impact.position.x<seesawBody.position.x-25){
+          catStartledAt=performance.now();Matter.Body.setStatic(cat,false);applySeesawImpact(engine,seesawBody,impact);Matter.Body.setVelocity(cat,catapultLaunchVelocity(impact.velocity.y));
+        }else if(level!==11)applySeesawImpact(engine,seesawBody,impact);
+      }
+      if(level===11&&labels.includes("cat")&&labels.includes("catapultPlatform")&&cat&&catStartledAt&&!catOnPlatformAt){catOnPlatformAt=performance.now();Matter.Body.setStatic(cat,true);Matter.Body.setPosition(cat,{x:Math.max(540,Math.min(680,cat.position.x)),y:CATAPULT_PLATFORM.animalY});Matter.Body.setAngle(cat,0)}
       if(labels.includes("seesawBasket")&&labels.includes("seesawPayload")&&!won&&!seesawHitAt)seesawHitAt=performance.now();
       if(water&&labels.includes("floor")&&!waterSplashAt.has(water.id))waterSplashAt.set(water.id,performance.now());
       if(water&&labels.includes("candle")&&!candleExtinguished){candleWetHits++;if(candleWetHits>=1){candleExtinguished=true;candleExtinguishedAt=performance.now()}}
@@ -288,6 +305,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         pulleyTurn+=Math.hypot(placedBall.position.x-previousBall.x,placedBall.position.y-previousBall.y)/30;routeFixed.forEach(body=>Matter.Body.setAngle(body,pulleyTurn));routeMoving.forEach(body=>Matter.Body.setAngle(body,-pulleyTurn));if(routeMoving.length&&pulleyTargetReached(weight.position.y)&&!won){won=true;onWin()}
       }
       if(running&&level===6&&mouseBody&&cat){if(!mouseFleeAt&&Math.abs(mouseBody.position.y-cat.position.y)<35&&mouseBody.position.x>cat.position.x)mouseFleeAt=now;if(mouseFleeAt){Matter.Body.setPosition(mouseBody,{x:Math.min(835,mouseBody.position.x+dt*.09),y:mouseBody.position.y});Matter.Body.setPosition(cat,{x:Math.min(760,cat.position.x+dt*.055),y:cat.position.y});if(mouseBody.position.x>=810&&!won){won=true;onWin()}}}
+      if(running&&level===11&&catOnPlatformAt&&mouseBody&&cat){const next=advanceCatAndMouse(cat.position.x,mouseBody.position.x,dt);Matter.Body.setPosition(cat,{x:next.catX,y:CATAPULT_PLATFORM.animalY});Matter.Body.setPosition(mouseBody,{x:next.mouseX,y:CATAPULT_PLATFORM.animalY});if(next.mouseX>=CATAPULT_MOUSE_HOLE_X&&!won){won=true;onWin()}}
       if(running&&waterBodies.length){for(const animal of [cat,mouseBody]){if(!animal)continue;let nearest:Matter.Body|null=null,distance=Infinity;for(const drop of waterBodies){const d=Math.hypot(animal.position.x-drop.position.x,animal.position.y-drop.position.y);if(d<distance){nearest=drop;distance=d}}if(nearest&&distance<62){const direction=animal.position.x<nearest.position.x?-1:1;Matter.Body.setPosition(animal,{x:Math.max(30,Math.min(870,animal.position.x+direction*dt*.13)),y:animal.position.y})}}}
       if(running&&level===7&&gearsConnected){if(!gearTurnAt)gearTurnAt=now;if(now-gearTurnAt>1100&&!won){won=true;onWin()}}
       if(running&&level===8&&fuseIgnited){if(!fuseLitAt)fuseLitAt=now;if(!fuseExtinguishedAt&&fuseReady&&cannonBody&&!cannonFired&&now-fuseLitAt>fuseDuration){cannonFired=true;cannonFiredAt=now;const direction={x:Math.cos(cannonBody.angle),y:Math.sin(cannonBody.angle)};const shot=Matter.Bodies.circle(cannonBody.position.x+direction.x*58,cannonBody.position.y+direction.y*58,11,{density:.0025,restitution:.3,label:"cannonball"});Matter.Body.setVelocity(shot,{x:direction.x*14,y:direction.y*14});Matter.Composite.add(engine.world,shot)}}
@@ -327,6 +345,8 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         ctx.fillStyle="#7b4c24";ctx.fillRect(770,470,70,10);ctx.fillStyle="#f1cb62";ctx.fillRect(794,390,22,80);if(!candleExtinguished){if(!drawFireSprite(0,Math.floor(now/105)%6,805,371,82,90))drawFallbackFlame(805,380,now)}else{ctx.fillStyle="#8b9ba0";for(let puff=0;puff<4;puff++){ctx.globalAlpha=.55-puff*.1;ctx.beginPath();ctx.arc(802+Math.sin(now*.004+puff)*8,374-puff*9,8+puff*2,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;drawWaterSprite(1,5,805,450,76,38)}ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText("KERZE",785,505);
       }else if(level===10){
         ctx.strokeStyle="#7a421e";ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(635,105);ctx.lineTo(640,165);ctx.quadraticCurveTo(680,190,725,165);ctx.lineTo(728,105);ctx.stroke();ctx.fillStyle="#a52d24";ctx.font="bold 14px system-ui";ctx.fillText("ZIELKORB",646,210);
+      }else if(level===11){
+        ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("OBERE EBENE",560,CATAPULT_PLATFORM.y-24);
       }
       if(waterBodies.length){ctx.strokeStyle="rgba(33,158,211,.34)";ctx.lineWidth=7;ctx.lineCap="round";for(let i=0;i<waterBodies.length;i++)for(let j=i+1;j<waterBodies.length;j++){const a=waterBodies[i].position,b=waterBodies[j].position;if(Math.hypot(a.x-b.x,a.y-b.y)<10){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}
       for(const b of Matter.Composite.allBodies(engine.world)){
@@ -344,9 +364,11 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         if(b.label==="steelBeam"){ctx.fillStyle="#6e858d";ctx.fillRect(-118,-9,236,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-118,-9,236,4);ctx.fillStyle="#3e5963";for(let rivet=-100;rivet<=100;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="woodWall"){ctx.fillStyle="#9b5e2a";ctx.fillRect(-12,-90,24,180);ctx.strokeStyle="#5a321a";for(let plank=-80;plank<90;plank+=28){ctx.strokeRect(-12,plank,24,28);ctx.beginPath();ctx.moveTo(-8,plank+7);ctx.lineTo(8,plank+20);ctx.stroke()}}
         if(b.label==="stoneWall"){ctx.fillStyle="#7d817e";ctx.fillRect(-21,-85,42,170);ctx.strokeStyle="#4e5554";ctx.lineWidth=2;for(let row=-85;row<85;row+=24){ctx.beginPath();ctx.moveTo(-21,row);ctx.lineTo(21,row);ctx.stroke();const seam=(Math.floor((row+85)/24)%2===0)?0:-10;ctx.beginPath();ctx.moveTo(seam,row);ctx.lineTo(seam,row+24);ctx.stroke()}}
-        if(b.label==="cat"){const pose=catSpritePose(now,{running:catIsRunning({motor,level,mouseFleeAt}),startledAt:null}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,0,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
+        if(b.label==="cat"){const airborneStartle=level===11&&catStartledAt>0&&!catOnPlatformAt,pose=catSpritePose(now,{running:catIsRunning({motor,level,mouseFleeAt})||(level===11&&catOnPlatformAt>0),startledAt:airborneStartle?catStartledAt:null,holdStartled:airborneStartle}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,0,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
         if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
         if(b.label==="mouse"){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}
+        if(b.label==="catapultPlatform"){ctx.fillStyle="#6e858d";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,4);ctx.fillStyle="#3e5963";for(let rivet=-170;rivet<=170;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
+        if(b.label==="catapultMouseHole"){ctx.fillStyle="#173f50";ctx.fillRect(-28,-55,56,110);ctx.fillStyle="#f1d28d";ctx.font="bold 12px system-ui";ctx.fillText("MAUS-",-21,-5);ctx.fillText("LOCH",-18,12)}
         if(["gear","gearSource","gearTarget"].includes(b.label)){const depth=gearDepth.get(b.id);ctx.rotate(running&&depth!==undefined?(now/170)*(depth%2?-1:1):0);ctx.fillStyle=b.label==="gearTarget"?"#bf432d":"#d39a28";for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(34,-6,15,12)}ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
         if(b.label==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42);const cannonFuseElapsed=fuseExtinguishedAt?fuseStoppedProgress*fuseDuration:Math.max(0,now-fuseLitAt),cannonFuseProgress=fuseLitAt&&fuseReady?clamp01((cannonFuseElapsed-(fuseDuration-1300))/1300):0;ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#9a9284";ctx.beginPath();ctx.moveTo(-26,-17);ctx.quadraticCurveTo(-35,-34,-18,-42);ctx.stroke();ctx.strokeStyle="#49382a";ctx.beginPath();ctx.moveTo(-26+(8*cannonFuseProgress),-17-(25*cannonFuseProgress));ctx.quadraticCurveTo(-34,-34,-18,-42);ctx.stroke();if(cannonFuseProgress>0&&cannonFuseProgress<1&&!fuseExtinguishedAt){const fx=-26+8*cannonFuseProgress,fy=-17-25*cannonFuseProgress;if(!drawFireSprite(1,Math.floor(now/80)%6,fx,fy,34,34))drawFallbackFlame(fx,fy,now,.55)}if(cannonFiredAt&&now-cannonFiredAt<520){const flashFrame=Math.min(5,Math.floor((now-cannonFiredAt)/87));if(!drawFireSprite(2,flashFrame,70,0,105,78))drawFallbackFlame(67,0,now,1.5)}}
         if(b.label==="fuse"){const progress=fuseExtinguishedAt?fuseStoppedProgress:fuseLitAt?clamp01((now-fuseLitAt)/fuseDuration):0,index=b.plugin?.fuseIndex??0,count=Math.max(1,fuseBodies.length),localBurn=clamp01(progress*count-index),reached=fuseReachable.has(b.id);ctx.lineWidth=7;ctx.lineCap="round";if(reached&&localBurn>0&&localBurn<1&&!fuseExtinguishedAt&&drawFireSprite(1,Math.min(5,Math.floor(localBurn*6)),0,-2,132,58)){/* Das Sprite zeigt Seil, Aschespur, wandernde Flamme und Funken. */}else{ctx.strokeStyle=reached&&localBurn>=1?"#a29a8d":"#4f3d2b";ctx.beginPath();ctx.moveTo(-55,0);ctx.quadraticCurveTo(0,8,55,0);ctx.stroke()}if(wetFuseIds.has(b.id)){ctx.strokeStyle="#2ca7d8";ctx.lineWidth=3;ctx.setLineDash([3,7]);ctx.beginPath();ctx.moveTo(-50,-4);ctx.lineTo(50,4);ctx.stroke();ctx.setLineDash([])}}
@@ -369,6 +391,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       if(level===8)ctx.fillText(!fuseIgnited?"Kein Luntenteil berührt die Flamme":fuseExtinguishedAt?"Die nasse Lunte ist erloschen":!fuseReady?"Die Lunte brennt, erreicht aber die Kanone nicht":!fuseLitAt?"Bereit zum Zünden":"Die Lunte brennt langsam zur Kanone …",270,32);
       if(level===9)ctx.fillText(candleExtinguished?"Die Kerze ist gelöscht!":!bucketBody?"Platziere den Wassereimer":"Leite den Schwall um Stahl, Holz und Stein zur Kerze",250,32);
       if(level===10)ctx.fillText(!seesawBody?"Platziere die Wippe unter der roten Kugel":"Lass die Bowlingkugel auf das andere Ende fallen",270,32);
+      if(level===11)ctx.fillText(!catStartledAt?"Triff die freie linke Seite der Wippe":!catOnPlatformAt?"Die Katze erschrickt und fliegt zur oberen Ebene":"Die Katze verfolgt die Maus",275,32);
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
     return()=>{cancelAnimationFrame(raf);Matter.Engine.clear(engine)};
@@ -386,7 +409,7 @@ export default function Home() {
   const boardPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{if(running)return;const point=boardPoint(e);if(selected==="rope"&&level===4){const candidates:[number,RopeNode][]=[];if(!ropePath.some(node=>node.kind==="anchor"))candidates.push([Math.hypot(point.x-ROPE_ANCHOR.x,point.y-ROPE_ANCHOR.y),{kind:"anchor"}]);for(const part of placed){if(!routeKindForPart(part.type)||ropePath.some(node=>node.kind==="part"&&node.placedId===part.id))continue;candidates.push([Math.hypot(part.x-point.x,part.y-point.y),{kind:"part",placedId:part.id}])}candidates.sort((a,b)=>a[0]-b[0]);if(candidates[0]?.[0]<48)setRopePath(nodes=>[...nodes,candidates[0][1]]);return}const movable=placed.filter(p=>p.type!=="belt").map(p=>({...p,d:Math.hypot(p.x-point.x,p.y-point.y)})).sort((a,b)=>a.d-b.d)[0];if(movable&&movable.d<52){e.currentTarget.setPointerCapture(e.pointerId);setSelectedId(movable.id);setDrag({id:movable.id,dx:movable.x-point.x,dy:movable.y-point.y});return}const allowed=inventory.find(i=>i.type===selected);if(!allowed||selected==="rope")return;const used=placed.filter(p=>p.type===selected).length;if(used>=allowed.count)return;const id=Date.now();setSelectedId(id);const initialRotation=["ramp","trampoline","cannon"].includes(selected)?-.28:selected==="bucket"?-.08:0;setPlaced(p=>[...p,{id,type:selected,x:point.x,y:point.y,rotation:initialRotation}])};
   const boardPointerMove=(e:React.PointerEvent<HTMLDivElement>)=>{if(!drag||running)return;const point=boardPoint(e);setPlaced(items=>items.map(p=>p.id===drag.id?{...p,x:Math.max(25,Math.min(875,point.x+drag.dx)),y:Math.max(25,Math.min(475,point.y+drag.dy))}:p))};
   const reset=()=>{setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(a=>a+1)};
-  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","needle","mouse","gear","cannon","bucket","seesaw"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
+  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","needle","mouse","gear","cannon","bucket","seesaw","ball"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
   const rotateSelected=(direction:-1|1)=>setPlaced(items=>items.map(p=>p.id===selectedId?{...p,rotation:p.rotation+direction*Math.PI/12}:p));
   const selectedPlaced=placed.find(p=>p.id===selectedId),canRotate=selectedPlaced&&["ramp","fan","trampoline","needle","cannon","fuse","bucket","seesaw"].includes(selectedPlaced.type);
   const removeSelected=()=>{if(selectedId===null)return;setPlaced(items=>items.filter(part=>part.id!==selectedId));setRopePath(nodes=>{const index=nodes.findIndex(node=>node.kind==="part"&&node.placedId===selectedId);return index<0?nodes:nodes.slice(0,index)});setSelectedId(null)};

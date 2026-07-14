@@ -22,3 +22,8 @@ test("startled cat shows three shock frames and then runs away",()=>{
   assert.deepEqual(catSpritePose(startledAt+440,{running:false,startledAt}),{state:"startled",row:2,frame:2});
   assert.deepEqual(catSpritePose(startledAt+CAT_STARTLE_DURATION_MS,{running:false,startledAt}),{state:"running",row:1,frame:0});
 });
+
+test("a catapulted cat holds its shocked pose until landing",()=>{
+  const pose=catSpritePose(2000,{running:false,startledAt:0,holdStartled:true});
+  assert.equal(pose.state,"startled");assert.equal(pose.frame,2);
+});

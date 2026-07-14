@@ -31,6 +31,8 @@ export const INTERACTIONS: Interaction[] = [
   { source: "Offenes Seilende", target: "Beliebiger Aufbau", trigger: "Mindestens ein Seilende ist nicht an Festpunkt oder Zugkörper gebunden", effect: "Das Seil bleibt schlaff und kann keine Druck- oder Zwangskraft übertragen; die übrigen Körper bewegen sich trotzdem", status: "aktiv" },
   { source: "Bowlingkugel", target: "Trampolin", trigger: "Kollision von oben", effect: "Bewegungsimpuls wird von der Fläche weg nach oben umgelenkt", status: "aktiv" },
   { source: "Fallender Körper", target: "Wippe", trigger: "Aufprall außerhalb des Drehpunkts", effect: "Senkt die getroffene Seite und beschleunigt die gegenüberliegende Seite nach oben", status: "aktiv" },
+  { source: "Wippe", target: "Katze", trigger: "Bowlingkugel trifft die freie Gegenseite", effect: "Katze erschrickt und wird auf die obere Ebene katapultiert", status: "aktiv" },
+  { source: "Katze", target: "Maus", trigger: "Katze landet auf der Ebene der wartenden Maus", effect: "Katze wechselt in den Laufzyklus; Maus flieht zum Loch", status: "aktiv" },
   { source: "Jalousie", target: "Stationäre Affe auf Fahrrad", trigger: "Zugseil wird betätigt und Banane wird sichtbar", effect: "Affe tritt; das Fahrrad erzeugt Drehmoment, bleibt aber am Ort", status: "aktiv" },
   { source: "Affenfahrrad", target: "Laufband", trigger: "Rad und Laufband sind mit einem Riemen verbunden", effect: "Überträgt Drehmoment als lineare Bandbewegung", status: "aktiv" },
   { source: "Laufband", target: "Kiste", trigger: "Kiste berührt das angetriebene Band", effect: "Bewegt die Kiste in Bandrichtung", status: "aktiv" },

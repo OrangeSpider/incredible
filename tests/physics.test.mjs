@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
 import {analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,pulleyTargetReached,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
+import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultLaunchVelocity} from "../game/catapult.ts";
 
 test("level 2 has a solvable five-plank route to the candle", () => {
   const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
@@ -150,4 +151,27 @@ test("left impact lowers the left end and the support stops a full rotation",()=
   assert.ok(assembly.plank.angularVelocity<0,"a hit on the left must rotate the left end downward");
   for(let tick=0;tick<240;tick++){Matter.Engine.update(engine,16.666);limitSeesawRotation(assembly.plank)}
   assert.ok(Math.abs(assembly.plank.angle)<=SEESAW_MAX_ANGLE+1e-9,"the red support must act as a hard angular stop");
+});
+
+test("level 12 launches the startled cat onto the mouse platform",()=>{
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}}),assembly=createSeesaw(CATAPULT_SEESAW.x,CATAPULT_SEESAW.y,0);
+  const cat=Matter.Bodies.rectangle(CATAPULT_CAT_START.x,CATAPULT_CAT_START.y,60,48,{label:"cat"});Matter.Body.setStatic(cat,true);
+  const ball=Matter.Bodies.circle(205,110,18,{density:.006,label:"ball"});
+  const platform=Matter.Bodies.rectangle(CATAPULT_PLATFORM.x,CATAPULT_PLATFORM.y,CATAPULT_PLATFORM.width,CATAPULT_PLATFORM.height,{isStatic:true,label:"platform"});
+  Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,cat,ball,platform]);let launched=false,landed=false;
+  Matter.Events.on(engine,"collisionStart",event=>event.pairs.forEach(({bodyA,bodyB})=>{
+    const labels=[bodyA.label,bodyB.label];
+    if(!launched&&labels.includes("seesaw")&&labels.includes("ball")){launched=true;Matter.Body.setStatic(cat,false);applySeesawImpact(engine,assembly.plank,ball);Matter.Body.setVelocity(cat,catapultLaunchVelocity(ball.velocity.y))}
+    if(labels.includes("cat")&&labels.includes("platform"))landed=true;
+  }));
+  for(let tick=0;tick<500&&!landed;tick++){Matter.Engine.update(engine,16.666);limitSeesawRotation(assembly.plank)}
+  assert.equal(launched,true,"the ball must trigger the free side of the seesaw");
+  assert.equal(landed,true,"the launch arc must reach the upper platform");
+});
+
+test("after landing the cat chases while the mouse flees to its hole",()=>{
+  let catX=CATAPULT_CAT_START.x,mouseX=CATAPULT_MOUSE_START.x;
+  for(let tick=0;tick<240&&mouseX<CATAPULT_MOUSE_HOLE_X;tick++)({catX,mouseX}=advanceCatAndMouse(catX,mouseX,16.666));
+  assert.equal(mouseX,CATAPULT_MOUSE_HOLE_X);
+  assert.ok(catX<mouseX,"the fleeing mouse remains ahead of the pursuing cat");
 });

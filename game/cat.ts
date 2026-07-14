@@ -13,10 +13,10 @@ export function catIsRunning({motor,level,mouseFleeAt}:{motor:boolean;level:numb
  * The startled state deliberately owns three frames and then falls through to
  * running. Future explosions or impacts only need to provide `startledAt`.
  */
-export function catSpritePose(now:number,{running,startledAt}:{running:boolean;startledAt:number|null}):CatSpritePose{
+export function catSpritePose(now:number,{running,startledAt,holdStartled=false}:{running:boolean;startledAt:number|null;holdStartled?:boolean}):CatSpritePose{
   if(startledAt!==null){
     const elapsed=Math.max(0,now-startledAt);
-    if(elapsed<CAT_STARTLE_DURATION_MS)return{state:"startled",row:2,frame:Math.min(2,Math.floor(elapsed/CAT_STARTLE_FRAME_MS))};
+    if(elapsed<CAT_STARTLE_DURATION_MS||holdStartled)return{state:"startled",row:2,frame:Math.min(2,Math.floor(elapsed/CAT_STARTLE_FRAME_MS))};
     return{state:"running",row:1,frame:Math.floor((elapsed-CAT_STARTLE_DURATION_MS)/100)%3};
   }
   if(running)return{state:"running",row:1,frame:Math.floor(now/100)%3};
