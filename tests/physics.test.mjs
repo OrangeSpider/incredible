@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import Matter from "matter-js";
 import {applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_MAX_ANGLE,SEESAW_WIDTH} from "../game/seesaw.ts";
 import {analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,loadRiseFromPull,pulleyTargetReached,ropeConstraintCorrection,ropeGeometry} from "../game/pulley.ts";
-import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultLaunchVelocity} from "../game/catapult.ts";
+import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultImpactMode,catapultLaunchVelocity} from "../game/catapult.ts";
 import {animalHasSupport,isAnimalFalling} from "../game/animals.ts";
 
 test("level 1 conveyor supports the cat without triggering fall shock",()=>{
@@ -178,6 +178,24 @@ test("level 12 launches the startled cat onto the mouse platform",()=>{
   for(let tick=0;tick<500&&!landed;tick++){Matter.Engine.update(engine,16.666);limitSeesawRotation(assembly.plank)}
   assert.equal(launched,true,"the ball must trigger the free side of the seesaw");
   assert.equal(landed,true,"the launch arc must reach the upper platform");
+});
+
+test("level 12 lets the cat fall when a ball lowers its side of the seesaw",()=>{
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}}),assembly=createSeesaw(CATAPULT_SEESAW.x,CATAPULT_SEESAW.y,0);
+  const cat=Matter.Bodies.rectangle(CATAPULT_CAT_START.x,CATAPULT_CAT_START.y,60,48,{friction:.7,inertia:Infinity,label:"cat"});
+  const ball=Matter.Bodies.circle(330,110,18,{density:.006,label:"ball"});
+  const floor=Matter.Bodies.rectangle(450,500,900,40,{isStatic:true,label:"floor"});
+  Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,cat,ball,floor]);
+  const startY=cat.position.y;let impactMode="none";
+  Matter.Events.on(engine,"collisionStart",event=>event.pairs.forEach(({bodyA,bodyB})=>{
+    const labels=[bodyA.label,bodyB.label];
+    if(impactMode==="none"&&labels.includes("seesaw")&&labels.includes("ball")){
+      impactMode=catapultImpactMode(ball.position.x,assembly.plank.position.x);applySeesawImpact(engine,assembly.plank,ball);
+    }
+  }));
+  for(let tick=0;tick<360;tick++){Matter.Engine.update(engine,16.666);limitSeesawRotation(assembly.plank)}
+  assert.equal(impactMode,"drop","a ball between pivot and cat must lower the cat's side");
+  assert.ok(cat.position.y>startY+20,"the dynamic cat must follow the descending side and fall");
 });
 
 test("after landing the cat chases while the mouse flees to its hole",()=>{

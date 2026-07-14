@@ -4,6 +4,12 @@ export const CATAPULT_PLATFORM={x:710,y:290,width:380,height:18,animalY:255} as 
 export const CATAPULT_MOUSE_START={x:700,y:255} as const;
 export const CATAPULT_MOUSE_HOLE_X=850;
 
+export type CatapultImpactMode="launch"|"drop";
+
+export function catapultImpactMode(impactX:number,pivotX:number):CatapultImpactMode{
+  return impactX<pivotX?"launch":"drop";
+}
+
 export function catapultLaunchVelocity(impactVelocityY:number){
   return{x:6,y:-Math.min(12,10+Math.abs(impactVelocityY)*.12)};
 }
