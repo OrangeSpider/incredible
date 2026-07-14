@@ -11,6 +11,7 @@ import { analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIA
 import {catIsRunning,catSpritePose} from "@/game/cat";
 import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultLaunchVelocity} from "@/game/catapult";
 import {mouseSpriteFrame} from "@/game/mouse";
+import {isAnimalFalling} from "@/game/animals";
 
 type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "movingPulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
@@ -206,7 +207,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     }else if(level===5){
       balloon=Matter.Bodies.circle(180,420,24,{density:.00012,frictionAir:.025,label:"levelBalloon"});Matter.Composite.add(engine.world,balloon);
     }else if(level===6){
-      cat=Matter.Bodies.rectangle(135,370,60,48,{isStatic:true,label:"cat"});Matter.Composite.add(engine.world,cat);
+      cat=Matter.Bodies.rectangle(135,370,60,48,{isStatic:!running,friction:.55,restitution:.05,label:"cat"});Matter.Composite.add(engine.world,cat);
     }else if(level===7){
       const source=Matter.Bodies.circle(250,300,42,{isStatic:true,label:"gearSource"});const target=Matter.Bodies.circle(590,300,42,{isStatic:true,label:"gearTarget"});Matter.Composite.add(engine.world,[source,target]);
     }else if(level===8){
@@ -224,7 +225,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     }else if(level===11){
       const assembly=createSeesaw(CATAPULT_SEESAW.x,CATAPULT_SEESAW.y,0);seesawBody=assembly.plank;
       cat=Matter.Bodies.rectangle(CATAPULT_CAT_START.x,CATAPULT_CAT_START.y,60,48,{label:"cat"});Matter.Body.setStatic(cat,true);
-      const mouse=Matter.Bodies.circle(CATAPULT_MOUSE_START.x,CATAPULT_MOUSE_START.y,22,{isStatic:true,label:"mouse"});
+      const mouse=Matter.Bodies.circle(CATAPULT_MOUSE_START.x,CATAPULT_MOUSE_START.y,22,{isStatic:!running,friction:.5,restitution:.08,label:"mouse"});
       const platform=Matter.Bodies.rectangle(CATAPULT_PLATFORM.x,CATAPULT_PLATFORM.y,CATAPULT_PLATFORM.width,CATAPULT_PLATFORM.height,{isStatic:true,label:"catapultPlatform",friction:.8});
       const hole=Matter.Bodies.rectangle(CATAPULT_MOUSE_HOLE_X+18,CATAPULT_PLATFORM.animalY,55,110,{isStatic:true,isSensor:true,label:"catapultMouseHole"});
       Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,cat,mouse,platform,hole]);
@@ -238,7 +239,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       else if(p.type==="pulley")b=Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,label:"pulley"});
       else if(p.type==="movingPulley")b=Matter.Bodies.circle(p.x,p.y,30,{isStatic:true,label:"movingPulley"});
       else if(p.type==="needle")b=Matter.Bodies.rectangle(p.x,p.y,16,70,{isStatic:true,angle:p.rotation,label:"needle"});
-      else if(p.type==="mouse")b=Matter.Bodies.circle(p.x,p.y,22,{isStatic:true,label:"mouse"});
+      else if(p.type==="mouse")b=Matter.Bodies.circle(p.x,p.y,22,{isStatic:!running,friction:.5,restitution:.08,label:"mouse"});
       else if(p.type==="gear")b=Matter.Bodies.circle(p.x,p.y,42,{isStatic:true,label:"gear"});
       else if(p.type==="cannon")b=Matter.Bodies.rectangle(p.x,p.y,90,44,{isStatic:true,angle:p.rotation,label:"cannon"});
       else if(p.type==="fuse")b=Matter.Bodies.rectangle(p.x,p.y,110,8,{isStatic:true,isSensor:true,angle:p.rotation,label:"fuse"});
@@ -261,7 +262,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
     const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");const fuseReachable=new Set<number>(),fuseQueue=fuseBodies.filter(body=>Math.hypot(body.position.x-100,body.position.y-420)<120);fuseQueue.forEach(body=>fuseReachable.add(body.id));while(fuseQueue.length){const current=fuseQueue.shift()!;for(const candidate of fuseBodies){if(!fuseReachable.has(candidate.id)&&Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y)<120){fuseReachable.add(candidate.id);fuseQueue.push(candidate)}}}const fuseIgnited=fuseReachable.size>0,fuseReady=!!cannonBody&&fuseBodies.some(body=>fuseReachable.has(body.id)&&Math.hypot(body.position.x-cannonBody.position.x,body.position.y-cannonBody.position.y)<125);
     const fuseDuration=2*(1600+fuseBodies.length*280),wetFuseIds=new Set<number>(),bucketStartAngle=bucketBody?.angle??0,bucketStartPosition=bucketBody?{...bucketBody.position}:null,bucketPivot=bucketStartPosition?{x:bucketStartPosition.x+Math.cos(bucketStartAngle)*34-Math.sin(bucketStartAngle)*-23,y:bucketStartPosition.y+Math.sin(bucketStartAngle)*34+Math.cos(bucketStartAngle)*-23}:null;
-    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0};let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,catStartledAt=0,catOnPlatformAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
+    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0};let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,catStartledAt=0,catFallStartedAt=0,catOnPlatformAt=0,gearTurnAt=0,fuseLitAt=0,fuseExtinguishedAt=0,fuseStoppedProgress=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       const water=bodyA.label==="water"?bodyA:bodyB.label==="water"?bodyB:null;
@@ -292,6 +293,8 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     const stabilizeWater=()=>waterBodies.forEach(drop=>{const speed=Math.hypot(drop.velocity.x,drop.velocity.y);if(speed>11)Matter.Body.setVelocity(drop,{x:drop.velocity.x/speed*11,y:drop.velocity.y/speed*11});if(drop.position.y>476.5){Matter.Body.setPosition(drop,{x:drop.position.x,y:476.5});Matter.Body.setVelocity(drop,{x:drop.velocity.x*.76,y:0})}if(drop.position.y<-15){Matter.Body.setPosition(drop,{x:drop.position.x,y:-15});Matter.Body.setVelocity(drop,{x:drop.velocity.x,y:Math.abs(drop.velocity.y)*.25})}if(drop.position.x<4||drop.position.x>896){const x=Math.max(4,Math.min(896,drop.position.x));Matter.Body.setPosition(drop,{x,y:drop.position.y});Matter.Body.setVelocity(drop,{x:-drop.velocity.x*.25,y:drop.velocity.y})}});
     const render = (now:number) => {
       const dt = Math.min(32, now-last); last=now; if(running){stabilizeWater();Matter.Engine.update(engine,dt);stabilizeWater()}
+      const catFalling=!!cat&&running&&!cat.isStatic&&isAnimalFalling(cat.velocity.y);
+      if(catFalling&&!catFallStartedAt)catFallStartedAt=now;else if(!catFalling)catFallStartedAt=0;
       if(running&&bucketBody&&bucketPivot){if(!bucketTipAt)bucketTipAt=now;const tip=clamp01((now-bucketTipAt)/1900),eased=tip*tip*(3-2*tip),angle=bucketStartAngle+eased*2.1,pivotLocal={x:34,y:-23},rotatedX=Math.cos(angle)*pivotLocal.x-Math.sin(angle)*pivotLocal.y,rotatedY=Math.sin(angle)*pivotLocal.x+Math.cos(angle)*pivotLocal.y;Matter.Body.setPosition(bucketBody,{x:bucketPivot.x-rotatedX,y:bucketPivot.y-rotatedY});Matter.Body.setAngle(bucketBody,angle)}
       // Das Laufband gibt eine konstante Transportgeschwindigkeit vor. Keine
       // wiederholten Kräfte: Die Katze wird also nicht ungewollt beschleunigt.
@@ -371,7 +374,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         if(b.label==="steelBeam"){ctx.fillStyle="#6e858d";ctx.fillRect(-118,-9,236,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-118,-9,236,4);ctx.fillStyle="#3e5963";for(let rivet=-100;rivet<=100;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="woodWall"){ctx.fillStyle="#9b5e2a";ctx.fillRect(-12,-90,24,180);ctx.strokeStyle="#5a321a";for(let plank=-80;plank<90;plank+=28){ctx.strokeRect(-12,plank,24,28);ctx.beginPath();ctx.moveTo(-8,plank+7);ctx.lineTo(8,plank+20);ctx.stroke()}}
         if(b.label==="stoneWall"){ctx.fillStyle="#7d817e";ctx.fillRect(-21,-85,42,170);ctx.strokeStyle="#4e5554";ctx.lineWidth=2;for(let row=-85;row<85;row+=24){ctx.beginPath();ctx.moveTo(-21,row);ctx.lineTo(21,row);ctx.stroke();const seam=(Math.floor((row+85)/24)%2===0)?0:-10;ctx.beginPath();ctx.moveTo(seam,row);ctx.lineTo(seam,row+24);ctx.stroke()}}
-        if(b.label==="cat"){const airborneStartle=level===11&&catStartledAt>0&&!catOnPlatformAt,pose=catSpritePose(now,{running:catIsRunning({motor,level,mouseFleeAt})||(level===11&&catOnPlatformAt>0),startledAt:airborneStartle?catStartledAt:null,holdStartled:airborneStartle}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,0,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
+        if(b.label==="cat"){const airborneStartle=level===11&&catStartledAt>0&&!catOnPlatformAt,fallingStartle=catFallStartedAt>0,startledAt=airborneStartle?catStartledAt:fallingStartle?catFallStartedAt:null,pose=catSpritePose(now,{running:catIsRunning({motor,level,mouseFleeAt})||(level===11&&catOnPlatformAt>0),startledAt,holdStartled:airborneStartle||fallingStartle}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,0,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
         if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
         if(b.label==="mouse"){const mouseRunning=(level===6&&mouseFleeAt>0)||(level===11&&catOnPlatformAt>0),frame=mouseSpriteFrame(now,mouseRunning);if(!drawMouseSprite(frame,0,-5,60)){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}}
         if(b.label==="catapultPlatform"){ctx.fillStyle="#6e858d";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,4);ctx.fillStyle="#3e5963";for(let rivet=-170;rivet<=170;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}

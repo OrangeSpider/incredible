@@ -2,6 +2,8 @@ export type CatAnimationState="idle"|"running"|"startled";
 
 export const CAT_STARTLE_FRAME_MS=220;
 export const CAT_STARTLE_DURATION_MS=CAT_STARTLE_FRAME_MS*3;
+export const CAT_IDLE_FRAME_MS=350;
+const CAT_IDLE_SEQUENCE=[0,0,0,1,2,0,0,0] as const;
 
 export type CatSpritePose={state:CatAnimationState;row:number;frame:number};
 
@@ -20,7 +22,8 @@ export function catSpritePose(now:number,{running,startledAt,holdStartled=false}
     return{state:"running",row:1,frame:Math.floor((elapsed-CAT_STARTLE_DURATION_MS)/100)%3};
   }
   if(running)return{state:"running",row:1,frame:Math.floor(now/100)%3};
-  // Ruhig bedeutet wirklich ruhig: kein Wechsel zwischen leicht verschieden
-  // ausgerichteten Ganzkörperbildern, solange die Katze nur sitzt.
-  return{state:"idle",row:0,frame:0};
+  // Die lange Ruhephase zwischen den beiden Zwischenbildern verhindert das
+  // frühere Wackeln; sichtbar animiert werden vor allem Blinzeln und Gesicht.
+  const idlePhase=Math.floor(now/CAT_IDLE_FRAME_MS)%CAT_IDLE_SEQUENCE.length;
+  return{state:"idle",row:0,frame:CAT_IDLE_SEQUENCE[idlePhase]};
 }

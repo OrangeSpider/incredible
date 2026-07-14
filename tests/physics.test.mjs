@@ -175,3 +175,18 @@ test("after landing the cat chases while the mouse flees to its hole",()=>{
   assert.equal(mouseX,CATAPULT_MOUSE_HOLE_X);
   assert.ok(catX<mouseX,"the fleeing mouse remains ahead of the pursuing cat");
 });
+
+test("unsupported cat and mouse fall until a solid surface catches them",()=>{
+  const engine=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
+  const floor=Matter.Bodies.rectangle(450,500,900,40,{isStatic:true,label:"floor"});
+  const plank=Matter.Bodies.rectangle(300,310,155,14,{isStatic:true,label:"plank"});
+  const cat=Matter.Bodies.rectangle(300,120,60,48,{friction:.55,restitution:.05,label:"cat"});
+  const mouse=Matter.Bodies.circle(650,120,22,{friction:.5,restitution:.08,label:"mouse"});
+  Matter.Composite.add(engine.world,[floor,plank,cat,mouse]);
+  const startCatY=cat.position.y,startMouseY=mouse.position.y;
+  for(let tick=0;tick<360;tick++)Matter.Engine.update(engine,16.666);
+  assert.ok(cat.position.y>startCatY,"the unsupported cat must fall");
+  assert.ok(mouse.position.y>startMouseY,"the unsupported mouse must fall");
+  assert.ok(cat.position.y<310,"the plank must catch the cat instead of letting it pass through");
+  assert.ok(mouse.position.y<480,"the floor must catch the mouse instead of letting it leave the screen");
+});
