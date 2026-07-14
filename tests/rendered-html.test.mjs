@@ -67,3 +67,15 @@ test("mouse uses a transparent three-frame running sprite sheet",async()=>{
   assert.equal(sprite.readUInt32BE(20),724,"the horizontal sheet must contain three square animation cells");
   assert.equal(sprite[25],6,"the mouse sprite sheet must use RGBA pixels with transparency");
 });
+
+test("Mr. Blue uses a transparent three-state cartoon sprite sheet",async()=>{
+  const [source,sprite]=await Promise.all([
+    readFile(new URL("../app/page.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../public/assets/mr-blue-animation-sprites.png",import.meta.url)),
+  ]);
+  assert.match(source,/mr-blue-animation-sprites\.png/);
+  assert.deepEqual([...sprite.subarray(0,8)],[137,80,78,71,13,10,26,10],"asset must be a PNG");
+  assert.equal(sprite.readUInt32BE(16),1254);
+  assert.equal(sprite.readUInt32BE(20),1254,"the 3x3 sheet must contain nine square animation cells");
+  assert.equal(sprite[25],6,"Mr. Blue's sprite sheet must use RGBA pixels with transparency");
+});

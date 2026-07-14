@@ -33,6 +33,8 @@ export const INTERACTIONS: Interaction[] = [
   { source: "Fallender Körper", target: "Wippe", trigger: "Aufprall außerhalb des Drehpunkts", effect: "Senkt die getroffene Seite und beschleunigt die gegenüberliegende Seite nach oben", status: "aktiv" },
   { source: "Wippe", target: "Katze", trigger: "Bowlingkugel trifft die freie Gegenseite", effect: "Katze erschrickt und wird auf die obere Ebene katapultiert", status: "aktiv" },
   { source: "Katze", target: "Maus", trigger: "Katze landet auf der Ebene der wartenden Maus", effect: "Katze wechselt in den Laufzyklus; Maus flieht zum Loch", status: "aktiv" },
+  { source: "Fallender Körper", target: "Goldfischglas", trigger: "Aufprall von oben mit ausreichender Geschwindigkeit", effect: "Glas zerbricht und gibt Mr. Blue als beweglichen Körper frei", status: "aktiv" },
+  { source: "Mr. Blue", target: "Joanne", trigger: "Mr. Blue zappelt sichtbar vor Joanne auf ungefähr gleicher Höhe", effect: "Joanne wechselt in den Laufzyklus und läuft zu Mr. Blue", status: "aktiv" },
   { source: "Jalousie", target: "Stationäre Affe auf Fahrrad", trigger: "Zugseil wird betätigt und Banane wird sichtbar", effect: "Affe tritt; das Fahrrad erzeugt Drehmoment, bleibt aber am Ort", status: "aktiv" },
   { source: "Affenfahrrad", target: "Laufband", trigger: "Rad und Laufband sind mit einem Riemen verbunden", effect: "Überträgt Drehmoment als lineare Bandbewegung", status: "aktiv" },
   { source: "Laufband", target: "Kiste", trigger: "Kiste berührt das angetriebene Band", effect: "Bewegt die Kiste in Bandrichtung", status: "aktiv" },

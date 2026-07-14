@@ -13,6 +13,8 @@ import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOU
 import {mouseSpriteFrame} from "@/game/mouse";
 import {animalHasSupport,isAnimalFalling} from "@/game/animals";
 import {FuseNetwork} from "@/game/fuse";
+import {CHARACTERS} from "@/game/characters";
+import {advanceCatTowardFish,catSeesFish,FISH_REVEAL_DELAY_MS,fishbowlBreaks} from "@/game/fish";
 
 type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "movingPulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
@@ -20,22 +22,22 @@ type RopeNode={kind:"anchor"}|{kind:"part";placedId:number};
 const ROPE_ANCHOR={x:92,y:64};
 const FAN_VISIBLE_RANGE=210;
 const FAN_MAX_RANGE=FAN_VISIBLE_RANGE*2;
-const ACTIVE_LEVEL_COUNT=12;
+const ACTIVE_LEVEL_COUNT=13;
 
 const LEVELS = [
-  ["Der erste Anstoß", "Bring die Katze zum Ausgang", "Mausmotor und Laufband"],
+  ["Der erste Anstoß", `Bring ${CHARACTERS.cat} zum Ausgang`, `${CHARACTERS.hamster} im Hamsterrad treibt das Laufband an`],
   ["Plopp!", "Bring den Ballon zur Kerzenflamme", "Lenke seinen Auftrieb mit Holzplanken"],
   ["Rückenwind", "Treibe den Ballon durch den Zielring", "Richte den Ventilator aus und nutze den Auftrieb"],
   ["Sprungkraft", "Befördere die Bowlingkugel in den Korb", "Das Trampolin lenkt Fallbewegung nach oben um"],
   ["Flaschenzug", "Hebe das 50-kg-Gewicht bis zur roten Markierung", "Lege ein durchgehendes Seil über sichtbare Anschlusspunkte"],
   ["Nadelprobe", "Lass den Luftballon an der Nadel platzen", "Nur der Ballon reagiert auf die Spitze"],
-  ["Mäuseflucht", "Lass die Maus ihr Loch erreichen", "Die Maus flieht nur, wenn die Katze auf gleicher Höhe ist"],
+  ["Mäuseflucht", `Lass ${CHARACTERS.mouse} ihr Loch erreichen`, `${CHARACTERS.mouse} flieht nur, wenn ${CHARACTERS.cat} auf gleicher Höhe ist`],
   ["Zahn um Zahn", "Übertrage die Drehung bis zum Zielrad", "Benachbarte Zahnräder greifen nur bei passendem Abstand"],
   ["Feuer frei!", "Zünde die Lunte und triff die Zielscheibe", "Die Kanone feuert erst, wenn die Lunte vollständig abgebrannt ist"],
   ["Wasser marsch!", "Lösche die Kerze mit dem Wasser aus dem Eimer", "Der Eimer kippt am Scharnier; Planken lenken den Wasserweg"],
   ["Hebelwirkung", "Katapultiere die rote Kugel in den Korb", "Ein Aufprall senkt eine Seite und beschleunigt die andere nach oben"],
-  ["Katzensprung", "Schleudere die Katze zur Maus auf die obere Ebene", "Die Bowlingkugel muss die freie Seite der Wippe treffen"],
-  ["Katzenkino", "Locke die Katze durch zwei Türen", "Die Maus muss sichtbar bleiben"],
+  ["Katzensprung", `Schleudere ${CHARACTERS.cat} zu ${CHARACTERS.mouse} auf die obere Ebene`, "Die Bowlingkugel muss die freie Seite der Wippe treffen"],
+  ["Mr. Blue in Not", `Zerbrich das Glas und locke ${CHARACTERS.cat} zu ${CHARACTERS.fish}`, "Nur ein schnell fallender Körper zerbricht das Goldfischglas"],
   ["Dampfkraft", "Hebe das Gewicht an", "Wasser plus Hitze"],
   ["Seiltanz", "Läute die Glocke", "Verteile das Gewicht"],
   ["Rückenwind", "Schiebe das Segelboot ans Ziel", "Lenke den Luftstrom"],
@@ -63,6 +65,7 @@ const BUILD_TIPS=[
   "Platziere den Wassereimer links oberhalb der Kerze. Eine Planke über der Steinmauer – vier Schritte nach rechts gedreht – leitet den Schwall zum Ziel.",
   "Setze die Wippe unter die rote Kugel und lasse die Bowlingkugel auf das gegenüberliegende Ende fallen.",
   "Die Katze wartet auf der rechten Wippenseite. Lass die Bowlingkugel weit links auftreffen, damit die Katze auf die obere Ebene fliegt.",
+  `Lass die Bowlingkugel von oben auf ${CHARACTERS.fish}s Glas fallen. Sobald er auf dem Boden zappelt, läuft ${CHARACTERS.cat} zu ihm.`,
 ] as const;
 const WIN_TEXT=[
   "Die Katze wurde vom angetriebenen Laufband zum Ausgang gebracht.",
@@ -77,6 +80,7 @@ const WIN_TEXT=[
   "Das Wasser floss um die Hindernisse, sammelte sich am Boden und löschte die Kerze.",
   "Die fallende Bowlingkugel drehte die Wippe und katapultierte die rote Kugel in den Korb.",
   "Die Wippe schleuderte die erschrockene Katze auf die obere Ebene, wo sie die Maus verfolgte.",
+  `${CHARACTERS.fish}s Glas zerbrach. ${CHARACTERS.cat} sah ihn zappeln und lief zu ihm.`,
 ] as const;
 const LEVEL_HINTS=[
   "Ohne sichtbaren Riemen überträgt das Hamsterrad keine Kraft.",
@@ -91,6 +95,7 @@ const LEVEL_HINTS=[
   "Baue von der Steinmauer eine steile Rinne zur Kerze. Wasser kollidiert mit festen Außenformen; Seile werden ignoriert.",
   "Die Wippe ist 1,5-mal so breit wie eine Holzplanke. Ihr Anschlag am roten Bock verhindert eine vollständige Drehung.",
   "Nur ein Treffer auf der freien linken Seite löst den Katzensprung aus. Nach der Landung flieht die Maus zum Loch.",
+  `${CHARACTERS.fish} wird erst nach der Bruchanimation sichtbar. ${CHARACTERS.cat} reagiert nur, wenn er vor ihr und ungefähr auf gleicher Höhe liegt.`,
 ] as const;
 
 const partsForLevel = (level:number): { type: Part; icon: string; name: string; count: number }[] => {
@@ -115,11 +120,12 @@ const partsForLevel = (level:number): { type: Part; icon: string; name: string; 
     {type:"rope",icon:"∿",name:"Seil",count:1},
   ];
   if(level===5)return [{type:"needle",icon:"▲",name:"Nadel",count:1},{type:"fan",icon:"✣",name:"Ventilator",count:1}];
-  if(level===6)return [{type:"mouse",icon:"●",name:"Maus",count:1}];
+  if(level===6)return [{type:"mouse",icon:"●",name:`${CHARACTERS.mouse} (Maus)`,count:1}];
   if(level===7)return [{type:"gear",icon:"⚙",name:"Zahnrad",count:3}];
   if(level===8)return [{type:"cannon",icon:"◒",name:"Kanone",count:1},{type:"fuse",icon:"⌁",name:"Luntenstück",count:5}];
   if(level===9)return [{type:"bucket",icon:"▱",name:"Wassereimer",count:1},{type:"ramp",icon:"╱",name:"Holzplanke",count:2}];
   if(level===10)return [{type:"seesaw",icon:"⚖",name:"Wippe",count:1},{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
+  if(level===12)return [{type:"ball",icon:"●",name:"Bowlingkugel",count:1},{type:"ramp",icon:"╱",name:"Holzplanke",count:1}];
   return [{type:"ball",icon:"●",name:"Bowlingkugel",count:1}];
 };
 
@@ -177,13 +183,19 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       const column=((frame%3)+3)%3,cellWidth=mouseSprites.naturalWidth/3,cellHeight=mouseSprites.naturalHeight;
       ctx.drawImage(mouseSprites,column*cellWidth,0,cellWidth,cellHeight,x-size/2,y-size/2,size,size);return true;
     };
+    const mrBlueSprites=new Image();mrBlueSprites.src="/assets/mr-blue-animation-sprites.png";
+    const drawMrBlueSprite=(row:number,frame:number,x:number,y:number,size:number)=>{
+      if(!mrBlueSprites.complete||!mrBlueSprites.naturalWidth)return false;
+      const column=((frame%3)+3)%3,cellWidth=mrBlueSprites.naturalWidth/3,cellHeight=mrBlueSprites.naturalHeight/3;
+      ctx.drawImage(mrBlueSprites,column*cellWidth,row*cellHeight,cellWidth,cellHeight,x-size/2,y-size/2,size,size);return true;
+    };
     const drawFallbackFlame=(x:number,y:number,now:number,scale=1)=>{const sway=Math.sin(now*.018)*3*scale;ctx.save();ctx.translate(x,y);ctx.fillStyle="#e94620";ctx.beginPath();ctx.moveTo(-9*scale,10*scale);ctx.quadraticCurveTo((-15+sway)*scale,-4*scale,sway,-18*scale);ctx.quadraticCurveTo((14+sway)*scale,-3*scale,9*scale,10*scale);ctx.fill();ctx.fillStyle="#ffd34f";ctx.beginPath();ctx.ellipse(sway*.35,3*scale,4*scale,8*scale,0,0,Math.PI*2);ctx.fill();ctx.restore()};
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 1, scale: 0.001 } });
     const W = 900, H = 520;
     const floor = Matter.Bodies.rectangle(W / 2, 500, W, 40, { isStatic: true, label:"floor" });
     Matter.Composite.add(engine.world, floor);
     const waterBodies:Matter.Body[]=[],waterSplashAt=new Map<number,number>();
-    let cat:Matter.Body|null=null,wheel:Matter.Body|null=null,candle:Matter.Body|null=null,balloon:Matter.Body|null=null,levelBall:Matter.Body|null=null,weight:Matter.Body|null=null,bucketBody:Matter.Body|null=null,seesawPayload:Matter.Body|null=null,seesawBody:Matter.Body|null=null;
+    let cat:Matter.Body|null=null,wheel:Matter.Body|null=null,candle:Matter.Body|null=null,balloon:Matter.Body|null=null,levelBall:Matter.Body|null=null,weight:Matter.Body|null=null,bucketBody:Matter.Body|null=null,seesawPayload:Matter.Body|null=null,seesawBody:Matter.Body|null=null,fishBowl:Matter.Body|null=null,fishBody:Matter.Body|null=null;
     if(level===0){
       wheel=Matter.Bodies.rectangle(365,345,104,104,{isStatic:true,label:"wheel"});
       const conveyor=Matter.Bodies.rectangle(610,405,270,24,{isStatic:true,label:"conveyor"});
@@ -230,6 +242,11 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       const platform=Matter.Bodies.rectangle(CATAPULT_PLATFORM.x,CATAPULT_PLATFORM.y,CATAPULT_PLATFORM.width,CATAPULT_PLATFORM.height,{isStatic:true,label:"catapultPlatform",friction:.8});
       const hole=Matter.Bodies.rectangle(CATAPULT_MOUSE_HOLE_X+18,CATAPULT_PLATFORM.animalY,55,110,{isStatic:true,isSensor:true,label:"catapultMouseHole"});
       Matter.Composite.add(engine.world,[assembly.plank,assembly.pivot,cat,mouse,platform,hole]);
+    }else if(level===12){
+      cat=Matter.Bodies.rectangle(130,445,60,48,{isStatic:!running,friction:.65,restitution:.04,inertia:Infinity,label:"cat"});
+      fishBowl=Matter.Bodies.circle(700,405,55,{isStatic:true,label:"fishbowl"});
+      fishBody=Matter.Bodies.circle(700,405,20,{isSensor:true,friction:.7,restitution:.12,inertia:Infinity,label:"fish"});Matter.Body.setStatic(fishBody,true);
+      Matter.Composite.add(engine.world,[cat,fishBowl,fishBody]);
     }
     placed.forEach(p => {
       let b;
@@ -265,7 +282,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
     const worldPoint=(body:Matter.Body,x:number,y:number)=>({x:body.position.x+x*Math.cos(body.angle)-y*Math.sin(body.angle),y:body.position.y+x*Math.sin(body.angle)+y*Math.cos(body.angle)}),fuseId=(body:Matter.Body)=>`fuse-${body.id}`,cannonFuseId="cannon-fuse";
     const fuseNetwork=new FuseNetwork([...fuseBodies.map(body=>({id:fuseId(body),start:worldPoint(body,-55,0),end:worldPoint(body,55,0),burnDurationMs:1200})),...(cannonBody?[{id:cannonFuseId,start:worldPoint(cannonBody,-18,-42),end:worldPoint(cannonBody,-26,-17),burnDurationMs:1300,samples:14}]:[])],22,105);
     const wetFuseIds=new Set<number>(),bucketStartAngle=bucketBody?.angle??0,bucketStartPosition=bucketBody?{...bucketBody.position}:null,bucketPivot=bucketStartPosition?{x:bucketStartPosition.x+Math.cos(bucketStartAngle)*34-Math.sin(bucketStartAngle)*-23,y:bucketStartPosition.y+Math.sin(bucketStartAngle)*34+Math.cos(bucketStartAngle)*-23}:null;
-    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0};let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,catStartledAt=0,catImpactMode:"none"|"launch"|"drop"="none",catFallStartedAt=0,catOnPlatformAt=0,gearTurnAt=0,fuseClock=0,fuseIgnited=false,fuseReady=false,fuseExtinguishedAt=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
+    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0};let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,catStartledAt=0,catImpactMode:"none"|"launch"|"drop"="none",catFallStartedAt=0,catOnPlatformAt=0,fishBowlBrokenAt=0,fishReleased=false,fishFlopAt=0,fishChaseAt=0,gearTurnAt=0,fuseClock=0,fuseIgnited=false,fuseReady=false,fuseExtinguishedAt=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       const water=bodyA.label==="water"?bodyA:bodyB.label==="water"?bodyB:null;
@@ -280,6 +297,10 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         Matter.Body.setVelocity(levelBall,{x:Math.sin(trampoline.angle)*20,y:-Math.abs(Math.cos(trampoline.angle))*20});
       }
       if(labels.includes("basket")&&labels.includes("levelBall")&&!won){won=true;onWin()}
+      if(level===12&&labels.includes("fishbowl")&&!fishBowlBrokenAt&&fishBowl&&fishBody){
+        const impact=bodyA.label==="fishbowl"?bodyB:bodyA;
+        if(fishbowlBreaks(impact.velocity.y,!impact.isStatic)){fishBowlBrokenAt=performance.now();fishBowl.isSensor=true}
+      }
       if(labels.includes("seesaw")&&labels.includes("ball")&&seesawBody){
         const impact=bodyA.label==="ball"?bodyA:bodyB;
         if(level===11&&cat&&!catStartledAt){
@@ -321,6 +342,13 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       }
       if(running&&level===6&&mouseBody&&cat){if(!mouseFleeAt&&Math.abs(mouseBody.position.y-cat.position.y)<35&&mouseBody.position.x>cat.position.x)mouseFleeAt=now;if(mouseFleeAt){Matter.Body.setPosition(mouseBody,{x:Math.min(835,mouseBody.position.x+dt*.09),y:mouseBody.position.y});Matter.Body.setPosition(cat,{x:Math.min(760,cat.position.x+dt*.055),y:cat.position.y});if(mouseBody.position.x>=810&&!won){won=true;onWin()}}}
       if(running&&level===11&&catOnPlatformAt&&mouseBody&&cat){const next=advanceCatAndMouse(cat.position.x,mouseBody.position.x,dt);Matter.Body.setPosition(cat,{x:next.catX,y:CATAPULT_PLATFORM.animalY});Matter.Body.setPosition(mouseBody,{x:next.mouseX,y:CATAPULT_PLATFORM.animalY});if(next.mouseX>=CATAPULT_MOUSE_HOLE_X&&!won){won=true;onWin()}}
+      if(running&&level===12&&fishBowlBrokenAt&&!fishReleased&&fishBowl&&fishBody&&now-fishBowlBrokenAt>=FISH_REVEAL_DELAY_MS){fishReleased=true;Matter.Body.setPosition(fishBody,{x:fishBowl.position.x,y:fishBowl.position.y+12});Matter.Body.setStatic(fishBody,false);fishBody.isSensor=false;Matter.Body.setVelocity(fishBody,{x:0,y:1.5})}
+      if(running&&level===12&&fishReleased&&fishBody&&fishBody.position.y>455&&now-fishFlopAt>520){fishFlopAt=now;Matter.Body.setVelocity(fishBody,{x:Math.sin(now*.011)*.38,y:-1.35})}
+      const fishVisible=fishReleased;
+      if(running&&level===12&&cat&&fishBody&&catSeesFish({catX:cat.position.x,catY:cat.position.y,fishX:fishBody.position.x,fishY:fishBody.position.y,fishVisible})){
+        if(!fishChaseAt)fishChaseAt=now;Matter.Body.setPosition(cat,{x:advanceCatTowardFish(cat.position.x,fishBody.position.x,dt),y:cat.position.y});Matter.Body.setVelocity(cat,{x:0,y:cat.velocity.y});
+        if(Math.abs(fishBody.position.x-cat.position.x)<=52&&!won){won=true;onWin()}
+      }
       if(running&&waterBodies.length){for(const animal of [cat,mouseBody]){if(!animal)continue;let nearest:Matter.Body|null=null,distance=Infinity;for(const drop of waterBodies){const d=Math.hypot(animal.position.x-drop.position.x,animal.position.y-drop.position.y);if(d<distance){nearest=drop;distance=d}}if(nearest&&distance<62){const direction=animal.position.x<nearest.position.x?-1:1;Matter.Body.setPosition(animal,{x:Math.max(30,Math.min(870,animal.position.x+direction*dt*.13)),y:animal.position.y})}}}
       if(running&&level===7&&gearsConnected){if(!gearTurnAt)gearTurnAt=now;if(now-gearTurnAt>1100&&!won){won=true;onWin()}}
       if(running&&level===8&&!fuseExtinguishedAt){fuseClock+=dt;fuseNetwork.igniteNear({x:102,y:366},30,fuseClock);fuseNetwork.update(fuseClock);fuseIgnited=fuseNetwork.hasAnyBurned(fuseClock);fuseReady=fuseNetwork.burnTimeAt(cannonFuseId,0)<Infinity;if(cannonBody&&!cannonFired&&fuseNetwork.hasBurnedEnd(cannonFuseId,fuseClock)){cannonFired=true;cannonFiredAt=now;const direction={x:Math.cos(cannonBody.angle),y:Math.sin(cannonBody.angle)};const shot=Matter.Bodies.circle(cannonBody.position.x+direction.x*58,cannonBody.position.y+direction.y*58,11,{density:.0025,restitution:.3,label:"cannonball"});Matter.Body.setVelocity(shot,{x:direction.x*14,y:direction.y*14});Matter.Composite.add(engine.world,shot)}}
@@ -362,6 +390,8 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         ctx.strokeStyle="#7a421e";ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(635,105);ctx.lineTo(640,165);ctx.quadraticCurveTo(680,190,725,165);ctx.lineTo(728,105);ctx.stroke();ctx.fillStyle="#a52d24";ctx.font="bold 14px system-ui";ctx.fillText("ZIELKORB",646,210);
       }else if(level===11){
         ctx.fillStyle="#6b391e";ctx.font="bold 13px system-ui";ctx.fillText("OBERE EBENE",560,CATAPULT_PLATFORM.y-24);
+      }else if(level===12){
+        ctx.fillStyle="#173f50";ctx.font="bold 13px system-ui";ctx.fillText(CHARACTERS.cat.toUpperCase(),92,395);ctx.fillText(CHARACTERS.fish.toUpperCase(),662,325);
       }
       if(waterBodies.length){ctx.strokeStyle="rgba(33,158,211,.34)";ctx.lineWidth=7;ctx.lineCap="round";for(let i=0;i<waterBodies.length;i++)for(let j=i+1;j<waterBodies.length;j++){const a=waterBodies[i].position,b=waterBodies[j].position;if(Math.hypot(a.x-b.x,a.y-b.y)<10){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}
       for(const b of Matter.Composite.allBodies(engine.world)){
@@ -379,9 +409,11 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         if(b.label==="steelBeam"){ctx.fillStyle="#6e858d";ctx.fillRect(-118,-9,236,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-118,-9,236,4);ctx.fillStyle="#3e5963";for(let rivet=-100;rivet<=100;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="woodWall"){ctx.fillStyle="#9b5e2a";ctx.fillRect(-12,-90,24,180);ctx.strokeStyle="#5a321a";for(let plank=-80;plank<90;plank+=28){ctx.strokeRect(-12,plank,24,28);ctx.beginPath();ctx.moveTo(-8,plank+7);ctx.lineTo(8,plank+20);ctx.stroke()}}
         if(b.label==="stoneWall"){ctx.fillStyle="#7d817e";ctx.fillRect(-21,-85,42,170);ctx.strokeStyle="#4e5554";ctx.lineWidth=2;for(let row=-85;row<85;row+=24){ctx.beginPath();ctx.moveTo(-21,row);ctx.lineTo(21,row);ctx.stroke();const seam=(Math.floor((row+85)/24)%2===0)?0:-10;ctx.beginPath();ctx.moveTo(seam,row);ctx.lineTo(seam,row+24);ctx.stroke()}}
-        if(b.label==="cat"){const airborneStartle=level===11&&catImpactMode==="launch"&&catStartledAt>0&&!catOnPlatformAt,fallingStartle=catFallStartedAt>0,startledAt=airborneStartle?catStartledAt:fallingStartle?catFallStartedAt:null,pose=catSpritePose(now,{running:catIsRunning({motor,level,mouseFleeAt})||(level===11&&catOnPlatformAt>0),startledAt,holdStartled:airborneStartle||fallingStartle}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetX=catSpriteOffsetX(pose,size),offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,offsetX,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
+        if(b.label==="cat"){const airborneStartle=level===11&&catImpactMode==="launch"&&catStartledAt>0&&!catOnPlatformAt,fallingStartle=catFallStartedAt>0,startledAt=airborneStartle?catStartledAt:fallingStartle?catFallStartedAt:null,pose=catSpritePose(now,{running:catIsRunning({motor,level,mouseFleeAt})||(level===11&&catOnPlatformAt>0)||(level===12&&fishChaseAt>0),startledAt,holdStartled:airborneStartle||fallingStartle}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetX=catSpriteOffsetX(pose,size),offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,offsetX,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
         if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
         if(b.label==="mouse"){const mouseRunning=(level===6&&mouseFleeAt>0)||(level===11&&catOnPlatformAt>0),frame=mouseSpriteFrame(now,mouseRunning);if(!drawMouseSprite(frame,0,-5,60)){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}}
+        if(b.label==="fishbowl"){const breakAge=fishBowlBrokenAt?now-fishBowlBrokenAt:-1;if(!fishBowlBrokenAt){if(!drawMrBlueSprite(0,Math.floor(now/460)%3,0,-4,150)){ctx.font="70px serif";ctx.fillText("🐠",-38,22)}}else if(breakAge<FISH_REVEAL_DELAY_MS){drawMrBlueSprite(1,Math.min(2,Math.floor(breakAge/(FISH_REVEAL_DELAY_MS/3))),0,-4,150)}}
+        if(b.label==="fish"&&fishVisible){if(!drawMrBlueSprite(2,Math.floor((now-fishBowlBrokenAt)/150)%3,0,-8,86)){ctx.font="44px serif";ctx.fillText("🐟",-24,15)}}
         if(b.label==="catapultPlatform"){ctx.fillStyle="#6e858d";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,4);ctx.fillStyle="#3e5963";for(let rivet=-170;rivet<=170;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="catapultMouseHole"){ctx.fillStyle="#173f50";ctx.fillRect(-28,-55,56,110);ctx.fillStyle="#f1d28d";ctx.font="bold 12px system-ui";ctx.fillText("MAUS-",-21,-5);ctx.fillText("LOCH",-18,12)}
         if(["gear","gearSource","gearTarget"].includes(b.label)){const depth=gearDepth.get(b.id);ctx.rotate(running&&depth!==undefined?(now/170)*(depth%2?-1:1):0);ctx.fillStyle=b.label==="gearTarget"?"#bf432d":"#d39a28";for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(34,-6,15,12)}ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
@@ -407,6 +439,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       if(level===9)ctx.fillText(candleExtinguished?"Die Kerze ist gelöscht!":!bucketBody?"Platziere den Wassereimer":"Leite den Schwall um Stahl, Holz und Stein zur Kerze",250,32);
       if(level===10)ctx.fillText(!seesawBody?"Platziere die Wippe unter der roten Kugel":"Lass die Bowlingkugel auf das andere Ende fallen",270,32);
       if(level===11)ctx.fillText(!catStartledAt?"Triff die freie linke Seite der Wippe":catImpactMode==="drop"?"Die Katzenseite sinkt – die Katze fällt nach unten":!catOnPlatformAt?"Die Katze erschrickt und fliegt zur oberen Ebene":"Die Katze verfolgt die Maus",275,32);
+      if(level===12)ctx.fillText(!fishBowlBrokenAt?`Lass einen Körper auf ${CHARACTERS.fish}s Glas fallen`:!fishVisible?"Das Glas zerbricht …":!fishChaseAt?`${CHARACTERS.fish} zappelt – kann ${CHARACTERS.cat} ihn sehen?`:`${CHARACTERS.cat} läuft zu ${CHARACTERS.fish}`,260,32);
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
     return()=>{cancelAnimationFrame(raf);Matter.Engine.clear(engine)};
@@ -424,7 +457,7 @@ export default function Home() {
   const boardPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{if(running)return;const point=boardPoint(e);if(selected==="rope"&&level===4){const candidates:[number,RopeNode][]=[];if(!ropePath.some(node=>node.kind==="anchor"))candidates.push([Math.hypot(point.x-ROPE_ANCHOR.x,point.y-ROPE_ANCHOR.y),{kind:"anchor"}]);for(const part of placed){if(!routeKindForPart(part.type)||ropePath.some(node=>node.kind==="part"&&node.placedId===part.id))continue;candidates.push([Math.hypot(part.x-point.x,part.y-point.y),{kind:"part",placedId:part.id}])}candidates.sort((a,b)=>a[0]-b[0]);if(candidates[0]?.[0]<48)setRopePath(nodes=>[...nodes,candidates[0][1]]);return}const movable=placed.filter(p=>p.type!=="belt").map(p=>({...p,d:Math.hypot(p.x-point.x,p.y-point.y)})).sort((a,b)=>a.d-b.d)[0];if(movable&&movable.d<52){e.currentTarget.setPointerCapture(e.pointerId);setSelectedId(movable.id);setDrag({id:movable.id,dx:movable.x-point.x,dy:movable.y-point.y});return}const allowed=inventory.find(i=>i.type===selected);if(!allowed||selected==="rope")return;const used=placed.filter(p=>p.type===selected).length;if(used>=allowed.count)return;const id=Date.now();setSelectedId(id);const initialRotation=["ramp","trampoline","cannon"].includes(selected)?-.28:selected==="bucket"?-.08:0;setPlaced(p=>[...p,{id,type:selected,x:point.x,y:point.y,rotation:initialRotation}])};
   const boardPointerMove=(e:React.PointerEvent<HTMLDivElement>)=>{if(!drag||running)return;const point=boardPoint(e);setPlaced(items=>items.map(p=>p.id===drag.id?{...p,x:Math.max(25,Math.min(875,point.x+drag.dx)),y:Math.max(25,Math.min(475,point.y+drag.dy))}:p))};
   const reset=()=>{setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(a=>a+1)};
-  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","needle","mouse","gear","cannon","bucket","seesaw","ball"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
+  const changeLevel=(next:number)=>{const defaults:Part[]=["ball","ramp","fan","trampoline","ball","needle","mouse","gear","cannon","bucket","seesaw","ball","ball"];setLevel(next);setSelected(defaults[next]);setRunning(false);setPlaced([]);setRopePath([]);setSelectedId(null);setWon(false);setAttempt(0);setShowLevels(false)};
   const rotateSelected=(direction:-1|1)=>setPlaced(items=>items.map(p=>p.id===selectedId?{...p,rotation:p.rotation+direction*Math.PI/12}:p));
   const selectedPlaced=placed.find(p=>p.id===selectedId),canRotate=selectedPlaced&&["ramp","fan","trampoline","needle","cannon","fuse","bucket","seesaw"].includes(selectedPlaced.type);
   const removeSelected=()=>{if(selectedId===null)return;setPlaced(items=>items.filter(part=>part.id!==selectedId));setRopePath(nodes=>{const index=nodes.findIndex(node=>node.kind==="part"&&node.placedId===selectedId);return index<0?nodes:nodes.slice(0,index)});setSelectedId(null)};
