@@ -10,6 +10,7 @@ import { applySeesawImpact,createSeesaw,limitSeesawRotation,SEESAW_WIDTH } from 
 import { analyzePulleyRoute,BOWLING_PULL_KG,dampPulleyVelocity,LEVEL_FIVE_INITIAL_WEIGHT_Y,LEVEL_FIVE_LOAD_KG,LEVEL_FIVE_TARGET_Y,PULLEY_GRAVITY_PX,pulleyTargetReached,PulleyRouteKind,ropeConstraintCorrection,ropeGeometry,RopePoint } from "@/game/pulley";
 import {catIsRunning,catSpritePose} from "@/game/cat";
 import {advanceCatAndMouse,CATAPULT_CAT_START,CATAPULT_MOUSE_HOLE_X,CATAPULT_MOUSE_START,CATAPULT_PLATFORM,CATAPULT_SEESAW,catapultLaunchVelocity} from "@/game/catapult";
+import {mouseSpriteFrame} from "@/game/mouse";
 
 type Part = "ball" | "ramp" | "belt" | "fan" | "trampoline" | "pulley" | "movingPulley" | "rope" | "needle" | "mouse" | "gear" | "cannon" | "fuse" | "bucket" | "seesaw";
 type Placed = { id: number; type: Part; x: number; y: number; rotation: number };
@@ -167,6 +168,12 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
       if(!catSprites.complete||!catSprites.naturalWidth)return false;
       const cellWidth=catSprites.naturalWidth/3,cellHeight=catSprites.naturalHeight/3,column=((frame%3)+3)%3;
       ctx.drawImage(catSprites,column*cellWidth,row*cellHeight,cellWidth,cellHeight,x-size/2,y-size/2,size,size);return true;
+    };
+    const mouseSprites=new Image();mouseSprites.src="/assets/mouse-running-sprites.png";
+    const drawMouseSprite=(frame:number,x:number,y:number,size:number)=>{
+      if(!mouseSprites.complete||!mouseSprites.naturalWidth)return false;
+      const column=((frame%3)+3)%3,cellWidth=mouseSprites.naturalWidth/3,cellHeight=mouseSprites.naturalHeight;
+      ctx.drawImage(mouseSprites,column*cellWidth,0,cellWidth,cellHeight,x-size/2,y-size/2,size,size);return true;
     };
     const drawFallbackFlame=(x:number,y:number,now:number,scale=1)=>{const sway=Math.sin(now*.018)*3*scale;ctx.save();ctx.translate(x,y);ctx.fillStyle="#e94620";ctx.beginPath();ctx.moveTo(-9*scale,10*scale);ctx.quadraticCurveTo((-15+sway)*scale,-4*scale,sway,-18*scale);ctx.quadraticCurveTo((14+sway)*scale,-3*scale,9*scale,10*scale);ctx.fill();ctx.fillStyle="#ffd34f";ctx.beginPath();ctx.ellipse(sway*.35,3*scale,4*scale,8*scale,0,0,Math.PI*2);ctx.fill();ctx.restore()};
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 1, scale: 0.001 } });
@@ -366,7 +373,7 @@ function GameCanvas({ level, placed, ropePath, ropeMode, selectedId, running, at
         if(b.label==="stoneWall"){ctx.fillStyle="#7d817e";ctx.fillRect(-21,-85,42,170);ctx.strokeStyle="#4e5554";ctx.lineWidth=2;for(let row=-85;row<85;row+=24){ctx.beginPath();ctx.moveTo(-21,row);ctx.lineTo(21,row);ctx.stroke();const seam=(Math.floor((row+85)/24)%2===0)?0:-10;ctx.beginPath();ctx.moveTo(seam,row);ctx.lineTo(seam,row+24);ctx.stroke()}}
         if(b.label==="cat"){const airborneStartle=level===11&&catStartledAt>0&&!catOnPlatformAt,pose=catSpritePose(now,{running:catIsRunning({motor,level,mouseFleeAt})||(level===11&&catOnPlatformAt>0),startledAt:airborneStartle?catStartledAt:null,holdStartled:airborneStartle}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,0,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
         if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
-        if(b.label==="mouse"){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}
+        if(b.label==="mouse"){const mouseRunning=(level===6&&mouseFleeAt>0)||(level===11&&catOnPlatformAt>0),frame=mouseSpriteFrame(now,mouseRunning);if(!drawMouseSprite(frame,0,-5,60)){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}}
         if(b.label==="catapultPlatform"){ctx.fillStyle="#6e858d";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,4);ctx.fillStyle="#3e5963";for(let rivet=-170;rivet<=170;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="catapultMouseHole"){ctx.fillStyle="#173f50";ctx.fillRect(-28,-55,56,110);ctx.fillStyle="#f1d28d";ctx.font="bold 12px system-ui";ctx.fillText("MAUS-",-21,-5);ctx.fillText("LOCH",-18,12)}
         if(["gear","gearSource","gearTarget"].includes(b.label)){const depth=gearDepth.get(b.id);ctx.rotate(running&&depth!==undefined?(now/170)*(depth%2?-1:1):0);ctx.fillStyle=b.label==="gearTarget"?"#bf432d":"#d39a28";for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(34,-6,15,12)}ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
