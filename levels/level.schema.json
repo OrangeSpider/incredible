@@ -1,0 +1,25 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://incredible-machine.local/level.schema.json",
+  "title":"Incredible Machine Level",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schemaVersion","id","number","scene","title","objective","hint","buildTip","successText","inventory","fixedGadgets","systems","goal"],
+  "properties":{
+    "schemaVersion":{"const":1},
+    "id":{"type":"string","pattern":"^[a-z][a-z0-9-]+$"},
+    "number":{"type":"integer","minimum":1},
+    "scene":{"type":"string","minLength":1},
+    "title":{"type":"string","minLength":1},
+    "objective":{"type":"string","minLength":1},
+    "hint":{"type":"string"},
+    "buildTip":{"type":"string"},
+    "successText":{"type":"string"},
+    "inventory":{"type":"array","items":{"type":"object","required":["type","count"],"properties":{"type":{"type":"string"},"count":{"type":"integer","minimum":1}},"additionalProperties":false}},
+    "fixedGadgets":{"$ref":"#/$defs/gadgetInstances"},
+    "initialPlacements":{"$ref":"#/$defs/gadgetInstances"},
+    "systems":{"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "goal":{"type":"object","required":["mode"],"properties":{"mode":{"enum":["event","all","any","state","position"]},"event":{"type":"string"},"conditions":{"type":"array"}},"additionalProperties":false}
+  },
+  "$defs":{"gadgetInstances":{"type":"array","items":{"type":"object","required":["id","type","x","y"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"x":{"type":"number"},"y":{"type":"number"},"rotation":{"type":"number"},"state":{"type":"string"},"role":{"type":"string"},"collisionLabel":{"type":"string"},"physics":{"type":"object"},"properties":{"type":"object"}},"additionalProperties":false}}}
+}

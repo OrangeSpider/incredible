@@ -35,7 +35,7 @@ test("renders development preview metadata", async () => {
 
 test("hamster wheel uses a six-frame generated cartoon sprite sheet",async()=>{
   const [source,sprite]=await Promise.all([
-    readFile(new URL("../app/page.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../engine/gadget-catalog.ts",import.meta.url),"utf8"),
     readFile(new URL("../public/assets/hamster-wheel-sprites.png",import.meta.url)),
   ]);
   assert.match(source,/hamster-wheel-sprites\.png/);
@@ -46,7 +46,7 @@ test("hamster wheel uses a six-frame generated cartoon sprite sheet",async()=>{
 
 test("cat uses a generated three-state animation sprite sheet",async()=>{
   const [source,sprite]=await Promise.all([
-    readFile(new URL("../app/page.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../engine/gadget-catalog.ts",import.meta.url),"utf8"),
     readFile(new URL("../public/assets/cat-animation-sprites.png",import.meta.url)),
   ]);
   assert.match(source,/cat-animation-sprites\.png/);
@@ -58,7 +58,7 @@ test("cat uses a generated three-state animation sprite sheet",async()=>{
 
 test("mouse uses a transparent three-frame running sprite sheet",async()=>{
   const [source,sprite]=await Promise.all([
-    readFile(new URL("../app/page.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../engine/gadget-catalog.ts",import.meta.url),"utf8"),
     readFile(new URL("../public/assets/mouse-running-sprites.png",import.meta.url)),
   ]);
   assert.match(source,/mouse-running-sprites\.png/);
@@ -70,7 +70,7 @@ test("mouse uses a transparent three-frame running sprite sheet",async()=>{
 
 test("Mr. Blue uses a transparent three-state cartoon sprite sheet",async()=>{
   const [source,sprite]=await Promise.all([
-    readFile(new URL("../app/page.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../engine/gadget-catalog.ts",import.meta.url),"utf8"),
     readFile(new URL("../public/assets/mr-blue-animation-sprites.png",import.meta.url)),
   ]);
   assert.match(source,/mr-blue-animation-sprites\.png/);

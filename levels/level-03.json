@@ -1,0 +1,6 @@
+{
+  "schemaVersion":1,"id":"tailwind","number":3,"scene":"tailwind","title":"Rückenwind","objective":"Treibe den Ballon durch den Zielring","hint":"Der Luftstrom reicht höchstens doppelt so weit wie der sichtbare Kegel.","buildTip":"Platziere den Ventilator, drehe ihn zum Zielring und korrigiere den Weg mit Planken.","successText":"Der Luftstrom hat den Ballon sauber durch den Zielring getragen.",
+  "inventory":[{"type":"fan","count":1},{"type":"ramp","count":2}],
+  "fixedGadgets":[{"id":"balloon","type":"balloon","x":210,"y":420,"role":"payload","collisionLabel":"levelBalloon","physics":{"buoyancyForce":-0.00023}},{"id":"target-ring","type":"targetRing","x":780,"y":150,"role":"goal","collisionLabel":"targetRing"}],
+  "systems":["buoyancy","fan-airflow"],"goal":{"mode":"event","event":"balloon.passed.target_ring"}
+}
