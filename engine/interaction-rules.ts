@@ -37,7 +37,7 @@ export type InteractionKinematics={
 export type ResolvedInteraction={rule:InteractionRule;source:GadgetDefinition;target:GadgetDefinition;reversed:boolean};
 
 export const INTERACTION_RULES:InteractionRule[]=[
-  {id:"ball-starts-wheel",source:{tags:["falling-body"]},target:{types:["hamsterWheel"]},trigger:"collision",effect:"start",description:"Ein beweglicher Körper startet Louis' Hamsterrad.",minImpactSpeed:1.5,direction:"source-motion",signal:"hamsterWheel.started"},
+  {id:"falling-body-starts-wheel",source:{tags:["falling-body"]},target:{types:["hamsterWheel"]},trigger:"collision",effect:"start",description:"Ein ausreichend schneller beweglicher Körper setzt Louis und sein Hamsterrad in Gang.",minImpactSpeed:1.5,direction:"source-motion",signal:"hamsterWheel.started"},
   {id:"belt-transfers-drive",source:{tags:["rotational-source"]},target:{tags:["belt-port"]},trigger:"connection",effect:"transfer-rotation",description:"Ein sichtbarer Riemen überträgt Drehung auf das Ziel.",direction:"forward",signal:"drive.transferred"},
   {id:"conveyor-transports",source:{types:["conveyor"]},target:{categories:["dynamic"]},trigger:"collision",effect:"transport",description:"Ein laufendes Band gibt eine konstante seitliche Geschwindigkeit vor.",direction:"forward"},
   {id:"target-zone",source:{categories:["dynamic"]},target:{tags:["goal-zone"]},trigger:"collision",effect:"goal-signal",description:"Ein passender Körper betritt einen sensorischen Zielbereich.",signal:"target.entered"},
@@ -59,6 +59,7 @@ export const INTERACTION_RULES:InteractionRule[]=[
   {id:"fire-ignites-fuse",source:{tags:["fire-source"]},target:{tags:["fuse"]},trigger:"collision",effect:"ignite",description:"Feuer startet den Abbrand genau am räumlichen Kontaktpunkt.",signal:"fuse.ignited"},
   {id:"fuse-ignites-fuse",source:{tags:["fuse"]},target:{tags:["fuse"]},trigger:"collision",effect:"ignite",description:"Eine brennende Lunte entzündet eine kreuzende Lunte am Kontaktpunkt."},
   {id:"fuse-fires-cannon",source:{tags:["fuse"]},target:{tags:["fuse-target"]},trigger:"state-change",effect:"fire",description:"Erreicht die Flammenfront den Zündkanal, feuert die Kanone einmal.",signal:"cannon.fired"},
+  {id:"fire-ignites-rocket",source:{tags:["fire-source"]},target:{tags:["fire-trigger"]},trigger:"collision",effect:"ignite",description:"Berührt eine offene Flamme die Düse, beginnt die fest montierte Rakete zu zünden.",signal:"rocket.ignited"},
   {id:"water-extinguishes",source:{tags:["water"]},target:{tags:["extinguishable"]},trigger:"collision",effect:"extinguish",description:"Wasser beendet Flamme oder Luntenabbrand am Kontaktpunkt.",signal:"fire.extinguished"},
   {id:"water-collects",source:{tags:["water"]},target:{categories:["container"]},trigger:"collision",effect:"collect",description:"Wasserpartikel können sich im offenen Innenraum eines Behälters sammeln."},
 ];

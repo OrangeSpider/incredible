@@ -79,3 +79,15 @@ test("Mr. Blue uses a transparent three-state cartoon sprite sheet",async()=>{
   assert.equal(sprite.readUInt32BE(20),1254,"the 3x3 sheet must contain nine square animation cells");
   assert.equal(sprite[25],6,"Mr. Blue's sprite sheet must use RGBA pixels with transparency");
 });
+
+test("rockets use a transparent eight-frame ignition and launch sprite sheet",async()=>{
+  const [source,sprite]=await Promise.all([
+    readFile(new URL("../engine/gadget-catalog.ts",import.meta.url),"utf8"),
+    readFile(new URL("../public/assets/rocket-launch-sprites.png",import.meta.url)),
+  ]);
+  assert.match(source,/rocket-launch-sprites\.png/);
+  assert.deepEqual([...sprite.subarray(0,8)],[137,80,78,71,13,10,26,10],"asset must be a PNG");
+  assert.equal(sprite.readUInt32BE(16),1776);
+  assert.equal(sprite.readUInt32BE(20),888,"the 4x2 sheet must contain eight square animation cells");
+  assert.equal(sprite[25],6,"the rocket sprite sheet must use RGBA pixels with transparency");
+});

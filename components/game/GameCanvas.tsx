@@ -13,6 +13,8 @@ import {FuseNetwork} from "@/game/fuse";
 import {CHARACTERS} from "@/game/characters";
 import {advanceCatTowardFish,catSeesFish,FISH_REVEAL_DELAY_MS,fishbowlBreaks} from "@/game/fish";
 import {ropePullIsTaut,SCISSOR_LAYOUT,scissorClosesFromImpact,scissorPullPoint} from "@/game/scissors";
+import {drawConveyor,drawDriveBelt,driveBeltGeometry} from "@/game/drive";
+import {nextRocketState,rocketVisual} from "@/game/rocket";
 import { MachinePhysicsEngine } from "@/engine/physics-engine";
 import { machinePlugin } from "@/engine/body-factory";
 import type { LevelDefinition, PlaceableGadgetType } from "@/engine/types";
@@ -48,13 +50,14 @@ type GameCanvasProps = {
   scissorRopes: ScissorRope[];
   pendingScissor: number | null;
   ropeMode: boolean;
+  selectedTool: PlaceableGadgetType | null;
   selectedId: number | null;
   running: boolean;
   attempt: number;
   onWin: () => void;
 };
 
-export default function GameCanvas({ level, placed, ropePath, scissorRopes, pendingScissor, ropeMode, selectedId, running, attempt, onWin }: GameCanvasProps) {
+export default function GameCanvas({ level, placed, ropePath, scissorRopes, pendingScissor, ropeMode, selectedTool, selectedId, running, attempt, onWin }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const scene = level.scene;
@@ -98,6 +101,12 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       const column=((frame%3)+3)%3,cellWidth=mrBlueSprites.naturalWidth/3,cellHeight=mrBlueSprites.naturalHeight/3;
       ctx.drawImage(mrBlueSprites,column*cellWidth,row*cellHeight,cellWidth,cellHeight,x-size/2,y-size/2,size,size);return true;
     };
+    const rocketSprites=new Image();rocketSprites.src="/assets/rocket-launch-sprites.png";
+    const drawRocketSprite=(row:number,frame:number,x:number,y:number,size:number)=>{
+      if(!rocketSprites.complete||!rocketSprites.naturalWidth)return false;
+      const column=((frame%4)+4)%4,cellWidth=rocketSprites.naturalWidth/4,cellHeight=rocketSprites.naturalHeight/2;
+      ctx.drawImage(rocketSprites,column*cellWidth,row*cellHeight,cellWidth,cellHeight,x-size/2,y-size/2,size,size);return true;
+    };
     // Die drei Zappelzeichnungen haben unterschiedlich viel transparenten Rand.
     // Diese optischen Anker halten Mr. Blue am selben Ort, ohne den Sprung zu glätten.
     const mrBlueFlopOffsets=[{x:-4,y:2},{x:-2,y:2},{x:7,y:2}] as const;
@@ -119,6 +128,12 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     let seesawBody=machine.bodiesByType("seesaw")[0]??null;
     const fishBowl=machine.body("fish-bowl");
     const fishBody=machine.body("mr-blue");
+    const hamsterWheelBody=machine.bodiesByType("hamsterWheel")[0]??null;
+    const conveyorBody=machine.bodiesByType("conveyor")[0]??null;
+    const fallingCandle=machine.body("falling-candle");
+    const rocketBodies=machine.bodiesByType("rocket");
+    const conveyorConfig=level.fixedGadgets.find(gadget=>gadget.type==="conveyor");
+    const conveyorWidth=Number(conveyorConfig?.physics?.width??270);
     const tetheredBalloonConfigs=level.fixedGadgets.filter(gadget=>gadget.type==="balloon"&&gadget.state==="tethered");
     const scissorBalloons=tetheredBalloonConfigs.flatMap(gadget=>{const body=machine.body(gadget.id);return body?[body]:[]});
     placed.forEach(p => {
@@ -135,7 +150,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       }
       if(body)body.plugin={...body.plugin,placedId:p.id};
     });
-    const beltConnected=placed.some(p=>p.type==="belt"),allBodies=Matter.Composite.allBodies(engine.world),bodyByPlacedId=new Map<number,Matter.Body>();
+    const driveBelt=placed.find(p=>p.type==="belt")??null,beltConnected=!!driveBelt,allBodies=Matter.Composite.allBodies(engine.world),bodyByPlacedId=new Map<number,Matter.Body>();
     allBodies.forEach(body=>{const placedId=body.plugin?.placedId;if(typeof placedId==="number")bodyByPlacedId.set(placedId,body)});
     const scissorRopePhysics=scissorRopes.flatMap(connection=>{const pullBody=bodyByPlacedId.get(connection.placedId);if(!pullBody)return[];const anchor=scissorPullPoint(connection.scissorIndex),restLength=Math.hypot(pullBody.position.x-anchor.x,pullBody.position.y-anchor.y),constraint=Matter.Constraint.create({pointA:anchor,bodyB:pullBody,length:restLength,stiffness:.42,damping:.14,label:`scissorRope-${connection.scissorIndex}`});Matter.Composite.add(engine.world,constraint);return[{...connection,pullBody,anchor,restLength}]});
     const placedById=new Map(placed.map(part=>[part.id,part])),routeKinds=ropePath.map(node=>node.kind==="anchor"?"anchor":routeKindForPart(placedById.get(node.placedId)?.type??"rope")).filter((kind):kind is PulleyRouteKind=>kind!==null),routeAnalysis=analyzePulleyRoute(routeKinds);
@@ -149,12 +164,18 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const worldPoint=(body:Matter.Body,x:number,y:number)=>({x:body.position.x+x*Math.cos(body.angle)-y*Math.sin(body.angle),y:body.position.y+x*Math.sin(body.angle)+y*Math.cos(body.angle)}),fuseId=(body:Matter.Body)=>`fuse-${body.id}`,cannonFuseId="cannon-fuse";
     const fuseNetwork=new FuseNetwork([...fuseBodies.map(body=>({id:fuseId(body),start:worldPoint(body,-55,0),end:worldPoint(body,55,0),burnDurationMs:1200})),...(cannonBody?[{id:cannonFuseId,start:worldPoint(cannonBody,-18,-42),end:worldPoint(cannonBody,-26,-17),burnDurationMs:1300,samples:14}]:[])],22,105);
     const wetFuseIds=new Set<number>(),bucketStartAngle=bucketBody?.angle??0,bucketStartPosition=bucketBody?{...bucketBody.position}:null,bucketPivot=bucketStartPosition?{x:bucketStartPosition.x+Math.cos(bucketStartAngle)*34-Math.sin(bucketStartAngle)*-23,y:bucketStartPosition.y+Math.sin(bucketStartAngle)*34+Math.cos(bucketStartAngle)*-23}:null;
-    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0},scissorClosedAt=[0,0,0];let motor=false,motorStartedAt=0,balloonPopped=false,mouseFleeAt=0,catStartledAt=0,catImpactMode:"none"|"launch"|"drop"="none",catFallStartedAt=0,catOnPlatformAt=0,fishBowlBrokenAt=0,fishReleased=false,fishFlopAt=0,fishChaseAt=0,gearTurnAt=0,fuseClock=0,fuseIgnited=false,fuseReady=false,fuseExtinguishedAt=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
+    const ballVelocity={x:0,y:0},blockVelocity={x:0,y:0},scissorClosedAt=[0,0,0],rocketIgnitedAt=new Map<string,number>();let motor=false,motorStartedAt=0,driveTransferred=false,balloonPopped=false,mouseFleeAt=0,catStartledAt=0,catImpactMode:"none"|"launch"|"drop"="none",catFallStartedAt=0,catOnPlatformAt=0,fishBowlBrokenAt=0,fishReleased=false,fishFlopAt=0,fishChaseAt=0,gearTurnAt=0,fuseClock=0,fuseIgnited=false,fuseReady=false,fuseExtinguishedAt=0,cannonFired=false,cannonFiredAt=0,cannonHitAt=0,candleWetHits=0,candleExtinguished=false,candleExtinguishedAt=0,bucketTipAt=0,seesawHitAt=0,blockPosition={...initialBlockPosition},pulleyTurn=0,won=false,raf=0,last=performance.now();
+    const wheelInstanceId=hamsterWheelBody&&machinePlugin(hamsterWheelBody)?.instanceId;
+    const conveyorInstanceId=conveyorBody&&machinePlugin(conveyorBody)?.instanceId;
+    const unsubscribeMachine=machine.subscribe(event=>{
+      if(event.type==="state"&&event.instanceId===wheelInstanceId&&event.state==="running"&&!motor){motor=true;motorStartedAt=performance.now()}
+      if(event.type==="state"&&event.state==="burning"&&event.instanceId&&rocketBodies.some(body=>machinePlugin(body)?.instanceId===event.instanceId)&&!rocketIgnitedAt.has(event.instanceId))rocketIgnitedAt.set(event.instanceId,performance.now());
+    });
     const closeScissor=(index:number,now:number)=>{if(scissorClosedAt[index]||!scissorBalloons[index])return;scissorClosedAt[index]=now;const released=scissorBalloons[index],scissorId=level.fixedGadgets.find(gadget=>gadget.collisionLabel===`scissor-${index}`)?.id,balloonId=tetheredBalloonConfigs[index]?.id;if(scissorId)machine.setState(scissorId,"closed");if(balloonId)machine.setState(balloonId,"free");Matter.Body.setStatic(released,false);Matter.Body.setVelocity(released,{x:(index-1)*.18,y:-1.2})};
     Matter.Events.on(engine, "collisionStart", e => e.pairs.forEach(({ bodyA, bodyB }) => {
       const labels = [bodyA.label, bodyB.label];
       const water=bodyA.label==="water"?bodyA:bodyB.label==="water"?bodyB:null;
-      if (labels.includes("wheel") && labels.includes("ball") && beltConnected && !motor) { motor = true; motorStartedAt = performance.now();const wheel=[bodyA,bodyB].find(body=>body.label==="wheel"),id=wheel&&machinePlugin(wheel)?.instanceId;if(id)machine.setState(id,"running"); }
+      if (labels.includes("wheel") && labels.some(label=>["ball","tennisBall","candle"].includes(label)) && beltConnected && !motor) { motor = true; motorStartedAt = performance.now();const wheel=[bodyA,bodyB].find(body=>body.label==="wheel"),id=wheel&&machinePlugin(wheel)?.instanceId;if(id)machine.setState(id,"running"); }
       if (labels.includes("exit") && labels.includes("cat") && !won) { won = true; onWin(); }
       if (labels.includes("candle") && labels.includes("levelBalloon") && !won) { balloonPopped=true;const id=balloon&&machinePlugin(balloon)?.instanceId;if(id)machine.setState(id,"popped");won=true;onWin(); }
       if (labels.includes("targetRing") && labels.includes("levelBalloon") && !won) { won=true; onWin(); }
@@ -190,7 +211,9 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const render = (now:number) => {
       const dt = Math.min(32, now-last); last=now;
       if(running&&hasSystem("scissors"))scissorRopePhysics.forEach(connection=>{if(!scissorClosedAt[connection.scissorIndex]&&ropePullIsTaut(connection.anchor,connection.pullBody.position,connection.pullBody.velocity,connection.restLength))closeScissor(connection.scissorIndex,now)});
+      if(running&&motor&&beltConnected&&!driveTransferred&&wheelInstanceId&&conveyorInstanceId){machine.resolve(wheelInstanceId,conveyorInstanceId,"connection");driveTransferred=true}
       if(running){stabilizeWater();machine.step(dt);stabilizeWater()}
+      if(running&&hasSystem("rocket-launch"))for(const rocketBody of rocketBodies){const id=machinePlugin(rocketBody)?.instanceId;if(!id)continue;const state=machine.state(id)?.state??"mounted",next=nextRocketState(state,rocketIgnitedAt.get(id),now);if(next!==state)machine.setState(id,next)}
       const catHasSupport=!!cat&&animalHasSupport(cat,Matter.Composite.allBodies(engine.world));
       const catFalling=!!cat&&running&&!cat.isStatic&&isAnimalFalling(cat.velocity.y,catHasSupport);
       if(catFalling&&!catFallStartedAt)catFallStartedAt=now;else if(!catFalling)catFallStartedAt=0;
@@ -233,11 +256,17 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
       ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40);
+      if(conveyorBody&&hamsterWheelBody&&hasSystem("conveyor")){
+        const conveyorRunning=motor&&beltConnected,conveyorVisual=drawConveyor(ctx,{centerX:conveyorBody.position.x,centerY:conveyorBody.position.y,width:conveyorWidth,now,running:conveyorRunning});
+        const sourcePort={x:hamsterWheelBody.position.x+55,y:hamsterWheelBody.position.y+13},targetPort=conveyorVisual.leftWheel;
+        if(beltConnected)drawDriveBelt(ctx,driveBeltGeometry(sourcePort,targetPort,18,conveyorVisual.wheelRadius),now,conveyorRunning);
+        const hamsterFrame=motor?Math.floor(now/90)%6:0;if(!drawHamsterSprite(hamsterFrame,hamsterWheelBody.position.x,hamsterWheelBody.position.y,116,116))drawGear(hamsterWheelBody.position.x,hamsterWheelBody.position.y,42,motor?now/180:0);
+        ctx.fillStyle="#d69b29";ctx.strokeStyle="#173f50";ctx.lineWidth=4;ctx.beginPath();ctx.arc(sourcePort.x,sourcePort.y,14,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(sourcePort.x,sourcePort.y,4,0,Math.PI*2);ctx.fill();
+        if(selectedTool==="belt"&&!running){const drawPort=(point:{x:number;y:number},label:string)=>{ctx.save();ctx.fillStyle=beltConnected?"#d39a28":"#2f9b67";ctx.strokeStyle="#fff4cf";ctx.lineWidth=4;ctx.beginPath();ctx.arc(point.x,point.y,12,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.fillText(label,point.x+17,point.y+4);ctx.restore()};drawPort(sourcePort,"LOUIS");drawPort(targetPort,"LAUFBAND")}
+        if(driveBelt&&selectedId===driveBelt.id&&!running){const center={x:(sourcePort.x+targetPort.x)/2,y:(sourcePort.y+targetPort.y)/2};ctx.save();ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);ctx.strokeRect(center.x-49,center.y-24,98,48);ctx.setLineDash([]);ctx.fillStyle="#fff4cf";ctx.fillRect(center.x-35,center.y-12,70,22);ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.textAlign="center";ctx.fillText("RIEMEN",center.x,center.y+4);ctx.restore()}
+      }
       if(scene==="first-impulse"){
         ctx.fillStyle="#183f49";ctx.fillRect(780,345,105,135);ctx.fillStyle="#eac97a";ctx.font="bold 16px Georgia";ctx.fillText("AUSGANG",790,375);ctx.fillText("→",820,420);
-        ctx.fillStyle="#93511f";ctx.fillRect(475,393,270,24);ctx.fillStyle="#d84a32";for(let x=490;x<730;x+=34){ctx.fillText("›",x,412)}
-        if(beltConnected){ctx.save();ctx.strokeStyle="#51351f";ctx.lineWidth=7;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(407,345);ctx.lineTo(510,390);ctx.stroke();ctx.restore()}
-        const hamsterFrame=motor?Math.floor(now/90)%6:0;if(!drawHamsterSprite(hamsterFrame,365,345,116,116))drawGear(365,345,42,motor?now/180:0);
       }else if(scene==="balloon-candle"){
         ctx.fillStyle="#7b4c24";ctx.fillRect(770,135,72,10);ctx.fillStyle="#f1cb62";ctx.fillRect(793,75,24,64);if(!drawFireSprite(0,Math.floor(now/105)%6,805,51,82,90))drawFallbackFlame(805,58,now,1.05);
       }else if(scene==="tailwind"){
@@ -280,6 +309,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         if(b.label==="tennisBall"){ctx.fillStyle="#d7eb4c";ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#fff8c5";ctx.lineWidth=2;ctx.beginPath();ctx.arc(-8,0,9,-1.15,1.15);ctx.stroke();ctx.beginPath();ctx.arc(8,0,9,2,4.3);ctx.stroke()}
         if(b.label==="scissorBalloon"){const colors=["#e84d52","#3f9bd2","#efb630"],index=scissorBalloons.indexOf(b);ctx.fillStyle=colors[Math.max(0,index)];ctx.beginPath();ctx.ellipse(0,0,21,27,0,0,Math.PI*2);ctx.fill();ctx.fillStyle="rgba(255,255,255,.55)";ctx.beginPath();ctx.ellipse(-7,-9,5,9,-.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=colors[Math.max(0,index)];ctx.beginPath();ctx.moveTo(-5,25);ctx.lineTo(5,25);ctx.lineTo(0,34);ctx.closePath();ctx.fill()}
         if(b.label==="ramp"){ctx.fillStyle="#8d5426";ctx.fillRect(-75,-7,150,14);ctx.strokeStyle="#4e2a14";ctx.strokeRect(-75,-7,150,14)}
+        if(b.label==="candle"&&hasSystem("rocket-launch")){ctx.fillStyle="#f1cb62";ctx.strokeStyle="#9a6426";ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(-12,-19,24,53,5);ctx.fill();ctx.stroke();ctx.fillStyle="rgba(255,255,255,.5)";ctx.fillRect(-7,-13,4,40);ctx.strokeStyle="#49382a";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,-19);ctx.lineTo(0,-28);ctx.stroke();if(!drawFireSprite(0,Math.floor(now/105)%6,0,-40,52,58))drawFallbackFlame(0,-36,now,.7)}
         if(b.label==="levelBalloon"&&!balloonPopped){ctx.fillStyle="#1976b9";ctx.beginPath();ctx.ellipse(0,0,22,28,0,0,7);ctx.fill();ctx.strokeStyle="#305468";ctx.beginPath();ctx.moveTo(0,28);ctx.lineTo(0,62);ctx.stroke()}
         if(b.label==="fan"){ctx.fillStyle="#18475a";ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.fill();ctx.fillStyle="#d6a12c";ctx.font="35px serif";ctx.fillText("✣",-18,12);ctx.strokeStyle="#54a8c2";ctx.setLineDash([8,8]);ctx.beginPath();ctx.moveTo(35,-20);ctx.lineTo(FAN_VISIBLE_RANGE,-65);ctx.moveTo(35,20);ctx.lineTo(FAN_VISIBLE_RANGE,65);ctx.stroke();ctx.setLineDash([])}
         if(b.label==="levelBall"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.fill();ctx.fillStyle="#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
@@ -304,6 +334,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         if(b.label==="bucket"){ctx.fillStyle="rgba(76,141,168,.38)";ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-38,-28);ctx.lineTo(38,-28);ctx.lineTo(29,32);ctx.lineTo(-29,32);ctx.closePath();ctx.fill();ctx.stroke();ctx.strokeStyle="#b7dbe4";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,-25,38,Math.PI,0);ctx.stroke();ctx.fillStyle="#d8edf0";ctx.fillRect(-38,-31,76,7);if(running&&Math.abs(b.angle)>.18){if(!bucketTipAt)bucketTipAt=now;const streamFrame=Math.min(5,Math.floor((now-bucketTipAt)/230));drawWaterSprite(2,streamFrame,43,-22,105,78,0)}}
         if(b.label==="water"){const splashAt=waterSplashAt.get(b.id),splashAge=splashAt?now-splashAt:Infinity;if(splashAge<420){drawWaterSprite(1,Math.min(5,Math.floor(splashAge/70)),0,-2,34,24)}else{const speed=Math.hypot(b.velocity.x,b.velocity.y);if(speed>2){ctx.strokeStyle="rgba(80,190,232,.48)";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-b.velocity.x*1.8,-b.velocity.y*1.8);ctx.lineTo(0,0);ctx.stroke()}if(!drawWaterSprite(0,(b.id+Math.floor(now/120))%6,0,0,24,20)){ctx.fillStyle="#42b9e9";ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill()}}}
         if(b.label==="cannonball"){ctx.fillStyle="#333f43";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
+        if(b.label==="rocket"){const id=machinePlugin(b)?.instanceId,state=id?(machine.state(id)?.state??"mounted"):"mounted",visual=rocketVisual(state,id?rocketIgnitedAt.get(id):undefined,now);if(visual.visible&&!drawRocketSprite(visual.row,visual.frame,0,visual.offsetY,visual.size)){ctx.fillStyle="#d94d32";ctx.beginPath();ctx.moveTo(0,-55+visual.offsetY);ctx.lineTo(-24,18+visual.offsetY);ctx.lineTo(24,18+visual.offsetY);ctx.closePath();ctx.fill()}if(visual.smokeOpacity>0){ctx.save();ctx.globalAlpha=visual.smokeOpacity;ctx.fillStyle="#d8d2c7";for(let puff=0;puff<7;puff++){const angle=puff/7*Math.PI*2,radius=9+(puff%3)*3;ctx.beginPath();ctx.arc(Math.cos(angle+now*.001)*22,55+Math.sin(angle)*10,radius,0,Math.PI*2);ctx.fill()}ctx.restore()}}
         if(b.label==="seesawPayload"){ctx.fillStyle="#c73b2e";ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();ctx.fillStyle="#f4c64e";ctx.beginPath();ctx.arc(-5,-5,4,0,Math.PI*2);ctx.fill()}
         if(b.plugin?.placedId===selectedId&&!running){ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);if(b.label==="seesaw")ctx.strokeRect(-126,-48,252,96);else if(["ramp","trampoline","fuse","cannon","bucket"].includes(b.label))ctx.strokeRect(-64,-38,128,76);else{ctx.beginPath();ctx.arc(0,0,48,0,Math.PI*2);ctx.stroke()}ctx.setLineDash([])}ctx.restore();
       }
@@ -324,9 +355,10 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       if(scene==="cat-jump")ctx.fillText(!catStartledAt?"Triff die freie linke Seite der Wippe":catImpactMode==="drop"?"Die Katzenseite sinkt – die Katze fällt nach unten":!catOnPlatformAt?"Die Katze erschrickt und fliegt zur oberen Ebene":"Die Katze verfolgt die Maus",275,32);
       if(scene==="mr-blue-rescue")ctx.fillText(!fishBowlBrokenAt?`Lass einen Körper auf ${CHARACTERS.fish}s Glas fallen`:!fishVisible?"Das Glas zerbricht …":!fishChaseAt?`${CHARACTERS.fish} zappelt – kann ${CHARACTERS.cat} ihn sehen?`:`${CHARACTERS.cat} läuft zu ${CHARACTERS.fish}`,260,32);
       if(scene==="snip-snap"){const closed=scissorClosedAt.filter(Boolean).length;ctx.fillText(closed===3?"Alle Ballons sind frei – jetzt müssen sie oben hinaus!":`${closed} von 3 Scheren geschlossen`,340,32)}
+      if(scene==="rocket-parade"){const launched=rocketBodies.filter(body=>{const id=machinePlugin(body)?.instanceId;return id&&machine.state(id)?.state==="launched"}).length,ignited=rocketIgnitedAt.size;ctx.fillText(!beltConnected?"Verbinde Louis und das Laufband mit dem Antriebsriemen":!motor?"Fange die Kerze auf und lenke sie über Louis":launched===4?"Vier Raketen sind gestartet!":ignited?`${launched} gestartet · ${ignited-launched} zünden · Kerze fährt weiter`:`Louis läuft – bringe die Kerzenflamme unter die vier Düsen`,220,32);if(fallingCandle&&fallingCandle.position.y>510)ctx.fillText("Die Kerze ist heruntergefallen – versuche eine andere Plankenführung.",230,58)}
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
-    return()=>{cancelAnimationFrame(raf);machine.destroy()};
-  },[level,placed,ropePath,scissorRopes,pendingScissor,ropeMode,selectedId,running,attempt,onWin]);
+    return()=>{cancelAnimationFrame(raf);unsubscribeMachine();machine.destroy()};
+  },[level,placed,ropePath,scissorRopes,pendingScissor,ropeMode,selectedTool,selectedId,running,attempt,onWin]);
   return <canvas ref={canvasRef} width={900} height={520} aria-label="Spielfeld der unglaublichen Maschine" />;
 }

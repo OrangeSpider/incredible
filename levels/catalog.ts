@@ -12,10 +12,11 @@ import level11 from "./level-11.json" with { type: "json" };
 import level12 from "./level-12.json" with { type: "json" };
 import level13 from "./level-13.json" with { type: "json" };
 import level14 from "./level-14.json" with { type: "json" };
+import level15 from "./level-15.json" with { type: "json" };
 import {GADGET_CATALOG} from "../engine/gadget-catalog.ts";
 import type {LevelDefinition,PlaceableGadgetType} from "../engine/types.ts";
 
-const rawLevels=[level01,level02,level03,level04,level05,level06,level07,level08,level09,level10,level11,level12,level13,level14];
+const rawLevels=[level01,level02,level03,level04,level05,level06,level07,level08,level09,level10,level11,level12,level13,level14,level15];
 
 export function validateLevel(value:unknown):LevelDefinition{
   if(!value||typeof value!=="object")throw new Error("Level JSON must be an object");

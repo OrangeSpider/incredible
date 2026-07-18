@@ -24,8 +24,8 @@ test("page.tsx is only the route entry point", async () => {
 });
 
 test("all shipped levels are validated standalone JSON documents", () => {
-  assert.equal(LEVELS.length, 14);
-  assert.deepEqual(LEVELS.map((level) => level.number), Array.from({ length: 14 }, (_, index) => index + 1));
+  assert.equal(LEVELS.length, 15);
+  assert.deepEqual(LEVELS.map((level) => level.number), Array.from({ length: 15 }, (_, index) => index + 1));
   for (const level of LEVELS) {
     assert.deepEqual(validateLevel(level), level);
     assert.ok(level.inventory.every((entry) => GADGET_CATALOG[entry.type]));

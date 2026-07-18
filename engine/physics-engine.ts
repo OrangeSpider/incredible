@@ -94,7 +94,7 @@ export class MachinePhysicsEngine{
     if(effect==="start")this.setState(stateEntry.config.id,"running");
     if(effect==="cut"){this.setState(target.config.id,"free");this.release(target.config.id,{x:0,y:-1.2})}
     if(effect==="fire")this.setState(target.config.id,"firing");
-    if(effect==="transport"&&sourceBody&&targetBody&&!targetBody.isStatic){const speed=3.2;Matter.Body.setVelocity(targetBody,{x:Math.cos(sourceBody.angle)*speed,y:targetBody.velocity.y})}
+    if(effect==="transport"&&source.state.state==="running"&&sourceBody&&targetBody&&!targetBody.isStatic){const speed=Number(source.state.properties.speed??3.4),direction=Number(source.state.properties.direction??1);Matter.Body.setVelocity(targetBody,{x:Math.cos(sourceBody.angle)*speed*direction,y:targetBody.velocity.y})}
     if(effect==="push"&&sourceBody&&targetBody&&!targetBody.isStatic){
       const dx=targetBody.position.x-sourceBody.position.x,dy=targetBody.position.y-sourceBody.position.y,c=Math.cos(sourceBody.angle),s=Math.sin(sourceBody.angle),forward=dx*c+dy*s,side=-dx*s+dy*c,maxDistance=interaction.rule.maxDistance??420;
       if(forward<=0||forward>maxDistance||Math.abs(side)>=100+forward*.3)return;
@@ -117,6 +117,21 @@ export class MachinePhysicsEngine{
       const source=active[left],target=active[right],sourceBody=source.body!,targetBody=target.body!,relativeVelocity={x:sourceBody.velocity.x-targetBody.velocity.x,y:sourceBody.velocity.y-targetBody.velocity.y};
       const interactions=resolveInteractions(source.config.type,target.config.type,"proximity",{impactSpeed:Math.hypot(relativeVelocity.x,relativeVelocity.y),sourceX:sourceBody.position.x,sourceY:sourceBody.position.y,targetX:targetBody.position.x,targetY:targetBody.position.y,relativeVelocity});
       for(const interaction of interactions)this.applyInteraction(interaction,source,target,sourceBody,targetBody);
+    }
+    // A running conveyor is a continuous contact source. Collision-start alone
+    // would only impart one short impulse and the transported object would slow
+    // down again because of friction.
+    for(const conveyor of active.filter(entry=>entry.config.type==="conveyor"&&entry.state.state==="running")){
+      const beltBody=conveyor.body!,speed=Number(conveyor.state.properties.speed??3.4),direction=Number(conveyor.state.properties.direction??1);
+      for(const target of active){
+        const targetBody=target.body!;
+        if(target===conveyor||targetBody.isStatic)continue;
+        const overlapsX=targetBody.bounds.max.x>=beltBody.bounds.min.x&&targetBody.bounds.min.x<=beltBody.bounds.max.x;
+        const bottom=targetBody.bounds.max.y,top=beltBody.bounds.min.y;
+        if(overlapsX&&bottom>=top-9&&bottom<=top+18&&targetBody.bounds.min.y<top){
+          Matter.Body.setVelocity(targetBody,{x:Math.cos(beltBody.angle)*speed*direction,y:Math.min(targetBody.velocity.y,.35)});
+        }
+      }
     }
     for(const entry of this.entries.values()){
       const body=entry.body;if(!body||body.isStatic)continue;const definition=getGadgetDefinition(entry.config.type),properties={...definition.physics,...entry.config.physics};

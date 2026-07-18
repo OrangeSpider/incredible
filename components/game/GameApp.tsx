@@ -7,6 +7,7 @@ import type { InventoryEntry, LevelDefinition, PlaceableGadgetType } from "@/eng
 import { LEVELS } from "@/levels/catalog";
 import { analyzePulleyRoute, type PulleyRouteKind } from "@/game/pulley";
 import { SCISSOR_LAYOUT, scissorPullPoint } from "@/game/scissors";
+import { conveyorWheelCenters } from "@/game/drive";
 import GameCanvas, { routeKindForPart } from "./GameCanvas";
 import GameHeader from "./GameHeader";
 import GameToolbar from "./GameToolbar";
@@ -40,6 +41,16 @@ function defaultRotation(type: PlaceableGadgetType) {
   if (["ramp", "trampoline", "cannon"].includes(type)) return -.28;
   if (type === "bucket") return -.08;
   return 0;
+}
+
+function driveBeltMarker(level: LevelDefinition) {
+  const source = level.fixedGadgets.find((gadget) => gadget.role === "drive");
+  const conveyor = level.fixedGadgets.find((gadget) => gadget.type === "conveyor");
+  if (!source || !conveyor) return null;
+  const width = Number(conveyor.physics?.width ?? GADGET_CATALOG.conveyor.physics.width ?? 270);
+  const [target] = conveyorWheelCenters(conveyor.x, conveyor.y, width);
+  const sourcePort = { x: source.x + 55, y: source.y + 13 };
+  return { x: (sourcePort.x + target.x) / 2, y: (sourcePort.y + target.y) / 2 };
 }
 
 export default function GameApp() {
@@ -147,7 +158,6 @@ export default function GameApp() {
     }
 
     const movable = placed
-      .filter((part) => part.type !== "belt")
       .map((part) => ({ ...part, distance: Math.hypot(part.x - point.x, part.y - point.y) }))
       .sort((a, b) => a.distance - b.distance)[0];
     if (movable && movable.distance < 52) {
@@ -162,7 +172,8 @@ export default function GameApp() {
     if (placed.filter((part) => part.type === selected).length >= allowed.count) return;
     const id = Math.round(performance.now() * 1000);
     setSelectedId(id);
-    setPlaced((items) => [...items, { id, type: selected, x: point.x, y: point.y, rotation: defaultRotation(selected) }]);
+    const connectorPoint = selected === "belt" ? driveBeltMarker(level) : null;
+    setPlaced((items) => [...items, { id, type: selected, x: connectorPoint?.x ?? point.x, y: connectorPoint?.y ?? point.y, rotation: defaultRotation(selected) }]);
   };
 
   const boardPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -194,7 +205,9 @@ export default function GameApp() {
     ? ropePath.length ? ropeAnalysis.tensioned ? "Festpunkt und Kugel bilden die beiden gespannten Enden. Weitere Punkte öffnen den Verlauf wieder." : "Klicke weitere Anschlüsse oder starte auch mit offenen Enden." : "Beginne an einem beliebigen grünen Anschluss – der Festpunkt ist optional."
     : selected === "rope" && level.systems.includes("scissors")
       ? pendingScissor === null ? "Klicke einen grünen Scherengriff." : "Der Griff ist gewählt. Klicke jetzt eine Bowlingkugel oder den Tennisball."
-      : level.hint;
+      : selected === "belt" && level.systems.includes("belt-drive")
+        ? placed.some((part) => part.type === "belt") ? "Der Riemen liegt geschlossen um Louis' Antriebsrad und das linke Laufbandrad." : "Klicke auf das Spielfeld: Der Riemen verbindet automatisch die beiden grün markierten Antriebsräder."
+        : level.hint;
 
   const remaining = (entry: InventoryEntry) => {
     if (entry.type === "rope" && level.systems.includes("scissors")) return Math.max(0, entry.count - scissorRopes.length);
@@ -204,7 +217,6 @@ export default function GameApp() {
 
   const win = useCallback(() => {
     setWon(true);
-    setRunning(false);
     setScore((oldScore) => {
       const nextScore = oldScore + Math.max(500, 1800 - placed.length * 120);
       const nextBoard = [...readScores(), { name, score: nextScore }].sort((a, b) => b.score - a.score).slice(0, 10);
@@ -239,8 +251,8 @@ export default function GameApp() {
       <div className="workspace">
         <section className="board-wrap">
           <div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
-            <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedId={selectedId} running={running} attempt={attempt} onWin={win} />
-            {!running && placed.length === 0 && <div className="board-tip">{level.buildTip}</div>}
+            <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} running={running} attempt={attempt} onWin={win} />
+            {!running && placed.length === 0 && level.scene !== "rocket-parade" && <div className="board-tip">{level.buildTip}</div>}
             {won && <div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{level.successText}</p>{nextLevel ? <button onClick={() => changeLevel(nextLevel)}>Nächstes Level →</button> : <button onClick={reset}>Noch einmal bauen ↻</button>}</div>}
           </div>
           <div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div>
