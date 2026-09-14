@@ -1,0 +1,6 @@
+{
+  "schemaVersion":1,"id":"cat-jump","number":12,"scene":"cat-jump","title":"Katzensprung","objective":"Schleudere Joanne zu Mogli auf die obere Ebene","hint":"Nur ein Treffer auf der freien linken Seite löst den Katzensprung aus.","buildTip":"Joanne wartet rechts auf der Wippe. Lass die Bowlingkugel weit links auftreffen, damit sie auf die obere Ebene fliegt.","successText":"Die Wippe schleuderte die erschrockene Joanne auf die obere Ebene, wo sie Mogli verfolgte.",
+  "inventory":[{"type":"ball","count":1}],
+  "fixedGadgets":[{"id":"catapult-seesaw","type":"seesaw","x":320,"y":430,"role":"catapult","collisionLabel":"seesaw"},{"id":"joanne","type":"cat","x":410,"y":397,"role":"payload","collisionLabel":"cat"},{"id":"mogli","type":"mouse","x":700,"y":255,"role":"prey","collisionLabel":"mouse","physics":{"isStatic":true}},{"id":"upper-platform","type":"steelBeam","x":710,"y":290,"role":"platform","collisionLabel":"catapultPlatform","physics":{"width":380,"height":18,"friction":0.8}},{"id":"mouse-hole","type":"exit","x":868,"y":255,"role":"goal","collisionLabel":"catapultMouseHole","physics":{"width":55,"height":110}}],
+  "systems":["seesaw","catapult","cat-mouse","animal-support"],"goal":{"mode":"event","event":"mouse.entered.hole"}
+}

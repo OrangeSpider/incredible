@@ -1,0 +1,6 @@
+{
+  "schemaVersion":1,"id":"fire-cannon","number":9,"scene":"fire-cannon","title":"Feuer frei!","objective":"Zünde die Lunte und triff die Zielscheibe","hint":"Luntenteile müssen Feuer und Kanone als räumlich zusammenhängende Kette verbinden.","buildTip":"Platziere Kanone und Luntenteile als Kette von der Kerze bis zur Kanone. Richte anschließend das Rohr aus.","successText":"Die Lunte brannte vollständig ab und die Kanonenkugel traf das Ziel.",
+  "inventory":[{"type":"cannon","count":1},{"type":"fuse","count":5}],
+  "fixedGadgets":[{"id":"ignition-candle","type":"candle","x":102,"y":416,"role":"ignition","collisionLabel":"ignitionCandle","physics":{"width":24,"height":52}},{"id":"cannon-target","type":"cannonTarget","x":825,"y":230,"role":"goal","collisionLabel":"cannonTarget"}],
+  "systems":["fuse-network","cannon"],"goal":{"mode":"event","event":"cannonball.hit.target"}
+}

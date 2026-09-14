@@ -1,0 +1,6 @@
+{
+  "schemaVersion":1,"id":"block-and-tackle","number":5,"scene":"block-and-tackle","title":"Flaschenzug","objective":"Hebe das 50-kg-Gewicht bis zur roten Markierung","hint":"Offene Enden und unvollständige Aufbauten sind erlaubt; nur gespannte Seilabschnitte übertragen Zug.","buildTip":"Platziere beliebig viele Rollen. Genügend Kraft liefern mehrere möglichst senkrechte tragende Seilabschnitte und ein langer Zugweg.","successText":"Die gekoppelte Seilkraft hat den unteren Rollenblock samt Gewicht angehoben.",
+  "inventory":[{"type":"ball","count":1},{"type":"pulley","count":3},{"type":"movingPulley","count":3},{"type":"rope","count":1}],
+  "fixedGadgets":[{"id":"weight","type":"weight","x":760,"y":430,"role":"load","collisionLabel":"weight","physics":{"isStatic":true},"properties":{"loadKg":50,"targetY":250}},{"id":"rope-anchor","type":"rope","x":92,"y":64,"role":"anchor","state":"slack","properties":{"fixed":true}}],
+  "systems":["pulley-rope","rope-rendering"],"goal":{"mode":"position","conditions":[{"signal":"weight.y","operator":"below","value":250}]}
+}

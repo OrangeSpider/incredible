@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "rocket-parade",
+  "number": 15,
+  "scene": "rocket-parade",
+  "title": "Vierfacher Raketenstart",
+  "objective": "Zünde alle vier Raketen mit der fahrenden Kerze",
+  "hint": "Die Kerze muss zuerst Louis treffen. Nur mit dem Antriebsriemen läuft danach das Band.",
+  "buildTip": "Fange die fallende Kerze mit mehreren Planken auf. Lenke sie über Louis auf das Laufband und verbinde Hamsterrad und Band mit dem Riemen.",
+  "successText": "Louis trieb das Laufband an, die Kerze fuhr unter allen Düsen hindurch – vier Raketen sind gestartet!",
+  "inventory": [
+    { "type": "ramp", "count": 6 },
+    { "type": "belt", "count": 1 }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "falling-candle",
+      "type": "candle",
+      "x": 78,
+      "y": 52,
+      "role": "falling-fire",
+      "collisionLabel": "candle",
+      "physics": {
+        "shape": "rectangle",
+        "width": 26,
+        "height": 68,
+        "massKg": 0.85,
+        "density": 0.002,
+        "friction": 0,
+        "staticFriction": 0,
+        "airFriction": 0.012,
+        "restitution": 0.12,
+        "gravityScale": 1,
+        "isStatic": false,
+        "isSensor": false,
+        "inertiaLocked": true
+      }
+    },
+    { "id": "louis-wheel", "type": "hamsterWheel", "x": 205, "y": 350, "role": "drive", "collisionLabel": "wheel" },
+    {
+      "id": "rocket-conveyor",
+      "type": "conveyor",
+      "x": 570,
+      "y": 420,
+      "role": "transport",
+      "collisionLabel": "conveyor",
+      "physics": { "width": 600, "height": 32 },
+      "properties": { "direction": 1, "speed": 3.4 }
+    },
+    { "id": "rocket-1", "type": "rocket", "x": 395, "y": 300, "role": "payload", "collisionLabel": "rocket" },
+    { "id": "rocket-2", "type": "rocket", "x": 525, "y": 300, "role": "payload", "collisionLabel": "rocket" },
+    { "id": "rocket-3", "type": "rocket", "x": 655, "y": 300, "role": "payload", "collisionLabel": "rocket" },
+    { "id": "rocket-4", "type": "rocket", "x": 785, "y": 300, "role": "payload", "collisionLabel": "rocket" }
+  ],
+  "systems": ["hamster-drive", "belt-drive", "conveyor", "rocket-launch", "fire-contact"],
+  "goal": {
+    "mode": "all",
+    "conditions": [
+      { "signal": "rocket-conveyor.state", "operator": "equals", "value": "running" },
+      { "signal": "rocket-1.state", "operator": "equals", "value": "launched" },
+      { "signal": "rocket-2.state", "operator": "equals", "value": "launched" },
+      { "signal": "rocket-3.state", "operator": "equals", "value": "launched" },
+      { "signal": "rocket-4.state", "operator": "equals", "value": "launched" }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "schemaVersion":1,"id":"needle-test","number":6,"scene":"needle-test","title":"Nadelprobe","objective":"Lass den Luftballon an der Nadel platzen","hint":"Die Nadel übt auf andere Körper keine besondere Wirkung aus.","buildTip":"Setze die Nadel in den Weg des Ballons und lenke ihn mit dem Ventilator hinein.","successText":"Die Nadel hat ausschließlich den Ballon zum Platzen gebracht.",
+  "inventory":[{"type":"needle","count":1},{"type":"fan","count":1}],
+  "fixedGadgets":[{"id":"balloon","type":"balloon","x":180,"y":420,"role":"payload","collisionLabel":"levelBalloon","physics":{"buoyancyForce":-0.00023}}],
+  "systems":["buoyancy","fan-airflow","sharp-objects"],"goal":{"mode":"event","event":"balloon.popped"}
+}
