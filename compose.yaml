@@ -1,0 +1,7 @@
+services:
+  game:
+    build: .
+    ports:
+      - "3000:3000"
+    init: true
+    restart: unless-stopped

@@ -1,0 +1,15 @@
+.git
+.next
+.vinext
+.sites-runtime
+.wrangler
+node_modules
+dist
+out
+coverage
+outputs
+work
+.env*
+*.pem
+*.zip
+npm-debug.log*

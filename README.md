@@ -18,6 +18,18 @@ npm run lint
 npm run test
 ```
 
+## Docker
+
+Voraussetzung ist ein laufender Docker-Dienst. Das Produktions-Image baut die
+Next.js-Anwendung und startet sie auf Port 3000:
+
+```bash
+docker compose up --build -d
+```
+
+Danach ist das Spiel unter [http://localhost:3000](http://localhost:3000)
+erreichbar. Mit `docker compose down` wird der Container wieder gestoppt.
+
 ## Source-Aufteilung
 
 - `app/page.tsx` – nur der Einstieg in die Spielanwendung
