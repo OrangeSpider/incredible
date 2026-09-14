@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"mr-blue-rescue","number":13,"scene":"mr-blue-rescue","title":"Mr. Blue in Not","objective":"Zerbrich das Glas und locke Joanne zu Mr. Blue","hint":"Nur ein schnell fallender Körper zerbricht das Goldfischglas.","buildTip":"Lass die Bowlingkugel von oben auf Mr. Blues Glas fallen. Sobald er auf dem Boden zappelt, läuft Joanne zu ihm.","successText":"Mr. Blues Glas zerbrach. Joanne sah ihn zappeln und lief zu ihm.",
+  "schemaVersion":2,"id":"mr-blue-rescue","number":13,"scene":"mr-blue-rescue","title":"Mr. Blue in Not","objective":"Zerbrich das Glas und locke Joanne zu Mr. Blue","hint":"Nur ein schnell fallender Körper zerbricht das Goldfischglas.","buildTip":"Lass die Bowlingkugel von oben auf Mr. Blues Glas fallen. Sobald er auf dem Boden zappelt, läuft Joanne zu ihm.","successText":"Mr. Blues Glas zerbrach. Joanne sah ihn zappeln und lief zu ihm.",
   "inventory":[{"type":"ball","count":1},{"type":"ramp","count":1}],
   "fixedGadgets":[{"id":"joanne","type":"cat","x":130,"y":445,"role":"predator","collisionLabel":"cat","physics":{"isStatic":true}},{"id":"fish-bowl","type":"fishBowl","x":700,"y":405,"role":"container","collisionLabel":"fishbowl"},{"id":"mr-blue","type":"fish","x":700,"y":405,"role":"attractor","state":"hidden","collisionLabel":"fish","physics":{"isStatic":true,"isSensor":true}}],
-  "systems":["breakable-container","fish-release","cat-fish","animal-support"],"goal":{"mode":"event","event":"cat.reached.fish"}
+  "systems":["breakable-container","fish-release","cat-fish","animal-support"],"goal":{"kind":"signal","name":"cat.reached.fish"}
 }

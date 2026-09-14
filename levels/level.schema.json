@@ -6,7 +6,7 @@
   "additionalProperties":false,
   "required":["schemaVersion","id","number","scene","title","objective","hint","buildTip","successText","inventory","fixedGadgets","systems","goal"],
   "properties":{
-    "schemaVersion":{"const":1},
+    "schemaVersion":{"enum":[1,2]},
     "id":{"type":"string","pattern":"^[a-z][a-z0-9-]+$"},
     "number":{"type":"integer","minimum":1},
     "scene":{"type":"string","minLength":1},
@@ -19,7 +19,31 @@
     "fixedGadgets":{"$ref":"#/$defs/gadgetInstances"},
     "initialPlacements":{"$ref":"#/$defs/gadgetInstances"},
     "systems":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-    "goal":{"type":"object","required":["mode"],"properties":{"mode":{"enum":["event","all","any","state","position"]},"event":{"type":"string"},"conditions":{"type":"array"}},"additionalProperties":false}
+    "goal":{"oneOf":[{"$ref":"#/$defs/legacyGoal"},{"$ref":"#/$defs/goal"}]}
   },
-  "$defs":{"gadgetInstances":{"type":"array","items":{"type":"object","required":["id","type","x","y"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"x":{"type":"number"},"y":{"type":"number"},"rotation":{"type":"number"},"state":{"type":"string"},"role":{"type":"string"},"collisionLabel":{"type":"string"},"physics":{"type":"object"},"properties":{"type":"object"}},"additionalProperties":false}}}
+  "allOf":[
+    {"if":{"properties":{"schemaVersion":{"const":1}}},"then":{"properties":{"goal":{"$ref":"#/$defs/legacyGoal"}}}},
+    {"if":{"properties":{"schemaVersion":{"const":2}}},"then":{"properties":{"goal":{"$ref":"#/$defs/goal"}}}}
+  ],
+  "$defs":{
+    "gadgetInstances":{"type":"array","items":{"type":"object","required":["id","type","x","y"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"x":{"type":"number"},"y":{"type":"number"},"rotation":{"type":"number"},"state":{"type":"string"},"role":{"type":"string"},"tags":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"collisionLabel":{"type":"string"},"physics":{"type":"object"},"properties":{"type":"object"}},"additionalProperties":false}},
+    "selector":{"type":"object","minProperties":1,"properties":{"id":{"type":"string","minLength":1},"type":{"type":"string","minLength":1},"tag":{"type":"string","minLength":1},"role":{"type":"string","minLength":1}},"additionalProperties":false},
+    "comparison":{"enum":["equals","above","below","atLeast","atMost"]},
+    "entityPredicate":{"oneOf":[
+      {"type":"object","required":["kind","state"],"properties":{"kind":{"const":"state"},"state":{"type":"string","minLength":1}},"additionalProperties":false},
+      {"type":"object","required":["kind","axis","operator","value"],"properties":{"kind":{"const":"position"},"axis":{"enum":["x","y"]},"operator":{"$ref":"#/$defs/comparison"},"value":{"type":"number"}},"additionalProperties":false}
+    ]},
+    "goal":{"oneOf":[
+      {"type":"object","required":["kind","name"],"properties":{"kind":{"const":"signal"},"name":{"type":"string","minLength":1},"operator":{"enum":["occurred","equals","above","below","atLeast","atMost"]},"value":{"type":["string","number","boolean"]}},"additionalProperties":false},
+      {"type":"object","required":["kind","name"],"properties":{"kind":{"const":"event"},"name":{"type":"string","minLength":1},"source":{"$ref":"#/$defs/selector"},"target":{"$ref":"#/$defs/selector"}},"additionalProperties":false},
+      {"type":"object","required":["kind","selector","state"],"properties":{"kind":{"const":"state"},"selector":{"$ref":"#/$defs/selector"},"state":{"type":"string","minLength":1}},"additionalProperties":false},
+      {"type":"object","required":["kind","selector","axis","operator","value"],"properties":{"kind":{"const":"position"},"selector":{"$ref":"#/$defs/selector"},"axis":{"enum":["x","y"]},"operator":{"$ref":"#/$defs/comparison"},"value":{"type":"number"}},"additionalProperties":false},
+      {"type":"object","required":["kind","source","target"],"properties":{"kind":{"const":"contact"},"source":{"$ref":"#/$defs/selector"},"target":{"$ref":"#/$defs/selector"}},"additionalProperties":false},
+      {"type":"object","required":["kind","entity","zone"],"properties":{"kind":{"const":"zone"},"entity":{"$ref":"#/$defs/selector"},"zone":{"$ref":"#/$defs/selector"}},"additionalProperties":false},
+      {"type":"object","required":["kind","goals"],"properties":{"kind":{"enum":["all","any"]},"goals":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/goal"}}},"additionalProperties":false},
+      {"type":"object","required":["kind","selector","operator","value"],"properties":{"kind":{"const":"count"},"selector":{"$ref":"#/$defs/selector"},"where":{"$ref":"#/$defs/entityPredicate"},"operator":{"enum":["atLeast","atMost","exactly"]},"value":{"type":"integer","minimum":0}},"additionalProperties":false},
+      {"type":"object","required":["kind","goal"],"anyOf":[{"required":["afterMs"]},{"required":["until"]}],"properties":{"kind":{"const":"never"},"goal":{"$ref":"#/$defs/goal"},"afterMs":{"type":"number","exclusiveMinimum":0},"until":{"$ref":"#/$defs/goal"}},"additionalProperties":false}
+    ]},
+    "legacyGoal":{"type":"object","required":["mode"],"properties":{"mode":{"enum":["event","all","any","state","position"]},"event":{"type":"string","minLength":1},"conditions":{"type":"array","minItems":1,"items":{"type":"object","required":["signal","operator"],"properties":{"signal":{"type":"string","minLength":1},"operator":{"enum":["occurred","equals","above","below"]},"value":{"type":["string","number","boolean"]}},"additionalProperties":false}}},"additionalProperties":false}
+  }
 }

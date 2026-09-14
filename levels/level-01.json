@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"first-impulse","number":1,"scene":"first-impulse","title":"Der erste Anstoß","objective":"Bring Joanne zum Ausgang","hint":"Louis im Hamsterrad treibt das Laufband nur über einen sichtbaren Riemen an.","buildTip":"Verbinde zuerst Hamsterrad und Laufband – und bring dann das Rad mit einer Kugel in Schwung.","successText":"Joanne wurde vom angetriebenen Laufband zum Ausgang gebracht.",
+  "schemaVersion":2,"id":"first-impulse","number":1,"scene":"first-impulse","title":"Der erste Anstoß","objective":"Bring Joanne zum Ausgang","hint":"Louis im Hamsterrad treibt das Laufband nur über einen sichtbaren Riemen an.","buildTip":"Verbinde zuerst Hamsterrad und Laufband – und bring dann das Rad mit einer Kugel in Schwung.","successText":"Joanne wurde vom angetriebenen Laufband zum Ausgang gebracht.",
   "inventory":[{"type":"ball","count":2},{"type":"ramp","count":3},{"type":"belt","count":1}],
   "fixedGadgets":[{"id":"louis-wheel","type":"hamsterWheel","x":365,"y":345,"role":"drive","collisionLabel":"wheel"},{"id":"conveyor","type":"conveyor","x":610,"y":405,"role":"transport","collisionLabel":"conveyor"},{"id":"exit","type":"exit","x":835,"y":410,"role":"goal","collisionLabel":"exit"},{"id":"joanne","type":"cat","x":555,"y":365,"role":"animal","collisionLabel":"cat","physics":{"width":64,"height":52,"friction":0.8,"airFriction":0.2}}],
-  "systems":["hamster-drive","conveyor","animal-support"],"goal":{"mode":"event","event":"cat.entered.exit"}
+  "systems":["hamster-drive","conveyor","animal-support"],"goal":{"kind":"zone","entity":{"id":"joanne"},"zone":{"id":"exit"}}
 }

@@ -38,9 +38,7 @@ function readScores(): ScoreEntry[] {
 }
 
 function defaultRotation(type: PlaceableGadgetType) {
-  if (["ramp", "trampoline", "cannon"].includes(type)) return -.28;
-  if (type === "bucket") return -.08;
-  return 0;
+  return GADGET_CATALOG[type].defaultRotation ?? 0;
 }
 
 function driveBeltMarker(level: LevelDefinition) {

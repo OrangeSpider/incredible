@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"mouse-escape","number":7,"scene":"mouse-escape","title":"Mäuseflucht","objective":"Lass Mogli ihr Loch erreichen","hint":"Joanne und Mogli müssen annähernd auf gleicher Höhe sein.","buildTip":"Platziere Mogli auf Höhe von Joanne. Nur dann erkennt sie die Gefahr und flieht.","successText":"Mogli war auf gleicher Höhe und erreichte flüchtend ihr Loch.",
+  "schemaVersion":2,"id":"mouse-escape","number":7,"scene":"mouse-escape","title":"Mäuseflucht","objective":"Lass Mogli ihr Loch erreichen","hint":"Joanne und Mogli müssen annähernd auf gleicher Höhe sein.","buildTip":"Platziere Mogli auf Höhe von Joanne. Nur dann erkennt sie die Gefahr und flieht.","successText":"Mogli war auf gleicher Höhe und erreichte flüchtend ihr Loch.",
   "inventory":[{"type":"mouse","count":1}],
   "fixedGadgets":[{"id":"joanne","type":"cat","x":135,"y":370,"role":"predator","collisionLabel":"cat","physics":{"isStatic":true}},{"id":"mouse-hole","type":"exit","x":852,"y":390,"role":"goal","collisionLabel":"mouseHole","physics":{"width":65,"height":120}}],
-  "systems":["cat-mouse","animal-support"],"goal":{"mode":"event","event":"mouse.entered.hole"}
+  "systems":["cat-mouse","animal-support"],"goal":{"kind":"signal","name":"mouse.entered.hole"}
 }

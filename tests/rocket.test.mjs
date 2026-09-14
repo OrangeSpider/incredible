@@ -55,8 +55,9 @@ test("rocket parade is a fully configured JSON level", () => {
   const candle = level.fixedGadgets.find((gadget) => gadget.id === "falling-candle");
   assert.equal(candle?.physics?.isStatic, false);
   assert.equal(candle?.physics?.gravityScale, 1);
-  assert.equal(level.goal.conditions?.length, 5);
-  assert.ok(level.goal.conditions?.some((condition) => condition.signal === "rocket-conveyor.state"));
+  assert.equal(level.goal.kind, "all");
+  assert.ok(level.goal.goals.some((goal) => goal.kind === "state" && goal.selector.id === "rocket-conveyor"));
+  assert.ok(level.goal.goals.some((goal) => goal.kind === "count" && goal.selector.type === "rocket" && goal.value === 4));
 });
 
 test("a two-plank route can start Louis and carry the candle under all rockets", () => {

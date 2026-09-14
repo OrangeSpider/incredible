@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"spring-force","number":4,"scene":"spring-force","title":"Sprungkraft","objective":"Befördere die Bowlingkugel in den Korb","hint":"Die Neigung des Trampolins bestimmt die seitliche Komponente des Sprungs.","buildTip":"Setze das Trampolin unter den Fallweg der Kugel und richte den Sprung zum Korb aus.","successText":"Das Trampolin hat die Bowlingkugel in den Korb umgelenkt.",
+  "schemaVersion":2,"id":"spring-force","number":4,"scene":"spring-force","title":"Sprungkraft","objective":"Befördere die Bowlingkugel in den Korb","hint":"Die Neigung des Trampolins bestimmt die seitliche Komponente des Sprungs.","buildTip":"Setze das Trampolin unter den Fallweg der Kugel und richte den Sprung zum Korb aus.","successText":"Das Trampolin hat die Bowlingkugel in den Korb umgelenkt.",
   "inventory":[{"type":"trampoline","count":1},{"type":"ramp","count":2}],
   "fixedGadgets":[{"id":"falling-ball","type":"ball","x":215,"y":85,"role":"payload","collisionLabel":"levelBall","physics":{"radius":19,"restitution":0.2}},{"id":"basket","type":"basket","x":760,"y":175,"role":"goal","collisionLabel":"basket","physics":{"width":90,"height":80}}],
-  "systems":["trampoline"],"goal":{"mode":"event","event":"ball.entered.basket"}
+  "systems":["trampoline"],"goal":{"kind":"zone","entity":{"id":"falling-ball"},"zone":{"id":"basket"}}
 }

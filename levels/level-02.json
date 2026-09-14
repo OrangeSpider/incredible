@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"balloon-candle","number":2,"scene":"balloon-candle","title":"Plopp!","objective":"Bring den Ballon zur Kerzenflamme","hint":"Ein aufsteigender Ballon gleitet an der Unterseite einer schrägen Planke entlang.","buildTip":"Platziere Holzplanken zwischen Ballon und Kerze. Planken lassen sich ziehen und drehen.","successText":"Der Ballon hat die Kerzenflamme erreicht – Plopp!",
+  "schemaVersion":2,"id":"balloon-candle","number":2,"scene":"balloon-candle","title":"Plopp!","objective":"Bring den Ballon zur Kerzenflamme","hint":"Ein aufsteigender Ballon gleitet an der Unterseite einer schrägen Planke entlang.","buildTip":"Platziere Holzplanken zwischen Ballon und Kerze. Planken lassen sich ziehen und drehen.","successText":"Der Ballon hat die Kerzenflamme erreicht – Plopp!",
   "inventory":[{"type":"ramp","count":5}],
   "fixedGadgets":[{"id":"balloon","type":"balloon","x":115,"y":430,"role":"payload","collisionLabel":"levelBalloon","physics":{"airFriction":0.018,"buoyancyForce":-0.00035}},{"id":"candle","type":"candle","x":805,"y":95,"role":"goal","collisionLabel":"candle","physics":{"width":38,"height":80}}],
-  "systems":["buoyancy","fire"],"goal":{"mode":"event","event":"balloon.popped"}
+  "systems":["buoyancy","fire"],"goal":{"kind":"state","selector":{"id":"balloon"},"state":"popped"}
 }

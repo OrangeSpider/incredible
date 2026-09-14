@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"gear-train","number":8,"scene":"gear-train","title":"Zahn um Zahn","objective":"Übertrage die Drehung bis zum Zielrad","hint":"Berührende Zahnräder drehen sich immer in entgegengesetzte Richtungen.","buildTip":"Baue mit drei Zahnrädern eine lückenlose Verbindung zwischen Antrieb und Zielrad.","successText":"Alle Zahnräder griffen ineinander und drehten das Zielrad.",
+  "schemaVersion":2,"id":"gear-train","number":8,"scene":"gear-train","title":"Zahn um Zahn","objective":"Übertrage die Drehung bis zum Zielrad","hint":"Berührende Zahnräder drehen sich immer in entgegengesetzte Richtungen.","buildTip":"Baue mit drei Zahnrädern eine lückenlose Verbindung zwischen Antrieb und Zielrad.","successText":"Alle Zahnräder griffen ineinander und drehten das Zielrad.",
   "inventory":[{"type":"gear","count":3}],
   "fixedGadgets":[{"id":"source-gear","type":"gearSource","x":250,"y":300,"role":"drive","collisionLabel":"gearSource"},{"id":"target-gear","type":"gearTarget","x":590,"y":300,"role":"goal","collisionLabel":"gearTarget"}],
-  "systems":["gear-network"],"goal":{"mode":"event","event":"gear.target.running"}
+  "systems":["gear-network"],"goal":{"kind":"event","name":"gear.network.complete"}
 }

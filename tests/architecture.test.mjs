@@ -23,6 +23,13 @@ test("page.tsx is only the route entry point", async () => {
   assert.ok(source.split("\n").length < 12, "the route must not contain game implementation");
 });
 
+test("canvas delegates simulation and collision handling to the machine runtime", async () => {
+  const source = await readFile(new URL("../components/game/GameCanvas.tsx", import.meta.url), "utf8");
+  assert.match(source, /new MachineRuntime\(/);
+  assert.doesNotMatch(source, /Matter\.Events\.on|machine\.step\(|machine\.setState\(|onWin\(/);
+  assert.doesNotMatch(source, /(?:level\.)?scene\s*===/);
+});
+
 test("all shipped levels are validated standalone JSON documents", () => {
   assert.equal(LEVELS.length, 15);
   assert.deepEqual(LEVELS.map((level) => level.number), Array.from({ length: 15 }, (_, index) => index + 1));
@@ -31,7 +38,8 @@ test("all shipped levels are validated standalone JSON documents", () => {
     assert.ok(level.inventory.every((entry) => GADGET_CATALOG[entry.type]));
     assert.ok(level.fixedGadgets.every((gadget) => GADGET_CATALOG[gadget.type]));
     assert.ok(level.title && level.objective && level.hint && level.buildTip && level.successText);
-    assert.ok(level.goal.mode);
+    assert.equal(level.schemaVersion, 2);
+    assert.ok(level.goal.kind);
   }
 });
 

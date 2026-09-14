@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"lever-effect","number":11,"scene":"lever-effect","title":"Hebelwirkung","objective":"Katapultiere die rote Kugel in den Korb","hint":"Die Wippe ist 1,5-mal so breit wie eine Holzplanke; ihr Anschlag verhindert eine volle Drehung.","buildTip":"Setze die Wippe unter die rote Kugel und lasse die Bowlingkugel auf das gegenüberliegende Ende fallen.","successText":"Die fallende Bowlingkugel drehte die Wippe und katapultierte die rote Kugel in den Korb.",
+  "schemaVersion":2,"id":"lever-effect","number":11,"scene":"lever-effect","title":"Hebelwirkung","objective":"Katapultiere die rote Kugel in den Korb","hint":"Die Wippe ist 1,5-mal so breit wie eine Holzplanke; ihr Anschlag verhindert eine volle Drehung.","buildTip":"Setze die Wippe unter die rote Kugel und lasse die Bowlingkugel auf das gegenüberliegende Ende fallen.","successText":"Die fallende Bowlingkugel drehte die Wippe und katapultierte die rote Kugel in den Korb.",
   "inventory":[{"type":"seesaw","count":1},{"type":"ball","count":1}],
   "fixedGadgets":[{"id":"payload","type":"payloadBall","x":650,"y":385,"role":"payload","collisionLabel":"seesawPayload"},{"id":"basket","type":"basket","x":680,"y":150,"role":"goal","collisionLabel":"seesawBasket","physics":{"width":110,"height":100}}],
-  "systems":["seesaw"],"goal":{"mode":"event","event":"seesaw_payload.entered.basket"}
+  "systems":["seesaw"],"goal":{"kind":"signal","name":"seesaw_payload.entered.basket"}
 }

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion":2,
   "id": "rocket-parade",
   "number": 15,
   "scene": "rocket-parade",
@@ -54,13 +54,10 @@
   ],
   "systems": ["hamster-drive", "belt-drive", "conveyor", "rocket-launch", "fire-contact"],
   "goal": {
-    "mode": "all",
-    "conditions": [
-      { "signal": "rocket-conveyor.state", "operator": "equals", "value": "running" },
-      { "signal": "rocket-1.state", "operator": "equals", "value": "launched" },
-      { "signal": "rocket-2.state", "operator": "equals", "value": "launched" },
-      { "signal": "rocket-3.state", "operator": "equals", "value": "launched" },
-      { "signal": "rocket-4.state", "operator": "equals", "value": "launched" }
+    "kind": "all",
+    "goals": [
+      { "kind": "state", "selector": { "id": "rocket-conveyor" }, "state": "running" },
+      { "kind": "count", "selector": { "type": "rocket", "role": "payload" }, "where": { "kind": "state", "state": "launched" }, "operator": "atLeast", "value": 4 }
     ]
   }
 }

@@ -1,6 +1,6 @@
 {
-  "schemaVersion":1,"id":"water-march","number":10,"scene":"water-march","title":"Wasser marsch!","objective":"Lösche die Kerze mit dem Wasser aus dem Eimer","hint":"Wasser kollidiert mit festen Außenformen; Seile werden ignoriert.","buildTip":"Platziere den Eimer links oberhalb der Kerze. Eine gedrehte Planke über der Steinmauer leitet den Schwall zum Ziel.","successText":"Das Wasser floss um die Hindernisse, sammelte sich am Boden und löschte die Kerze.",
+  "schemaVersion":2,"id":"water-march","number":10,"scene":"water-march","title":"Wasser marsch!","objective":"Lösche die Kerze mit dem Wasser aus dem Eimer","hint":"Wasser kollidiert mit festen Außenformen; Seile werden ignoriert.","buildTip":"Platziere den Eimer links oberhalb der Kerze. Eine gedrehte Planke über der Steinmauer leitet den Schwall zum Ziel.","successText":"Das Wasser floss um die Hindernisse, sammelte sich am Boden und löschte die Kerze.",
   "inventory":[{"type":"bucket","count":1},{"type":"ramp","count":2}],
   "fixedGadgets":[{"id":"candle","type":"candle","x":805,"y":430,"role":"goal","collisionLabel":"candle"},{"id":"steel-beam","type":"steelBeam","x":500,"y":285,"rotation":0.08,"collisionLabel":"steelBeam"},{"id":"wood-wall","type":"woodWall","x":335,"y":390,"collisionLabel":"woodWall"},{"id":"stone-wall","type":"stoneWall","x":675,"y":395,"collisionLabel":"stoneWall"}],
-  "systems":["bucket-water","water-collisions","fire"],"goal":{"mode":"event","event":"candle.extinguished"}
+  "systems":["bucket-water","water-collisions","fire"],"goal":{"kind":"all","goals":[{"kind":"state","selector":{"id":"candle"},"state":"extinguished"},{"kind":"event","name":"candle.extinguish.animation.complete"}]}
 }

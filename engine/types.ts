@@ -70,6 +70,7 @@ export type GadgetDefinition={
   joint?:{kind:"pivot";localX:number;localY:number;stiffness:number;damping:number};
   defaultState:string;
   animations:Record<string,GadgetAnimation>;
+  defaultRotation?:number;
   rotatable:boolean;
   removable:boolean;
 };
@@ -84,6 +85,7 @@ export type GadgetInstanceConfig={
   rotation?:number;
   state?:string;
   role?:string;
+  tags?:string[];
   collisionLabel?:string;
   physics?:GadgetPhysicsOverride;
   properties?:Record<string,string|number|boolean>;
@@ -91,14 +93,34 @@ export type GadgetInstanceConfig={
 
 export type InventoryEntry={type:PlaceableGadgetType;count:number};
 
-export type GoalSpec={
+export type LegacyGoalSpec={
   mode:"event"|"all"|"any"|"state"|"position";
   event?:string;
   conditions?:Array<{signal:string;operator:"occurred"|"equals"|"above"|"below";value?:string|number|boolean}>;
 };
 
+/** A selector matches every supplied field. At least one field is required by validation. */
+export type GoalSelector={id?:string;type?:GadgetType;tag?:string;role?:string};
+export type GoalEntity={id:string;type:GadgetType;tags?:readonly string[];role?:string;state?:string;x?:number;y?:number};
+export type GoalEvent={name:string;sourceId?:string;targetId?:string};
+export type GoalComparison="equals"|"above"|"below"|"atLeast"|"atMost";
+export type EntityPredicate=
+  |{kind:"state";state:string}
+  |{kind:"position";axis:"x"|"y";operator:GoalComparison;value:number};
+export type ComposableGoalSpec=
+  |{kind:"signal";name:string;operator?:"occurred"|GoalComparison;value?:string|number|boolean}
+  |{kind:"event";name:string;source?:GoalSelector;target?:GoalSelector}
+  |{kind:"state";selector:GoalSelector;state:string}
+  |{kind:"position";selector:GoalSelector;axis:"x"|"y";operator:GoalComparison;value:number}
+  |{kind:"contact";source:GoalSelector;target:GoalSelector}
+  |{kind:"zone";entity:GoalSelector;zone:GoalSelector}
+  |{kind:"all"|"any";goals:ComposableGoalSpec[]}
+  |{kind:"count";selector:GoalSelector;where?:EntityPredicate;operator:"atLeast"|"atMost"|"exactly";value:number}
+  |{kind:"never";goal:ComposableGoalSpec;afterMs?:number;until?:ComposableGoalSpec};
+export type GoalSpec=LegacyGoalSpec|ComposableGoalSpec;
+
 export type LevelDefinition={
-  schemaVersion:1;
+  schemaVersion:1|2;
   id:string;
   number:number;
   scene:string;
