@@ -7,6 +7,7 @@ COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY . .
+RUN npx tsc --noEmit --project tsconfig.next.json --pretty false
 RUN npx next build
 
 FROM node:22-bookworm-slim

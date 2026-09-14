@@ -125,7 +125,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const levelBall=machine.body("falling-ball");
     const weight=machine.body("weight");
     let bucketBody:Matter.Body|null=null;
-    let seesawBody=machine.bodiesByType("seesaw")[0]??null;
+    let seesawBody:Matter.Body|null=machine.bodiesByType("seesaw")[0]??null;
     const fishBowl=machine.body("fish-bowl");
     const fishBody=machine.body("mr-blue");
     const hamsterWheelBody=machine.bodiesByType("hamsterWheel")[0]??null;
@@ -136,7 +136,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const conveyorWidth=Number(conveyorConfig?.physics?.width??270);
     const tetheredBalloonConfigs=level.fixedGadgets.filter(gadget=>gadget.type==="balloon"&&gadget.state==="tethered");
     const scissorBalloons=tetheredBalloonConfigs.flatMap(gadget=>{const body=machine.body(gadget.id);return body?[body]:[]});
-    placed.forEach(p => {
+    for(const p of placed){
       let body:Matter.Body|null;
       if(p.type==="bucket"){
         const assembly=createBucketAssembly(p.x,p.y,p.rotation);body=assembly.bucket;bucketBody=body;
@@ -149,7 +149,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         if(p.type==="seesaw")seesawBody=body;
       }
       if(body)body.plugin={...body.plugin,placedId:p.id};
-    });
+    }
     const driveBelt=placed.find(p=>p.type==="belt")??null,beltConnected=!!driveBelt,allBodies=Matter.Composite.allBodies(engine.world),bodyByPlacedId=new Map<number,Matter.Body>();
     allBodies.forEach(body=>{const placedId=body.plugin?.placedId;if(typeof placedId==="number")bodyByPlacedId.set(placedId,body)});
     const scissorRopePhysics=scissorRopes.flatMap(connection=>{const pullBody=bodyByPlacedId.get(connection.placedId);if(!pullBody)return[];const anchor=scissorPullPoint(connection.scissorIndex),restLength=Math.hypot(pullBody.position.x-anchor.x,pullBody.position.y-anchor.y),constraint=Matter.Constraint.create({pointA:anchor,bodyB:pullBody,length:restLength,stiffness:.42,damping:.14,label:`scissorRope-${connection.scissorIndex}`});Matter.Composite.add(engine.world,constraint);return[{...connection,pullBody,anchor,restLength}]});

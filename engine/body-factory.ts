@@ -11,7 +11,7 @@ export function machinePlugin(body:Matter.Body):MachineBodyPlugin["machine"]|nul
 export function createGadgetBody(instance:GadgetInstanceConfig):Matter.Body|null{
   const definition=getGadgetDefinition(instance.type),properties:PhysicalProperties={...definition.physics,...instance.physics};
   if(properties.shape==="none")return null;
-  const options:Matter.IBodyDefinition={
+  const options:Matter.IChamferableBodyDefinition={
     angle:instance.rotation??0,
     density:properties.density,
     friction:properties.friction,
