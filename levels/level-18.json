@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "magnet-arc",
+  "number": 18,
+  "scene": "magnet-arc",
+  "title": "Um die Ecke",
+  "objective": "Lenke die Kanonenkugel mit einem Magneten über die Mauer zur Zielscheibe",
+  "hint": "Die Lunte startet die Kanone. Der Magnet wirkt schon vor der Mauer auf die fliegende Kugel.",
+  "buildTip": "Verbinde Kerze und Kanone mit Luntenteilen. Setze den Magneten oberhalb der Schussbahn vor die Mauer.",
+  "successText": "Die Kugel beschrieb einen unerwarteten Bogen um das Hindernis und traf ins Schwarze.",
+  "inventory": [{"type":"fuse","count":4},{"type":"magnet","count":1}],
+  "fixedGadgets": [
+    {"id":"ignition-candle","type":"candle","x":102,"y":416,"role":"ignition","collisionLabel":"ignitionCandle","physics":{"width":24,"height":52}},
+    {"id":"cannon","type":"cannon","x":420,"y":360,"rotation":-0.28,"role":"launcher","collisionLabel":"cannon"},
+    {"id":"stone-wall","type":"stoneWall","x":650,"y":390,"role":"obstacle","collisionLabel":"stoneWall","physics":{"height":230}},
+    {"id":"cannon-target","type":"cannonTarget","x":820,"y":245,"role":"goal","collisionLabel":"cannonTarget"}
+  ],
+  "systems": ["fuse-network","cannon","magnetic-field"],
+  "goal": {"kind":"all","goals":[{"kind":"state","selector":{"type":"magnet"},"state":"running"},{"kind":"signal","name":"cannonball.hit.target"}]}
+}

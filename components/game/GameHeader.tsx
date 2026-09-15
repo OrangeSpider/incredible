@@ -13,7 +13,7 @@ export default function GameHeader({ score, playerName, levelNumber, levelCount,
     <header>
       <button className="score" onClick={onScores}><span>★</span><b>{score.toLocaleString("de-DE")}</b></button>
       <div className="brand"><small>PROFESSOR KNALLKOPFS</small><strong>Die Unglaubliche Maschine</strong></div>
-      <button className="level-chip" onClick={onLevels}>LEVEL <b>{String(levelNumber).padStart(2, "0")}</b> / {levelCount}⌄</button>
+      <button className="level-chip" onClick={onLevels}>LEVEL <b>{String(levelNumber).padStart(2, "0")}</b> · {levelCount} LEVEL⌄</button>
       <button className="user" onClick={onLogout}>⚙ {playerName}⌄</button>
     </header>
   );

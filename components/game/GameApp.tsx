@@ -6,7 +6,7 @@ import { GADGET_CATALOG } from "@/engine/gadget-catalog";
 import type { InventoryEntry, LevelDefinition, PlaceableGadgetType } from "@/engine/types";
 import { LEVELS } from "@/levels/catalog";
 import { analyzePulleyRoute, type PulleyRouteKind } from "@/game/pulley";
-import { SCISSOR_LAYOUT, scissorPullPoint } from "@/game/scissors";
+import { advanceRopeDraft, ropePorts, ropeUsesGadget, type PendingControlRope } from "@/game/control-ropes";
 import { conveyorWheelCenters } from "@/game/drive";
 import GameCanvas, { routeKindForPart } from "./GameCanvas";
 import GameHeader from "./GameHeader";
@@ -60,7 +60,7 @@ export default function GameApp() {
   const [placed, setPlaced] = useState<PlacedGadget[]>(() => initialPlacements(LEVELS[0]));
   const [ropePath, setRopePath] = useState<RopeNode[]>([]);
   const [scissorRopes, setScissorRopes] = useState<ScissorRope[]>([]);
-  const [pendingScissor, setPendingScissor] = useState<number | null>(null);
+  const [pendingScissor, setPendingScissor] = useState<PendingControlRope | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -76,6 +76,14 @@ export default function GameApp() {
   useEffect(() => {
     const timer = window.setTimeout(() => setName(localStorage.getItem("machine-user") || ""), 0);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setPendingScissor(null); setSelected(null); setDrag(null); }
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
   }, []);
 
   const availableLevels = useMemo(() => {
@@ -117,30 +125,32 @@ export default function GameApp() {
   };
 
   const boardPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (running || !selected) return;
+    if (running) return;
     const point = boardPoint(event);
 
-    if (selected === "rope" && level.systems.includes("scissors")) {
-      const ropeLimit = level.inventory.find((entry) => entry.type === "rope")?.count ?? 0;
-      if (scissorRopes.length >= ropeLimit) return;
-      if (pendingScissor === null) {
-        const candidate = SCISSOR_LAYOUT
-          .map((_, index) => ({ index, point: scissorPullPoint(index) }))
-          .filter((entry) => !scissorRopes.some((rope) => rope.scissorIndex === entry.index))
-          .map((entry) => ({ ...entry, distance: Math.hypot(entry.point.x - point.x, entry.point.y - point.y) }))
-          .sort((a, b) => a.distance - b.distance)[0];
-        if (candidate && candidate.distance < 48) setPendingScissor(candidate.index);
-      } else {
-        const pull = placed
-          .filter((part) => part.type === "ball" || part.type === "tennisBall")
-          .map((part) => ({ ...part, distance: Math.hypot(part.x - point.x, part.y - point.y) }))
-          .sort((a, b) => a.distance - b.distance)[0];
-        if (pull && pull.distance < 52) {
-          setScissorRopes((ropes) => [...ropes, { scissorIndex: pendingScissor, placedId: pull.id }]);
+    if (selected === "rope" && level.systems.includes("tension-rope")) {
+      const limit = level.inventory.find(entry => entry.type === "rope")?.count ?? 0;
+      const ports = ropePorts([...level.fixedGadgets, ...placed.map(part => ({ ...part, id: `placed-${part.id}` }))]);
+      const port = ports.map(port => ({ port, distance: Math.hypot(port.x - point.x, port.y - point.y) }))
+        .filter(item => item.distance < 26).sort((a, b) => a.distance - b.distance)[0]?.port;
+      if (port) {
+        // A second click on a connected handle removes just that rope.
+        const connected = scissorRopes.some(rope => rope.targetId === port.gadgetId);
+        if (port.kind === "target" && connected) {
+          setScissorRopes(ropes => ropes.filter(rope => rope.targetId !== port.gadgetId));
           setPendingScissor(null);
+          return;
         }
+        const next = advanceRopeDraft(pendingScissor, port, scissorRopes, limit);
+        setPendingScissor(next.pending);
+        if (next.connection) {
+          setScissorRopes(ropes => [...ropes, next.connection!]);
+          setSelected(null);
+        }
+        return;
       }
-      return;
+      setPendingScissor(null);
+      // An ordinary click outside a port can still select and move a part.
     }
 
     if (selected === "rope" && level.systems.includes("pulley-rope")) {
@@ -166,7 +176,7 @@ export default function GameApp() {
     }
 
     const allowed = level.inventory.find((entry) => entry.type === selected);
-    if (!allowed || selected === "rope") return;
+    if (!selected || !allowed || selected === "rope") return;
     if (placed.filter((part) => part.type === selected).length >= allowed.count) return;
     const id = Math.round(performance.now() * 1000);
     setSelectedId(id);
@@ -193,22 +203,23 @@ export default function GameApp() {
       const index = nodes.findIndex((node) => node.kind === "part" && node.placedId === selectedId);
       return index < 0 ? nodes : nodes.slice(0, index);
     });
-    setScissorRopes((ropes) => ropes.filter((rope) => rope.placedId !== selectedId));
+    setScissorRopes((ropes) => ropes.filter(rope => !ropeUsesGadget(rope, `placed-${selectedId}`)));
     setSelectedId(null);
+    setPendingScissor(null);
   };
   const rotateSelected = (direction: -1 | 1) => setPlaced((items) => items.map((part) => part.id === selectedId ? { ...part, rotation: part.rotation + direction * Math.PI / 12 } : part));
 
   const ropeAnalysis = analyzePulleyRoute(ropePath.map((node) => node.kind === "anchor" ? "anchor" : routeKindForPart(placed.find((part) => part.id === node.placedId)?.type ?? "rope")).filter((kind): kind is PulleyRouteKind => kind !== null));
   const tip = selected === "rope" && level.systems.includes("pulley-rope")
     ? ropePath.length ? ropeAnalysis.tensioned ? "Festpunkt und Kugel bilden die beiden gespannten Enden. Weitere Punkte öffnen den Verlauf wieder." : "Klicke weitere Anschlüsse oder starte auch mit offenen Enden." : "Beginne an einem beliebigen grünen Anschluss – der Festpunkt ist optional."
-    : selected === "rope" && level.systems.includes("scissors")
-      ? pendingScissor === null ? "Klicke einen grünen Scherengriff." : "Der Griff ist gewählt. Klicke jetzt eine Bowlingkugel oder den Tennisball."
+    : selected === "rope" && level.systems.includes("tension-rope")
+      ? pendingScissor === null ? "Griff oder Riegel anklicken, bei Bedarf über Rollen führen, dann am Zugpunkt befestigen. Ein verbundener Griff löst sein Seil per Klick." : "Klicke weitere Rollen oder schließe am Wippenende, Ballon oder einer Kugel ab. Esc bricht ab."
       : selected === "belt" && level.systems.includes("belt-drive")
         ? placed.some((part) => part.type === "belt") ? "Der Riemen liegt geschlossen um Louis' Antriebsrad und das linke Laufbandrad." : "Klicke auf das Spielfeld: Der Riemen verbindet automatisch die beiden grün markierten Antriebsräder."
         : level.hint;
 
   const remaining = (entry: InventoryEntry) => {
-    if (entry.type === "rope" && level.systems.includes("scissors")) return Math.max(0, entry.count - scissorRopes.length);
+    if (entry.type === "rope" && level.systems.includes("tension-rope")) return Math.max(0, entry.count - scissorRopes.length);
     if (entry.type === "rope" && level.systems.includes("pulley-rope")) return ropePath.length ? 0 : entry.count;
     return Math.max(0, entry.count - placed.filter((part) => part.type === entry.type).length);
   };
@@ -234,17 +245,18 @@ export default function GameApp() {
   if (!name) return <LoginScreen draft={draft} onDraftChange={setDraft} onLogin={login} />;
 
   const nextLevel = availableLevels[levelPosition] ?? null;
-  const undoLabel = selected === "rope" && level.systems.includes("pulley-rope") ? "SEILPUNKT ZURÜCK" : selected === "rope" && level.systems.includes("scissors") ? "SEIL ZURÜCK" : undefined;
+  const undoLabel = level.systems.includes("pulley-rope") ? "SEILPUNKT ZURÜCK" : level.systems.includes("tension-rope") ? "SEIL ZURÜCK" : undefined;
   const canUndo = level.systems.includes("pulley-rope") ? ropePath.length > 0 : pendingScissor !== null || scissorRopes.length > 0;
   const undo = () => {
     if (level.systems.includes("pulley-rope")) setRopePath((nodes) => nodes.slice(0, -1));
+    else if (pendingScissor?.guides.length) setPendingScissor({ ...pendingScissor, guides: pendingScissor.guides.slice(0, -1) });
     else if (pendingScissor !== null) setPendingScissor(null);
     else setScissorRopes((ropes) => ropes.slice(0, -1));
   };
 
   return (
     <main className="game-shell">
-      <GameHeader score={score} playerName={name} levelNumber={levelPosition} levelCount={availableLevels.length} onScores={() => { setScores(readScores()); setShowScores(true); }} onLevels={() => setShowLevels(true)} onLogout={() => { localStorage.removeItem("machine-user"); setName(""); }} />
+      <GameHeader score={score} playerName={name} levelNumber={level.number} levelCount={availableLevels.length} onScores={() => { setScores(readScores()); setShowScores(true); }} onLevels={() => setShowLevels(true)} onLogout={() => { localStorage.removeItem("machine-user"); setName(""); }} />
       <MissionPanel level={level} />
       <div className="workspace">
         <section className="board-wrap">
@@ -255,9 +267,9 @@ export default function GameApp() {
           </div>
           <div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div>
         </section>
-        <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={setSelected} />
+        <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={type => { setSelected(type); setPendingScissor(null); }} />
       </div>
-      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null} canRotate={canRotate} undoLabel={undoLabel} canUndo={canUndo} onUndo={undo} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => setShowEditor(true)} onLevels={() => setShowLevels(true)} levelNumber={levelPosition} levelCount={availableLevels.length} />
+      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null} canRotate={canRotate} undoLabel={undoLabel} canUndo={canUndo} onUndo={undo} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => setShowEditor(true)} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
       {showScores && <ScoreDialog scores={scores} onClose={() => setShowScores(false)} />}
       {showLevels && <LevelSelectDialog levels={availableLevels} current={level} customLevelId={customLevel?.id} onSelect={changeLevel} onClose={() => setShowLevels(false)} />}
       {showPhysics && <PhysicsHandbook onClose={() => setShowPhysics(false)} />}

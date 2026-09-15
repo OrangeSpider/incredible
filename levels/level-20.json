@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "mogli-breakout",
+  "number": 20,
+  "scene": "mogli-breakout",
+  "title": "Moglis Ausbruch",
+  "objective": "Öffne Moglis Fluchtweg mit einem magnetisch gelenkten Kanonenschuss",
+  "hint": "Die Mauer blockiert den direkten Schuss. Der Magnet lenkt die Kugel über sie zum Schnapptor.",
+  "buildTip": "Lege eine Lunte von der Kerze zur Kanone und platziere den Magneten über der Mauer. Das Tor muss öffnen, bevor Mogli den Ausgang erreicht.",
+  "successText": "Die Kugel öffnete das Tor im letzten Moment und Mogli entwischte Joanne.",
+  "inventory": [{"type":"fuse","count":4},{"type":"magnet","count":1}],
+  "fixedGadgets": [
+    {"id":"ignition-candle","type":"candle","x":102,"y":416,"role":"ignition","collisionLabel":"ignitionCandle","physics":{"width":24,"height":52}},
+    {"id":"cannon","type":"cannon","x":400,"y":355,"rotation":-0.18,"role":"launcher","collisionLabel":"cannon"},
+    {"id":"stone-wall","type":"stoneWall","x":575,"y":405,"role":"obstacle","collisionLabel":"stoneWall","physics":{"height":170}},
+    {"id":"snap-gate","type":"snapGate","x":710,"y":375,"role":"barrier","collisionLabel":"snapGate","physics":{"height":190}},
+    {"id":"joanne","type":"cat","x":525,"y":450,"role":"predator","collisionLabel":"cat","physics":{"isStatic":true}},
+    {"id":"mogli","type":"mouse","x":630,"y":450,"role":"escapee","collisionLabel":"mouse"},
+    {"id":"mouse-hole","type":"exit","x":845,"y":420,"role":"goal","collisionLabel":"mouseHole","physics":{"width":65,"height":120}}
+  ],
+  "systems": ["fuse-network","magnetic-field","snap-gate","cat-mouse","animal-support"],
+  "goal": {"kind":"all","goals":[{"kind":"state","selector":{"id":"snap-gate"},"state":"open"},{"kind":"signal","name":"mouse.entered.hole"}]}
+}

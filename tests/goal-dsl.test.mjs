@@ -52,7 +52,7 @@ test("position and state predicates are evaluated against the current snapshot",
 });
 
 test("legacy version-1 goals still validate and evaluate",()=>{
-  assert.equal(LEVELS.length,15);
+  assert.equal(LEVELS.length,23);
   assert.ok(LEVELS.every(level=>level.schemaVersion===2&&"kind" in level.goal));
   const old=structuredClone(LEVELS[0]);
   old.schemaVersion=1;

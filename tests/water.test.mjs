@@ -1,7 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
-import {createBucketAssembly,WATER_PARTICLE_COUNT,WATER_SHAPE_RULES} from "../game/water.ts";
+import {advanceWaterFlow,createBucketAssembly,WATER_PARTICLE_COUNT,WATER_PARTICLE_RADIUS,WATER_SHAPE_RULES} from "../game/water.ts";
+import {buildWaterField} from "../components/game/fluid-water-renderer.ts";
+
+test("nearby water drops form one visible stream while distant drops stay separate",()=>{
+  const nearby=buildWaterField([
+    {x:20,y:20,vx:0,vy:0},{x:28,y:20,vx:0,vy:0},
+  ],80,40,1);
+  assert.ok(nearby.field[20*nearby.columns+24]>.34,"the gap between close drops is filled");
+
+  const distant=buildWaterField([
+    {x:20,y:20,vx:0,vy:0},{x:70,y:20,vx:0,vy:0},
+  ],90,40,1);
+  assert.equal(distant.field[20*distant.columns+45],0,"separate splashes do not become an artificial bridge");
+});
+
+test("nearby drops press apart without being pinned to the floor",()=>{
+  const left=Matter.Bodies.circle(40,478,WATER_PARTICLE_RADIUS,{label:"water"});
+  const right=Matter.Bodies.circle(46,478,WATER_PARTICLE_RADIUS,{label:"water"});
+  advanceWaterFlow([left,right]);
+  assert.ok(left.velocity.x<0&&right.velocity.x>0,"pressure spreads the puddle sideways");
+  assert.equal(left.position.y,478,"water keeps its physical floor position");
+});
 
 test("bucket is an open compound shape containing stable water particles",()=>{
   const assembly=createBucketAssembly(220,160,-.08);
@@ -32,15 +53,9 @@ test("level 10 reference bucket placement pours around geometry and wets the can
     x:680+Math.cos(startAngle)*pivotLocal.x-Math.sin(startAngle)*pivotLocal.y,
     y:150+Math.sin(startAngle)*pivotLocal.x+Math.cos(startAngle)*pivotLocal.y,
   };
-  const stabilize=()=>assembly.water.forEach(drop=>{
-    const speed=Math.hypot(drop.velocity.x,drop.velocity.y);
-    if(speed>11)Matter.Body.setVelocity(drop,{x:drop.velocity.x/speed*11,y:drop.velocity.y/speed*11});
-    if(drop.position.y>476.5){Matter.Body.setPosition(drop,{x:drop.position.x,y:476.5});Matter.Body.setVelocity(drop,{x:drop.velocity.x*.76,y:0})}
-  });
   for(let tick=0;tick<600&&!wet;tick++){
-    stabilize();
     Matter.Engine.update(engine,16.666);
-    stabilize();
+    advanceWaterFlow(assembly.water);
     const t=Math.min(1,tick/115),eased=t*t*(3-2*t),angle=startAngle+eased*2.1;
     const rotatedX=Math.cos(angle)*pivotLocal.x-Math.sin(angle)*pivotLocal.y,rotatedY=Math.sin(angle)*pivotLocal.x+Math.cos(angle)*pivotLocal.y;
     Matter.Body.setPosition(assembly.bucket,{x:pivot.x-rotatedX,y:pivot.y-rotatedY});

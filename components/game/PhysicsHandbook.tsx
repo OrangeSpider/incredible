@@ -21,6 +21,10 @@ export default function PhysicsHandbook({ onClose }: { onClose: () => void }) {
         <p className="eyebrow">PROFESSOR KNALLKOPFS</p>
         <h2>Physik-Handbuch</h2>
         <div className="handbook-scroll">
+          <h3>Seile, Rollen und Wippen</h3>
+          <p className="physics-intro">Wähle das Seil und klicke zuerst einen Scherengriff oder Torriegel. Klicke anschließend auf die gewünschten Rollen und zuletzt auf eine Kugel, einen Ballonknoten oder eines der beiden Wippenenden.</p>
+          <p className="physics-intro">Ein Seil zieht erst, wenn sein Verlauf länger wird und es sich spannt. Soll das steigende Wippenende ziehen, führe das Seil über eine Rolle unter diesem Ende. Ein schlaffes Seil drückt nicht. Rote Seile kreuzen eine Mauer und brauchen einen anderen Verlauf.</p>
+          <p className="physics-intro">Nach dem Verbinden wechselst du automatisch zu „Bearbeiten“. Du kannst die Bauteile weiter verschieben und drehen. Zum Lösen eines einzelnen Seils wähle das Seilwerkzeug und klicke seinen verbundenen Griff. „Seil zurück“ nimmt den letzten Schritt zurück; Escape bricht den begonnenen Verlauf ab.</p>
           <h3>Gadget-Katalog</h3>
           <p className="physics-intro">Diese Tabelle kommt direkt aus derselben Definition, aus der Körper, Bauteile und Animationen erzeugt werden.</p>
           <div className="interaction-table"><table>

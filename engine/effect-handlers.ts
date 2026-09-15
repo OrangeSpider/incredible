@@ -109,9 +109,10 @@ export function createDefaultEffectRegistry(): EffectRegistry {
   registry.register("bounce", ({ source, target }) => {
     if (!source.body || !target.body) return;
     const angle = target.body.angle;
+    const strength = source.config.type === "tennisBall" ? 11 : 20;
     Matter.Body.setVelocity(source.body, {
-      x: Math.sin(angle) * 20,
-      y: -Math.abs(Math.cos(angle)) * 20,
+      x: Math.sin(angle) * strength,
+      y: -Math.abs(Math.cos(angle)) * strength,
     });
   });
 

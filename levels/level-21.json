@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 2,
+  "id": "corner-cable",
+  "number": 21,
+  "scene": "corner-cable",
+  "title": "Zug um die Ecke",
+  "objective": "Befreie den Ballon mit einem umgelenkten Seilzug",
+  "hint": "Eine fallende Kugel zieht über eine Festrolle am Scherengriff. Platziere die Rolle über der Kugel.",
+  "buildTip": "Setze Kugel und Rolle links. Klicke mit dem Seil erst den Griff, dann die Rolle und zuletzt die Kugel.",
+  "successText": "Ein Richtungswechsel an der Rolle – und der Ballon ist frei!",
+  "inventory": [
+    {
+      "type": "pulley",
+      "count": 1
+    },
+    {
+      "type": "ball",
+      "count": 1
+    },
+    {
+      "type": "rope",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "balloon",
+      "type": "balloon",
+      "x": 710,
+      "y": 110,
+      "collisionLabel": "scissorBalloon",
+      "role": "payload",
+      "state": "tethered",
+      "physics": {
+        "isStatic": true
+      }
+    },
+    {
+      "id": "cutter",
+      "type": "scissor",
+      "x": 710,
+      "y": 280,
+      "collisionLabel": "scissor",
+      "properties": {
+        "balloon": "balloon"
+      }
+    },
+    {
+      "id": "wall",
+      "type": "stoneWall",
+      "x": 450,
+      "y": 365,
+      "collisionLabel": "stoneWall",
+      "physics": {
+        "height": 230
+      }
+    }
+  ],
+  "systems": [
+    "scissors",
+    "tension-rope",
+    "buoyancy"
+  ],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "signal",
+        "name": "rope.pulled.cutter"
+      },
+      {
+        "kind": "position",
+        "selector": {
+          "id": "balloon"
+        },
+        "axis": "y",
+        "operator": "below",
+        "value": -30
+      }
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "air-mail",
+  "number": 17,
+  "scene": "air-mail",
+  "title": "Luftpost",
+  "objective": "Triff die Schere von oben und befördere den Ballon durch den Ring",
+  "hint": "Ein schräges Trampolin wirft den Tennisball in einem Bogen auf die Schere.",
+  "buildTip": "Setze das Trampolin unter den fallenden Tennisball und drehe es nach rechts. Die Schere muss von oben getroffen werden.",
+  "successText": "Ein einziger Abpraller löste die Schere aus – der Ballon stieg durch den Ring.",
+  "inventory": [{"type":"trampoline","count":1},{"type":"ramp","count":1}],
+  "fixedGadgets": [
+    {"id":"falling-tennis","type":"tennisBall","x":320,"y":76,"role":"trigger","collisionLabel":"tennisBall"},
+    {"id":"balloon","type":"balloon","x":620,"y":118,"role":"payload","state":"tethered","collisionLabel":"scissorBalloon","physics":{"isStatic":true}},
+    {"id":"cutter","type":"scissor","x":620,"y":340,"role":"cutter","collisionLabel":"singleScissor","properties":{"balloon":"balloon"}},
+    {"id":"target-ring","type":"targetRing","x":620,"y":12,"role":"goal","collisionLabel":"targetRing"}
+  ],
+  "systems": ["trampoline","single-scissor","buoyancy"],
+  "goal": {"kind":"all","goals":[{"kind":"state","selector":{"id":"cutter"},"state":"closed"},{"kind":"zone","entity":{"id":"balloon"},"zone":{"id":"target-ring"}}]}
+}

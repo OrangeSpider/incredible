@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "id": "balloon-doorman",
+  "number": 23,
+  "scene": "balloon-doorman",
+  "title": "Der schwebende Türöffner",
+  "objective": "Lass einen Ballon am Seil ziehen und die Kugel freigeben",
+  "hint": "Auftrieb statt Fallgewicht: Eine tief gesetzte Rolle macht aus dem steigenden Ballon einen Zug am Riegel.",
+  "buildTip": "Setze eine Rolle unter den blauen Ballon. Verbinde Riegel, Rolle und Ballonknoten.",
+  "successText": "Der leichte Ballon löst den Riegel – die schwere Kugel fällt in ihren Korb!",
+  "inventory": [
+    {
+      "type": "pulley",
+      "count": 1
+    },
+    {
+      "type": "rope",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "lift-balloon",
+      "type": "balloon",
+      "x": 230,
+      "y": 300,
+      "collisionLabel": "levelBalloon"
+    },
+    {
+      "id": "payload",
+      "type": "ball",
+      "x": 690,
+      "y": 255,
+      "collisionLabel": "mainBall",
+      "role": "payload"
+    },
+    {
+      "id": "hatch",
+      "type": "snapGate",
+      "x": 690,
+      "y": 310,
+      "collisionLabel": "snapGate",
+      "rotation": 1.5707963268
+    },
+    {
+      "id": "basket",
+      "type": "basket",
+      "x": 690,
+      "y": 435,
+      "collisionLabel": "basket",
+      "physics": {
+        "width": 125,
+        "height": 78
+      }
+    }
+  ],
+  "systems": [
+    "snap-gate",
+    "tension-rope",
+    "buoyancy"
+  ],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "signal",
+        "name": "rope.pulled.hatch"
+      },
+      {
+        "kind": "zone",
+        "entity": {
+          "id": "payload"
+        },
+        "zone": {
+          "id": "basket"
+        }
+      }
+    ]
+  }
+}

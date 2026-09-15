@@ -7,13 +7,16 @@ type PartsPanelProps = {
   running: boolean;
   tip: string;
   remaining: (entry: InventoryEntry) => number;
-  onSelect: (type: PlaceableGadgetType) => void;
+  onSelect: (type: PlaceableGadgetType | null) => void;
 };
 
 export default function PartsPanel({ inventory, selected, running, tip, remaining, onSelect }: PartsPanelProps) {
   return (
     <aside aria-label="Bauteile">
       <h2>BAUTEILE</h2>
+      <button className={selected === null ? "selected" : ""} disabled={running} onClick={() => onSelect(null)} title="Bauteile verschieben und drehen, ohne Seile zu lösen">
+        <span className="part">↖</span><label>Bearbeiten</label>
+      </button>
       {inventory.map((entry) => {
         const gadget = GADGET_CATALOG[entry.type];
         const count = remaining(entry);

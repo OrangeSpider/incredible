@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "id": "rope-relay",
+  "number": 24,
+  "scene": "rope-relay",
+  "title": "Die Seilstaffel",
+  "objective": "Starte eine Kettenreaktion aus Wippe, Falltür und Schere",
+  "hint": "Wippe hebt an → erstes Seil zieht → Falltür öffnet → Kugel fällt → zweites Seil zieht → Ballon startet.",
+  "buildTip": "Verbinde den Riegel über eine tiefe Rolle mit dem rechten Wippenende. Ein zweites Seil führt vom Scherengriff über eine hohe Rolle zur wartenden Kugel.",
+  "successText": "Zwei Seile geben den Impuls weiter: Die Maschine macht Schnapp – klack – und der Ballon steigt!",
+  "inventory": [
+    {
+      "type": "seesaw",
+      "count": 1
+    },
+    {
+      "type": "pulley",
+      "count": 2
+    },
+    {
+      "type": "rope",
+      "count": 2
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "trigger",
+      "type": "ball",
+      "x": 130,
+      "y": 82,
+      "collisionLabel": "ball"
+    },
+    {
+      "id": "relay-ball",
+      "type": "ball",
+      "x": 535,
+      "y": 252,
+      "collisionLabel": "ball"
+    },
+    {
+      "id": "hatch",
+      "type": "snapGate",
+      "x": 535,
+      "y": 280,
+      "collisionLabel": "snapGate",
+      "rotation": 1.5707963268
+    },
+    {
+      "id": "balloon",
+      "type": "balloon",
+      "x": 800,
+      "y": 110,
+      "collisionLabel": "scissorBalloon",
+      "role": "payload",
+      "state": "tethered",
+      "physics": {
+        "isStatic": true
+      }
+    },
+    {
+      "id": "cutter",
+      "type": "scissor",
+      "x": 800,
+      "y": 300,
+      "collisionLabel": "scissor",
+      "properties": {
+        "balloon": "balloon"
+      }
+    }
+  ],
+  "systems": [
+    "seesaw",
+    "snap-gate",
+    "scissors",
+    "tension-rope",
+    "buoyancy"
+  ],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "signal",
+        "name": "rope.pulled.hatch"
+      },
+      {
+        "kind": "signal",
+        "name": "rope.pulled.cutter"
+      },
+      {
+        "kind": "position",
+        "selector": {
+          "id": "balloon"
+        },
+        "axis": "y",
+        "operator": "below",
+        "value": -30
+      }
+    ]
+  }
+}

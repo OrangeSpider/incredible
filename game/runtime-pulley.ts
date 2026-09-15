@@ -1,7 +1,7 @@
 import Matter from "matter-js";
-import { BOWLING_PULL_KG, dampPulleyVelocity, LEVEL_FIVE_LOAD_KG, PULLEY_GRAVITY_PX, ropeConstraintCorrection, ropeGeometry } from "./pulley";
-import type { MachineRuntime } from "./machine-runtime";
-import type { RuntimeSystem } from "./runtime-systems";
+import { BOWLING_PULL_KG, dampPulleyVelocity, LEVEL_FIVE_LOAD_KG, PULLEY_GRAVITY_PX, ropeConstraintCorrection, ropeGeometry } from "./pulley.ts";
+import type { MachineRuntime } from "./machine-runtime.ts";
+import type { RuntimeSystem } from "./runtime-systems.ts";
 
 /** The rope is a tension-only constraint; it never pushes a loose assembly. */
 export function createPulleySystem(runtime: MachineRuntime): RuntimeSystem {

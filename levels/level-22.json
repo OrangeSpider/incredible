@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 2,
+  "id": "double-redirect",
+  "number": 22,
+  "scene": "double-redirect",
+  "title": "Der Fernöffner",
+  "objective": "Öffne die Falltür mit einem Seil über zwei Rollen",
+  "hint": "Leite den Seilzug um die Mauer: vom Riegel über zwei hoch gesetzte Rollen zur fallenden Kugel.",
+  "buildTip": "Baue zwei Rollen über der Mauer und eine Zugkugel darunter links. Die Bowlingkugel wartet auf der Falltür.",
+  "successText": "Zwei Umlenkungen, ein Klick: Die Falltür öffnet sich und die Kugel landet im Korb!",
+  "inventory": [
+    {
+      "type": "pulley",
+      "count": 2
+    },
+    {
+      "type": "ball",
+      "count": 1
+    },
+    {
+      "type": "rope",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "wall",
+      "type": "stoneWall",
+      "x": 450,
+      "y": 335,
+      "collisionLabel": "stoneWall",
+      "physics": {
+        "height": 290
+      }
+    },
+    {
+      "id": "payload",
+      "type": "ball",
+      "x": 720,
+      "y": 255,
+      "collisionLabel": "mainBall",
+      "role": "payload"
+    },
+    {
+      "id": "hatch",
+      "type": "snapGate",
+      "x": 720,
+      "y": 310,
+      "collisionLabel": "snapGate",
+      "rotation": 1.5707963268
+    },
+    {
+      "id": "basket",
+      "type": "basket",
+      "x": 720,
+      "y": 435,
+      "collisionLabel": "basket",
+      "physics": {
+        "width": 125,
+        "height": 78
+      }
+    }
+  ],
+  "systems": [
+    "snap-gate",
+    "tension-rope"
+  ],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "signal",
+        "name": "rope.pulled.hatch"
+      },
+      {
+        "kind": "zone",
+        "entity": {
+          "id": "payload"
+        },
+        "zone": {
+          "id": "basket"
+        }
+      }
+    ]
+  }
+}

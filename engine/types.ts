@@ -1,9 +1,9 @@
 export type GadgetType=
   |"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw"
   |"hamsterWheel"|"conveyor"|"exit"|"balloon"|"candle"|"targetRing"|"basket"|"weight"|"cat"|"gearSource"|"gearTarget"|"cannonTarget"
-  |"steelBeam"|"woodWall"|"stoneWall"|"payloadBall"|"fishBowl"|"fish"|"scissor"|"water"|"cannonball"|"rocket";
+  |"steelBeam"|"woodWall"|"stoneWall"|"payloadBall"|"fishBowl"|"fish"|"scissor"|"water"|"cannonball"|"rocket"|"magnet"|"snapGate";
 
-export type PlaceableGadgetType=Extract<GadgetType,"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw">;
+export type PlaceableGadgetType=Extract<GadgetType,"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw"|"magnet">;
 
 export type GadgetCategory="dynamic"|"fixed"|"animal"|"fluid"|"force-source"|"force-transfer"|"connector"|"trigger"|"target"|"fire"|"container"|"surface";
 export type BodyShape="circle"|"rectangle"|"compound"|"sensor"|"none";

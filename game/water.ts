@@ -2,6 +2,9 @@ import Matter from "matter-js";
 
 export const WATER_PARTICLE_COUNT=48;
 export const WATER_PARTICLE_RADIUS=3.2;
+const WATER_NEIGHBOR_RADIUS=16;
+const WATER_REST_DISTANCE=8.5;
+const WATER_MAX_SPEED=14;
 
 export type BucketAssembly={
   bucket:Matter.Body;
@@ -41,6 +44,39 @@ export function createBucketAssembly(x:number,y:number,angle:number):BucketAssem
     }));
   }
   return{bucket,water};
+}
+
+/** A small pressure/viscosity pass keeps the drops from behaving like unrelated marbles. */
+export function advanceWaterFlow(water:readonly Matter.Body[]){
+  const velocity=water.map(drop=>({x:drop.velocity.x,y:drop.velocity.y}));
+  for(let i=0;i<water.length;i++)for(let j=i+1;j<water.length;j++){
+    const dx=water[j].position.x-water[i].position.x;
+    const dy=water[j].position.y-water[i].position.y;
+    const distance=Math.hypot(dx,dy);
+    if(distance<.001||distance>=WATER_NEIGHBOR_RADIUS)continue;
+    const nx=dx/distance,ny=dy/distance;
+    const pressure=distance<WATER_REST_DISTANCE
+      ? (WATER_REST_DISTANCE-distance)*.035
+      : -(distance-WATER_REST_DISTANCE)*.0025;
+    velocity[i].x-=nx*pressure;velocity[i].y-=ny*pressure;
+    velocity[j].x+=nx*pressure;velocity[j].y+=ny*pressure;
+    const viscosity=.012*(1-distance/WATER_NEIGHBOR_RADIUS);
+    const blendX=(velocity[j].x-velocity[i].x)*viscosity;
+    const blendY=(velocity[j].y-velocity[i].y)*viscosity;
+    velocity[i].x+=blendX;velocity[i].y+=blendY;
+    velocity[j].x-=blendX;velocity[j].y-=blendY;
+  }
+  for(let i=0;i<water.length;i++){
+    const drop=water[i],next=velocity[i];
+    if(drop.position.y< -15){Matter.Body.setPosition(drop,{x:drop.position.x,y:-15});next.y=Math.abs(next.y)*.25}
+    if(drop.position.x<4||drop.position.x>896){
+      Matter.Body.setPosition(drop,{x:Math.max(4,Math.min(896,drop.position.x)),y:drop.position.y});
+      next.x=-next.x*.25;
+    }
+    const speed=Math.hypot(next.x,next.y);
+    if(speed>WATER_MAX_SPEED){next.x=next.x/speed*WATER_MAX_SPEED;next.y=next.y/speed*WATER_MAX_SPEED}
+    Matter.Body.setVelocity(drop,next);
+  }
 }
 
 export const WATER_SHAPE_RULES=[

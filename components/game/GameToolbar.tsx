@@ -32,7 +32,7 @@ export default function GameToolbar(props: GameToolbarProps) {
       </button>
       <button className="levels" onClick={props.onPhysics}><i>⚙</i><span>PHYSIK</span></button>
       <button className="levels" onClick={props.onEditor}><i>✎</i><span>EDITOR</span></button>
-      <button className="levels" onClick={props.onLevels}><i>☷</i><span>LEVEL {props.levelNumber}/{props.levelCount}</span></button>
+      <button className="levels" onClick={props.onLevels}><i>☷</i><span>LEVEL {props.levelNumber} · {props.levelCount} GESAMT</span></button>
     </footer>
   );
 }

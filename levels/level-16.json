@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "water-guard",
+  "number": 16,
+  "scene": "water-guard",
+  "title": "Der Löschkorridor",
+  "objective": "Lösche die Kerze und bringe den Ballon durch den Zielring",
+  "hint": "Der Eimer gießt beim Start aus. Leite das Wasser zur Kerze und den Ballon mit Luft zum Ring.",
+  "buildTip": "Platziere Eimer und Planken rechts oben. Ein Ventilator links unten lenkt den Ballon nach rechts.",
+  "successText": "Erst wurde die Flamme gelöscht, dann schwebte der Ballon sicher durch den Ring.",
+  "inventory": [{"type":"bucket","count":1},{"type":"ramp","count":2},{"type":"fan","count":1}],
+  "fixedGadgets": [
+    {"id":"balloon","type":"balloon","x":180,"y":425,"role":"payload","collisionLabel":"levelBalloon","physics":{"buoyancyForce":-0.00023}},
+    {"id":"candle","type":"candle","x":805,"y":430,"role":"hazard","collisionLabel":"candle"},
+    {"id":"target-ring","type":"targetRing","x":750,"y":145,"role":"goal","collisionLabel":"targetRing"},
+    {"id":"stone-wall","type":"stoneWall","x":675,"y":395,"collisionLabel":"stoneWall"}
+  ],
+  "systems": ["bucket-water","water-collisions","fire","buoyancy","fan-airflow"],
+  "goal": {"kind":"all","goals":[{"kind":"state","selector":{"id":"candle"},"state":"extinguished"},{"kind":"zone","entity":{"id":"balloon"},"zone":{"id":"target-ring"}}]}
+}

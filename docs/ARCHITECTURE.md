@@ -80,3 +80,13 @@ Die ausgelieferten Level verwenden `schemaVersion: 2`. Der Validator prüft die 
 5. Gadget im Level platzieren, Ziel mit der DSL beschreiben und die neue Reaktion beziehungsweise Zielerfüllung mit einem Engine-Test prüfen.
 
 Einige ältere Spezialmodelle erzeugen zusätzliche Matter-Körper, etwa Wasserteilchen und Kanonenkugeln, noch direkt in ihren Runtime-Systemen. Sie sind keine katalogisierten Gadget-Instanzen und können daher nicht per Gadget-Selektor in einem Ziel adressiert werden. Für neue Mechaniken sollten relevante Zielobjekte in der Engine registriert oder als typisierte Runtime-Ereignisse gemeldet werden.
+
+## Steuerseile mit Wippenanschlüssen
+
+`game/control-ropes.ts` beschreibt Steuerseile als Zielgriff, geordnete Umlenkrollen und lokalen Befestigungspunkt an einem Quellkörper. `ropePorts` liefert dieselben Anschlusskoordinaten für Eingabe und Zeichnung. Bei der Wippe werden beide Enden mit dem Körperwinkel transformiert. Beim Bearbeiten entsteht aus der neuen Geometrie eine neue Ruhelänge; vorhandene Verbindungen bleiben bestehen.
+
+`MachineRuntime` misst nach dem Physikschritt die Länge des Verlaufs. Erst nach dem Aufnehmen von 3 Pixeln Spiel und 12 Pixeln Griffweg wird die Schere geschlossen oder der Riegel geöffnet. Verkürzung überträgt keinen Druck. Das ist ein Steuerkabel für kleine Auslöser; es ist kein Last tragender Flaschenzug. Mauerüberschneidungen blockieren den Zug. Nach dem Auslösen löst sich das Griffende sichtbar.
+
+`components/game/control-rope-renderer.ts` zeichnet Seile, Rollenbewegung, Griffweg und Scheren ausschließlich aus dem Runtime-Zustand. Die Level 14 und 21–24 verwenden diese Mechanik. Das alte Level 5 wurde aus dem Katalog entfernt; die übrigen Level behalten ihre Nummern. Das bisherige Lastseilmodell bleibt als Mechanik für importierte Aufbauten erhalten.
+
+`tests/control-ropes.test.mjs` prüft vollständige Lösungen, getrennte Seile, Zugrichtung, rotierende Anschlüsse, Mauerblockaden, Bearbeitung und die Reihenfolge der Seilstaffel bei mehreren Simulationsraten.

@@ -12,7 +12,4 @@ export type RopeNode =
   | { kind: "anchor" }
   | { kind: "part"; placedId: number };
 
-export type ScissorRope = {
-  scissorIndex: number;
-  placedId: number;
-};
+export type { ControlRope as ScissorRope } from "@/game/control-ropes";

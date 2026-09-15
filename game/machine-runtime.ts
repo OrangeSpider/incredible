@@ -1,10 +1,11 @@
 import Matter from "matter-js";
-import { FuseNetwork } from "./fuse";
-import type { RopePoint } from "./pulley";
-import { machinePlugin } from "@/engine/body-factory";
-import type { LevelDefinition } from "@/engine/types";
-import type { MachinePhysicsEngine, PhysicsEvent } from "@/engine/physics-engine";
-import { createRuntimeSystems, type RuntimeSystem } from "./runtime-systems";
+import { FuseNetwork } from "./fuse.ts";
+import type { RopePoint } from "./pulley.ts";
+import { machinePlugin } from "../engine/body-factory.ts";
+import type { LevelDefinition } from "../engine/types.ts";
+import type { MachinePhysicsEngine, PhysicsEvent } from "../engine/physics-engine.ts";
+import { createRuntimeSystems, type RuntimeSystem } from "./runtime-systems.ts";
+import { ControlRopeMechanism, type ControlRope } from "./control-ropes.ts";
 
 export type RuntimeCollision = { bodyA: Matter.Body; bodyB: Matter.Body; normal: { x: number; y: number } };
 export type ScissorConnection = { scissorIndex: number; pullBody: Matter.Body; anchor: { x: number; y: number }; restLength: number };
@@ -34,6 +35,7 @@ export type MachineRuntimeOptions = {
     rockets: readonly Matter.Body[];
   };
   scissorConnections: readonly ScissorConnection[];
+  controlRopes?: readonly ControlRope[];
   tetheredBalloonIds: readonly string[];
   fuseNetwork: FuseNetwork;
   fuseId: (body: Matter.Body) => string;
@@ -94,6 +96,7 @@ export class MachineRuntime {
   readonly ballVelocity = { x: 0, y: 0 };
   readonly blockVelocity = { x: 0, y: 0 };
   readonly systems: readonly RuntimeSystem[];
+  readonly controlRopes: ControlRopeMechanism;
   readonly wheelInstanceId: string | undefined;
   readonly conveyorInstanceId: string | undefined;
   now = 0;
@@ -103,6 +106,7 @@ export class MachineRuntime {
 
   constructor(options: MachineRuntimeOptions) {
     this.options = options;
+    this.controlRopes = new ControlRopeMechanism(options.machine, options.controlRopes ?? []);
     this.state = {
       motor: false, motorStartedAt: 0, driveTransferred: false, balloonPopped: false,
       mouseFleeAt: 0, catStartledAt: 0, catImpactMode: "none", catFallStartedAt: 0,
@@ -139,15 +143,24 @@ export class MachineRuntime {
   }
 
   closeScissor(index: number) {
-    if (this.scissorClosedAt[index] || !this.bodies.scissorBalloons[index]) return;
+    const config = this.level.fixedGadgets.filter(gadget => gadget.type === "scissor")[index];
+    if (!config) return;
+    this.closeScissorById(config.id);
+  }
+
+  closeScissorById(id: string) {
+    const scissors = this.level.fixedGadgets.filter(gadget => gadget.type === "scissor");
+    const index = scissors.findIndex(gadget => gadget.id === id);
+    const config = scissors[index];
+    if (!config) return;
+    const balloonId = String(config.properties?.balloon ?? "");
+    const released = this.machine.body(balloonId);
+    if (this.scissorClosedAt[index] || !released) return;
     this.scissorClosedAt[index] = this.now || performance.now();
-    const released = this.bodies.scissorBalloons[index];
-    const scissorId = this.level.fixedGadgets.find(gadget => gadget.collisionLabel === `scissor-${index}`)?.id;
-    const balloonId = this.options.tetheredBalloonIds[index];
-    if (scissorId) this.machine.setState(scissorId, "closed");
+    this.machine.setState(id, "closed");
     if (balloonId) this.machine.setState(balloonId, "free");
     Matter.Body.setStatic(released, false);
-    Matter.Body.setVelocity(released, { x: (index - 1) * .18, y: -1.2 });
+    Matter.Body.setVelocity(released, { x: 0, y: -1.2 });
   }
 
   tick(now: number, dt: number) {
@@ -155,6 +168,11 @@ export class MachineRuntime {
     for (const system of this.systems) system.beforeStep?.();
     if (this.running) this.machine.step(dt);
     for (const system of this.systems) system.afterStep?.();
+    if (this.running) this.controlRopes.step(targetId => {
+      const type = this.machine.state(targetId)?.type;
+      if (type === "scissor") this.closeScissorById(targetId);
+      else if (type === "snapGate") this.machine.setState(targetId, "open");
+    });
     if (this.running && this.machine.goalReached(this.level.goal)) this.complete();
   }
 

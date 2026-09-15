@@ -10,7 +10,8 @@ import {CATAPULT_PLATFORM} from "@/game/catapult";
 import {mouseSpriteFrame} from "@/game/mouse";
 import {FuseNetwork} from "@/game/fuse";
 import {FISH_REVEAL_DELAY_MS} from "@/game/fish";
-import {SCISSOR_LAYOUT,scissorPullPoint} from "@/game/scissors";
+import type { PendingControlRope } from "@/game/control-ropes";
+import { drawControlRopes } from "./control-rope-renderer";
 import {drawConveyor,drawDriveBelt,driveBeltGeometry} from "@/game/drive";
 import {rocketVisual} from "@/game/rocket";
 import {MachineRuntime} from "@/game/machine-runtime";
@@ -20,6 +21,7 @@ import type { LevelDefinition, PlaceableGadgetType } from "@/engine/types";
 import type { PlacedGadget, RopeNode, ScissorRope } from "./types";
 import { drawSceneHints, presentationForScene, type ScenePresentationFrame } from "./scene-presentation";
 import { createCatalogSpriteRenderer } from "./catalog-sprite-renderer";
+import { createFluidWaterRenderer } from "./fluid-water-renderer";
 
 const ROPE_ANCHOR={x:92,y:64};
 const FAN_VISIBLE_RANGE=210;
@@ -35,7 +37,7 @@ type GameCanvasProps = {
   placed: PlacedGadget[];
   ropePath: RopeNode[];
   scissorRopes: ScissorRope[];
-  pendingScissor: number | null;
+  pendingScissor: PendingControlRope | null;
   ropeMode: boolean;
   selectedTool: PlaceableGadgetType | null;
   selectedId: number | null;
@@ -53,6 +55,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const canvas = canvasRef.current; if (!canvas) return;
     const ctx = canvas.getContext("2d"); if (!ctx) return;
     const drawCatalogSprite = createCatalogSpriteRenderer();
+    const drawFluidWater = createFluidWaterRenderer(canvas.width, canvas.height);
     const fireSprites=new Image();fireSprites.src="/assets/fire-animation-sprites.png";
     const drawFireSprite=(row:number,frame:number,x:number,y:number,width:number,height:number,rotation=0)=>{
       if(!fireSprites.complete||!fireSprites.naturalWidth)return false;
@@ -134,7 +137,6 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     }
     const driveBelt=placed.find(p=>p.type==="belt")??null,beltConnected=!!driveBelt,allBodies=Matter.Composite.allBodies(engine.world),bodyByPlacedId=new Map<number,Matter.Body>();
     allBodies.forEach(body=>{const placedId=body.plugin?.placedId;if(typeof placedId==="number")bodyByPlacedId.set(placedId,body)});
-    const scissorRopePhysics=scissorRopes.flatMap(connection=>{const pullBody=bodyByPlacedId.get(connection.placedId);if(!pullBody)return[];const anchor=scissorPullPoint(connection.scissorIndex),restLength=Math.hypot(pullBody.position.x-anchor.x,pullBody.position.y-anchor.y),constraint=Matter.Constraint.create({pointA:anchor,bodyB:pullBody,length:restLength,stiffness:.42,damping:.14,label:`scissorRope-${connection.scissorIndex}`});Matter.Composite.add(engine.world,constraint);return[{...connection,pullBody,anchor,restLength}]});
     const placedById=new Map(placed.map(part=>[part.id,part])),routeKinds=ropePath.map(node=>node.kind==="anchor"?"anchor":routeKindForPart(placedById.get(node.placedId)?.type??"rope")).filter((kind):kind is PulleyRouteKind=>kind!==null),routeAnalysis=analyzePulleyRoute(routeKinds);
     const routeFixed=ropePath.flatMap(node=>node.kind==="part"&&placedById.get(node.placedId)?.type==="pulley"?[bodyByPlacedId.get(node.placedId)].filter((body):body is Matter.Body=>!!body):[]),routeMoving=ropePath.flatMap(node=>node.kind==="part"&&placedById.get(node.placedId)?.type==="movingPulley"?[bodyByPlacedId.get(node.placedId)].filter((body):body is Matter.Body=>!!body):[]),ballNode=ropePath.find(node=>node.kind==="part"&&placedById.get(node.placedId)?.type==="ball"),placedBall=ballNode?.kind==="part"?(bodyByPlacedId.get(ballNode.placedId)??null):null;
     const initialWeightY=LEVEL_FIVE_INITIAL_WEIGHT_Y,initialMovingPositions=routeMoving.map(body=>({...body.position}));if(hasSystem("pulley-rope")&&weight&&routeMoving.length){const lowerCenterX=routeMoving.reduce((sum,body)=>sum+body.position.x,0)/routeMoving.length;Matter.Body.setPosition(weight,{x:lowerCenterX,y:initialWeightY})}
@@ -154,7 +156,8 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         hamsterWheel: hamsterWheelBody, conveyor: conveyorBody, water: waterBodies,
         scissorBalloons, rockets: rocketBodies,
       },
-      scissorConnections: scissorRopePhysics,
+      scissorConnections: [],
+      controlRopes: scissorRopes,
       tetheredBalloonIds: tetheredBalloonConfigs.map(gadget => gadget.id),
       fuseNetwork, fuseId, cannonFuseId, gearsConnected,
       rope: {
@@ -172,10 +175,10 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         motor, balloonPopped, mouseFleeAt, catStartledAt, catImpactMode,
         catFallStartedAt, catOnPlatformAt, fishBowlBrokenAt, fishChaseAt,
         fuseClock, fuseIgnited, fuseReady, fuseExtinguishedAt,
-        cannonFiredAt, candleExtinguished, bucketTipAt,
+        cannonFiredAt, candleExtinguished,
       } = runtime.state;
       const fishVisible = runtime.state.fishReleased;
-      const {waterSplashAt, wetFuseIds, scissorClosedAt, rocketIgnitedAt} = runtime;
+      const {wetFuseIds, scissorClosedAt, rocketIgnitedAt} = runtime;
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
       ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40);
@@ -203,6 +206,10 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
           rocketLaunched: rocketBodies.filter(body => { const id = machinePlugin(body)?.instanceId; return id && machine.state(id)?.state === "launched"; }).length,
           rocketIgnited: rocketIgnitedAt.size,
           candleFallen: !!fallingCandle && fallingCandle.position.y > 510,
+          singleScissorClosed: machine.state("cutter")?.state === "closed",
+          gateOpen: machine.state("snap-gate")?.state === "open",
+          magnetRunning: machine.allStates().some(state => state.type === "magnet" && state.state === "running"),
+          cannonFired: !!cannonFiredAt,
         },
         pulley: {
           anchor: ROPE_ANCHOR, path: ropePath,
@@ -216,18 +223,19 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         scissors: {
           balloons: scissorBalloons.map(body => ({ ...body.position })),
           closedAt: [...scissorClosedAt],
-          connections: scissorRopePhysics.map(connection => ({ scissorIndex: connection.scissorIndex, pull: { ...connection.pullBody.position } })),
+          connections: [],
         },
       };
       scenePresentation?.decorate?.(sceneFrame);
-      if(waterBodies.length){ctx.strokeStyle="rgba(33,158,211,.34)";ctx.lineWidth=7;ctx.lineCap="round";for(let i=0;i<waterBodies.length;i++)for(let j=i+1;j<waterBodies.length;j++){const a=waterBodies[i].position,b=waterBodies[j].position;if(Math.hypot(a.x-b.x,a.y-b.y)<10){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}
+      drawFluidWater.draw(ctx, waterBodies.map(body => ({ x: body.position.x, y: body.position.y, vx: body.velocity.x, vy: body.velocity.y })));
       for(const b of Matter.Composite.allBodies(engine.world)){
+        if(b.label==="water")continue;
         const {x,y}=b.position;ctx.save();ctx.translate(x,y);ctx.rotate(b.angle);
         const gadgetId=machinePlugin(b)?.instanceId;
         const catalogAnimation=gadgetId?machine.animation(gadgetId):null;
         const genericSprite=!CUSTOM_SPRITE_LABELS.has(b.label)&&drawCatalogSprite(ctx,catalogAnimation,0,0);
         if(!genericSprite){
-        if(b.label==="ball"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,18,0,7);ctx.fill();ctx.fillStyle="#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
+        if(b.label==="ball"||b.label==="mainBall"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,18,0,7);ctx.fill();ctx.fillStyle=b.label==="mainBall"?"#e7a849":"#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
         if(b.label==="tennisBall"){ctx.fillStyle="#d7eb4c";ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#fff8c5";ctx.lineWidth=2;ctx.beginPath();ctx.arc(-8,0,9,-1.15,1.15);ctx.stroke();ctx.beginPath();ctx.arc(8,0,9,2,4.3);ctx.stroke()}
         if(b.label==="scissorBalloon"){const colors=["#e84d52","#3f9bd2","#efb630"],index=scissorBalloons.indexOf(b);ctx.fillStyle=colors[Math.max(0,index)];ctx.beginPath();ctx.ellipse(0,0,21,27,0,0,Math.PI*2);ctx.fill();ctx.fillStyle="rgba(255,255,255,.55)";ctx.beginPath();ctx.ellipse(-7,-9,5,9,-.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=colors[Math.max(0,index)];ctx.beginPath();ctx.moveTo(-5,25);ctx.lineTo(5,25);ctx.lineTo(0,34);ctx.closePath();ctx.fill()}
         if(b.label==="ramp"){ctx.fillStyle="#8d5426";ctx.fillRect(-75,-7,150,14);ctx.strokeStyle="#4e2a14";ctx.strokeRect(-75,-7,150,14)}
@@ -242,7 +250,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         if(b.label==="weight"){ctx.strokeStyle="#303b40";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,-39,9,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#555d60";ctx.fillRect(-32,-32,64,64);ctx.fillStyle="#f0d59a";ctx.font="bold 14px system-ui";ctx.fillText("50 kg",-21,5)}
         if(b.label==="steelBeam"){ctx.fillStyle="#6e858d";ctx.fillRect(-118,-9,236,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-118,-9,236,4);ctx.fillStyle="#3e5963";for(let rivet=-100;rivet<=100;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="woodWall"){ctx.fillStyle="#9b5e2a";ctx.fillRect(-12,-90,24,180);ctx.strokeStyle="#5a321a";for(let plank=-80;plank<90;plank+=28){ctx.strokeRect(-12,plank,24,28);ctx.beginPath();ctx.moveTo(-8,plank+7);ctx.lineTo(8,plank+20);ctx.stroke()}}
-        if(b.label==="stoneWall"){ctx.fillStyle="#7d817e";ctx.fillRect(-21,-85,42,170);ctx.strokeStyle="#4e5554";ctx.lineWidth=2;for(let row=-85;row<85;row+=24){ctx.beginPath();ctx.moveTo(-21,row);ctx.lineTo(21,row);ctx.stroke();const seam=(Math.floor((row+85)/24)%2===0)?0:-10;ctx.beginPath();ctx.moveTo(seam,row);ctx.lineTo(seam,row+24);ctx.stroke()}}
+        if(b.label==="stoneWall"){const halfHeight=(b.bounds.max.y-b.bounds.min.y)/2;ctx.fillStyle="#7d817e";ctx.fillRect(-21,-halfHeight,42,halfHeight*2);ctx.strokeStyle="#4e5554";ctx.lineWidth=2;for(let row=-halfHeight;row<halfHeight;row+=24){ctx.beginPath();ctx.moveTo(-21,row);ctx.lineTo(21,row);ctx.stroke();const seam=(Math.floor((row+halfHeight)/24)%2===0)?0:-10;ctx.beginPath();ctx.moveTo(seam,row);ctx.lineTo(seam,Math.min(row+24,halfHeight));ctx.stroke()}}
         if(b.label==="cat"){const airborneStartle=hasSystem("catapult")&&catImpactMode==="launch"&&catStartledAt>0&&!catOnPlatformAt,fallingStartle=catFallStartedAt>0,startledAt=airborneStartle?catStartledAt:fallingStartle?catFallStartedAt:null,catRunning=motor||(standaloneMouseChase&&mouseFleeAt>0)||(hasSystem("catapult")&&catOnPlatformAt>0)||(hasSystem("cat-fish")&&fishChaseAt>0),pose=catSpritePose(now,{running:catRunning,startledAt,holdStartled:airborneStartle||fallingStartle}),size=pose.state==="idle"?90:pose.state==="running"?106:112,offsetX=catSpriteOffsetX(pose,size),offsetY=pose.state==="idle"?-12:pose.state==="startled"?-16:0;if(!drawCatSprite(pose.row,pose.frame,offsetX,offsetY,size)){ctx.font="54px serif";ctx.fillText("🐈",-34,20)}}
         if(b.label==="needle"){ctx.fillStyle="#737c80";ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(-9,35);ctx.lineTo(9,35);ctx.closePath();ctx.fill();ctx.fillStyle="#a96c2d";ctx.fillRect(-14,28,28,12)}
         if(b.label==="mouse"){const mouseRunning=(standaloneMouseChase&&mouseFleeAt>0)||(hasSystem("catapult")&&catOnPlatformAt>0),id=machinePlugin(b)?.instanceId,frame=mouseSpriteFrame(now,mouseRunning);if(!drawCatalogSprite(ctx,id?machine.animation(id):null,0,-5)&&!drawMouseSprite(frame,0,-5,60)){ctx.font="36px serif";ctx.fillText("🐁",-20,14)}}
@@ -251,18 +259,60 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         if(b.label==="catapultPlatform"){ctx.fillStyle="#6e858d";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,18);ctx.fillStyle="#c3d0d2";ctx.fillRect(-CATAPULT_PLATFORM.width/2,-9,CATAPULT_PLATFORM.width,4);ctx.fillStyle="#3e5963";for(let rivet=-170;rivet<=170;rivet+=40){ctx.beginPath();ctx.arc(rivet,0,3,0,Math.PI*2);ctx.fill()}}
         if(b.label==="catapultMouseHole"){ctx.fillStyle="#173f50";ctx.fillRect(-28,-55,56,110);ctx.fillStyle="#f1d28d";ctx.font="bold 12px system-ui";ctx.fillText("MAUS-",-21,-5);ctx.fillText("LOCH",-18,12)}
         if(["gear","gearSource","gearTarget"].includes(b.label)){const depth=gearDepth.get(b.id);ctx.rotate(running&&depth!==undefined?(now/170)*(depth%2?-1:1):0);ctx.fillStyle=b.label==="gearTarget"?"#bf432d":"#d39a28";for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(34,-6,15,12)}ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
+        if(b.label==="magnet"){
+          ctx.save();ctx.strokeStyle="rgba(38,139,166,.24)";ctx.lineWidth=2;ctx.setLineDash([5,9]);ctx.lineDashOffset=running?-now/35:0;
+          for(const radius of [68,112,158,208]){ctx.beginPath();ctx.arc(0,0,radius,-2.55,-.6);ctx.arc(0,0,radius,.6,2.55);ctx.stroke()}
+          ctx.restore();
+          ctx.fillStyle="#c74437";ctx.fillRect(-25,-24,20,48);ctx.fillStyle="#347ca7";ctx.fillRect(5,-24,20,48);
+          ctx.fillStyle="#364951";ctx.fillRect(-25,10,50,17);
+          ctx.fillStyle="#f6dfb0";ctx.fillRect(-24,-24,18,9);ctx.fillRect(6,-24,18,9);
+          if(gadgetId&&machine.state(gadgetId)?.state==="running"){
+            const pulse=25+Math.sin(now/110)*3;ctx.strokeStyle="rgba(111,218,240,.8)";ctx.lineWidth=3;
+            ctx.beginPath();ctx.arc(0,-10,pulse,Math.PI*.08,Math.PI*.92);ctx.stroke();
+          }
+        }
+        if(b.label==="snapGate"){
+          const gateLength=Number(level.fixedGadgets.find(gadget=>gadget.id===gadgetId)?.physics?.height??120);
+          const opened=gadgetId&&machine.state(gadgetId)?.state==="open";
+          const progress=opened&&gadgetId?Math.min(1,(machine.stateAgeMs(gadgetId)??0)/430):0;
+          ctx.fillStyle="#33434a";ctx.beginPath();ctx.arc(0,-gateLength/2,14,0,Math.PI*2);ctx.fill();
+          ctx.save();ctx.translate(0,-gateLength/2);ctx.rotate(-progress*1.18);
+          ctx.fillStyle="#367e8e";ctx.strokeStyle="#173f50";ctx.lineWidth=4;
+          ctx.fillRect(-10,0,20,gateLength);ctx.strokeRect(-10,0,20,gateLength);
+          ctx.strokeStyle="#9bd4d8";ctx.lineWidth=2;for(let mark=22;mark<gateLength-16;mark+=22){ctx.beginPath();ctx.moveTo(-7,mark);ctx.lineTo(7,mark-8);ctx.stroke()}
+          ctx.fillStyle=opened?"#55c782":"#e6523e";ctx.beginPath();ctx.arc(0,gateLength-17,7+(!opened?Math.sin(now/150)*1.2:0),0,Math.PI*2);ctx.fill();
+          ctx.restore();
+          if(opened&&progress<1){ctx.strokeStyle="rgba(241,190,68,.85)";ctx.lineWidth=3;for(let spark=0;spark<4;spark++){const angle=now/110+spark*Math.PI/2;ctx.beginPath();ctx.moveTo(Math.cos(angle)*18,-gateLength/2+Math.sin(angle)*18);ctx.lineTo(Math.cos(angle)*28,-gateLength/2+Math.sin(angle)*28);ctx.stroke()}}
+        }
+        if(b.label==="singleScissor"){
+          const closed=gadgetId&&machine.state(gadgetId)?.state==="closed",spread=closed ? .12 : .5;
+          ctx.strokeStyle="#536a72";ctx.lineWidth=7;ctx.lineCap="round";ctx.beginPath();
+          ctx.moveTo(0,0);ctx.lineTo(-Math.sin(spread)*31,-Math.cos(spread)*31);ctx.moveTo(0,0);ctx.lineTo(Math.sin(spread)*31,-Math.cos(spread)*31);ctx.stroke();
+          ctx.strokeStyle="#a86a32";ctx.lineWidth=5;ctx.beginPath();ctx.arc(-19,20,10,0,Math.PI*2);ctx.arc(19,20,10,0,Math.PI*2);ctx.stroke();
+          ctx.fillStyle="#e1b84d";ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fill();
+        }
         if(b.label==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42);const fuse=fuseNetwork.snapshot(cannonFuseId,fuseClock),point=(t:number)=>({x:-18+(-26+18)*t,y:-42+(-17+42)*t});ctx.lineWidth=5;ctx.lineCap="round";for(let index=0;index<fuse.samples.length-1;index++){const from=point(fuse.samples[index].t),to=point(fuse.samples[index+1].t);ctx.strokeStyle=fuse.samples[index].burned?"#a29a8d":"#49382a";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}if(!fuseExtinguishedAt)for(const t of fuse.flames){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y,34,34))drawFallbackFlame(flame.x,flame.y,now,.55)}if(cannonFiredAt&&now-cannonFiredAt<520){const flashFrame=Math.min(5,Math.floor((now-cannonFiredAt)/87));if(!drawFireSprite(2,flashFrame,70,0,105,78))drawFallbackFlame(67,0,now,1.5)}}
         if(b.label==="fuse"){const fuse=fuseNetwork.snapshot(fuseId(b),fuseClock),point=(t:number)=>({x:-55+110*t,y:16*t*(1-t)});ctx.lineWidth=7;ctx.lineCap="round";for(let index=0;index<fuse.samples.length-1;index++){const from=point(fuse.samples[index].t),to=point(fuse.samples[index+1].t);ctx.strokeStyle=fuse.samples[index].burned?"#a29a8d":"#4f3d2b";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}if(!fuseExtinguishedAt)for(const t of fuse.flames){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y-3,34,34))drawFallbackFlame(flame.x,flame.y-3,now,.55)}if(wetFuseIds.has(b.id)){ctx.strokeStyle="#2ca7d8";ctx.lineWidth=3;ctx.setLineDash([3,7]);ctx.beginPath();ctx.moveTo(-50,-4);ctx.lineTo(50,4);ctx.stroke();ctx.setLineDash([])}}
-        if(b.label==="bucket"){ctx.fillStyle="rgba(76,141,168,.38)";ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-38,-28);ctx.lineTo(38,-28);ctx.lineTo(29,32);ctx.lineTo(-29,32);ctx.closePath();ctx.fill();ctx.stroke();ctx.strokeStyle="#b7dbe4";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,-25,38,Math.PI,0);ctx.stroke();ctx.fillStyle="#d8edf0";ctx.fillRect(-38,-31,76,7);if(running&&Math.abs(b.angle)>.18){const streamFrame=Math.min(5,Math.floor((now-bucketTipAt)/230));drawWaterSprite(2,streamFrame,43,-22,105,78,0)}}
-        if(b.label==="water"){const splashAt=waterSplashAt.get(b.id),splashAge=splashAt?now-splashAt:Infinity;if(splashAge<420){drawWaterSprite(1,Math.min(5,Math.floor(splashAge/70)),0,-2,34,24)}else{const speed=Math.hypot(b.velocity.x,b.velocity.y);if(speed>2){ctx.strokeStyle="rgba(80,190,232,.48)";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-b.velocity.x*1.8,-b.velocity.y*1.8);ctx.lineTo(0,0);ctx.stroke()}if(!drawWaterSprite(0,(b.id+Math.floor(now/120))%6,0,0,24,20)){ctx.fillStyle="#42b9e9";ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill()}}}
+        if(b.label==="bucket"){
+          ctx.fillStyle="rgba(76,141,168,.14)";
+          ctx.beginPath();ctx.moveTo(-38,-28);ctx.lineTo(38,-28);ctx.lineTo(29,32);ctx.lineTo(-29,32);ctx.closePath();ctx.fill();
+          ctx.strokeStyle="#173f50";ctx.lineWidth=5;ctx.lineCap="round";
+          ctx.beginPath();ctx.moveTo(-38,-28);ctx.lineTo(-29,32);ctx.lineTo(29,32);ctx.lineTo(38,-28);ctx.stroke();
+          ctx.strokeStyle="#b7dbe4";ctx.lineWidth=4;
+          ctx.beginPath();ctx.arc(0,-25,38,Math.PI,0);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(-41,-28);ctx.lineTo(-32,-28);ctx.moveTo(32,-28);ctx.lineTo(41,-28);ctx.stroke();
+        }
         if(b.label==="cannonball"){ctx.fillStyle="#333f43";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
         if(b.label==="rocket"){const id=machinePlugin(b)?.instanceId,state=id?(machine.state(id)?.state??"mounted"):"mounted",visual=rocketVisual(state,id?rocketIgnitedAt.get(id):undefined,now);if(visual.visible&&!drawRocketSprite(visual.row,visual.frame,0,visual.offsetY,visual.size)){ctx.fillStyle="#d94d32";ctx.beginPath();ctx.moveTo(0,-55+visual.offsetY);ctx.lineTo(-24,18+visual.offsetY);ctx.lineTo(24,18+visual.offsetY);ctx.closePath();ctx.fill()}if(visual.smokeOpacity>0){ctx.save();ctx.globalAlpha=visual.smokeOpacity;ctx.fillStyle="#d8d2c7";for(let puff=0;puff<7;puff++){const angle=puff/7*Math.PI*2,radius=9+(puff%3)*3;ctx.beginPath();ctx.arc(Math.cos(angle+now*.001)*22,55+Math.sin(angle)*10,radius,0,Math.PI*2);ctx.fill()}ctx.restore()}}
         if(b.label==="seesawPayload"){ctx.fillStyle="#c73b2e";ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();ctx.fillStyle="#f4c64e";ctx.beginPath();ctx.arc(-5,-5,4,0,Math.PI*2);ctx.fill()}
         }
         if(b.plugin?.placedId===selectedId&&!running){ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);if(b.label==="seesaw")ctx.strokeRect(-126,-48,252,96);else if(["ramp","trampoline","fuse","cannon","bucket"].includes(b.label))ctx.strokeRect(-64,-38,128,76);else{ctx.beginPath();ctx.arc(0,0,48,0,Math.PI*2);ctx.stroke()}ctx.setLineDash([])}ctx.restore();
       }
+      if (hasSystem("tension-rope")) drawControlRopes(ctx, runtime, [
+        ...level.fixedGadgets,
+        ...placed.map(part => ({ ...part, id: `placed-${part.id}` })),
+      ], pendingScissor, ropeMode);
       if(hasSystem("pulley-rope")&&ropeMode&&!running){const selectedParts=new Map<number,number>();ropePath.forEach((node,index)=>{if(node.kind==="part")selectedParts.set(node.placedId,index)});const anchorOrder=ropePath.findIndex(node=>node.kind==="anchor"),drawPort=(x:number,y:number,order?:number,label?:string)=>{ctx.save();ctx.fillStyle=order!==undefined&&order>=0?"#d39a28":"#2f9b67";ctx.strokeStyle="#fff4cf";ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,13,0,Math.PI*2);ctx.fill();ctx.stroke();if(order!==undefined&&order>=0){ctx.fillStyle="#173f50";ctx.font="bold 11px system-ui";ctx.textAlign="center";ctx.fillText(String(order+1),x,y+4)}if(label){ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.textAlign="left";ctx.fillText(label,x+28,y+4)}ctx.restore()};drawPort(ROPE_ANCHOR.x,ROPE_ANCHOR.y,anchorOrder>=0?anchorOrder:undefined);for(const part of placed){const kind=routeKindForPart(part.type);if(!kind)continue;drawPort(part.x,part.y,selectedParts.get(part.id),part.type==="pulley"?"FEST":part.type==="movingPulley"?"LOSE":"KUGEL")}}
-      if(hasSystem("scissors")&&ropeMode&&!running){const drawPort=(x:number,y:number,label:string,active=false)=>{ctx.save();ctx.fillStyle=active?"#d39a28":"#2f9b67";ctx.strokeStyle="#fff4cf";ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.fillText(label,x+17,y+4);ctx.restore()};SCISSOR_LAYOUT.forEach((_,index)=>{if(!scissorRopes.some(rope=>rope.scissorIndex===index)){const port=scissorPullPoint(index);drawPort(port.x,port.y,`GRIFF ${index+1}`,pendingScissor===index)}});for(const part of placed){if(!["ball","tennisBall"].includes(part.type))continue;const body=bodyByPlacedId.get(part.id);if(body)drawPort(body.position.x,body.position.y,part.type==="tennisBall"?"TENNISBALL":"KUGEL")}}
       drawSceneHints(scenePresentation, sceneFrame);
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
