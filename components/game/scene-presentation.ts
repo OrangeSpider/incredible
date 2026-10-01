@@ -1,3 +1,4 @@
+import { drawMouseHole } from "./gadget-renderer";
 import { CATAPULT_PLATFORM } from "@/game/catapult";
 import { CHARACTERS } from "@/game/characters";
 import { LEVEL_FIVE_TARGET_Y, type PulleyRouteAnalysis, type PulleyRouteKind } from "@/game/pulley";
@@ -130,7 +131,7 @@ const presentations = {
     hints: ({ status }: ScenePresentationFrame) => status.balloonPopped ? [] : [hint("Lenke den Ballon in die platzierte Nadel", 300)],
   },
   "mouse-escape": {
-    decorate: ({ ctx }: ScenePresentationFrame) => { ctx.fillStyle = "#173f50"; ctx.fillRect(820, 330, 65, 120); ctx.fillStyle = "#f1d28d"; ctx.font = "bold 13px system-ui"; ctx.fillText("MAUS-", 830, 365); ctx.fillText("LOCH", 834, 382); },
+    decorate: ({ ctx }: ScenePresentationFrame) => { drawMouseHole(ctx, 850, 450, 52, 58); },
     hints: ({ status }: ScenePresentationFrame) => [hint(!status.mouseFleeing ? "Katze und Maus müssen auf gleicher Höhe sein" : "Die Maus flieht – die Katze ist langsamer", 275)],
   },
   "gear-train": {
@@ -208,7 +209,7 @@ const presentations = {
     decorate:({ctx,now,sprites,status}:ScenePresentationFrame)=>{
       ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);ctx.fillStyle="#f1cb62";ctx.fillRect(91,390,22,52);
       if(!sprites.fire(0,Math.floor(now/105)%6,102,366,82,90))sprites.fallbackFlame(102,374,now);
-      ctx.fillStyle="#173f50";ctx.fillRect(817,359,66,121);ctx.fillStyle="#f1d28d";ctx.font="bold 13px system-ui";ctx.fillText("MAUS-",826,392);ctx.fillText("LOCH",828,410);
+      drawMouseHole(ctx,850,480,52,58);
       ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText(status.gateOpen?"FLUCHTWEG OFFEN":"TOR VERSCHLOSSEN",690,255);
     },
     hints:({status}:ScenePresentationFrame)=>[hint(!status.fuseIgnited?"Zünde die Kanone mit einer durchgehenden Lunte":!status.gateOpen?"Lenke die Kugel mit dem Magneten über die Mauer zum Tor":"Das Tor ist offen – Mogli kann entkommen",245)],

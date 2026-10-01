@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "basketball-bounce",
+  "number": 31,
+  "scene": "basketball-bounce",
+  "title": "Der leichte Springer",
+  "objective": "Lass den Basketball vom Trampolin in den Korb springen",
+  "hint": "Der Basketball wiegt nur 0,62 kg. Das schräg gestellte Trampolin lenkt seinen Sprung.",
+  "buildTip": "Setze den Basketball über die Sprungfläche.",
+  "successText": "Der leichte Ball landet nach dem Sprung im Korb!",
+  "inventory": [
+    {
+      "type": "basketball",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "trampoline",
+      "type": "trampoline",
+      "x": 340,
+      "y": 430,
+      "rotation": 0.65
+    },
+    {
+      "id": "basket",
+      "type": "basket",
+      "x": 630,
+      "y": 145
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "zone",
+    "entity": {
+      "type": "basketball"
+    },
+    "zone": {
+      "id": "basket"
+    }
+  }
+}

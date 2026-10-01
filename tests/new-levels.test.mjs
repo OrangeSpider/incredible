@@ -6,7 +6,7 @@ test("level 16 reference arrangement extinguishes the candle and guides the ball
   const scenario=createScenario(loadLevel(16),[
     {type:"bucket",x:680,y:150,rotation:-.08},
     {type:"ramp",x:760,y:330,rotation:.7},
-    {type:"fan",x:130,y:430,rotation:-.47},
+    {type:"fan",x:130,y:430,rotation:-Math.PI/12},
   ]);
   scenario.step(900);
   assert.equal(scenario.machine.state("candle")?.state,"extinguished");

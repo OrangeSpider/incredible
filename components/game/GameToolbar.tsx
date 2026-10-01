@@ -3,8 +3,6 @@ type GameToolbarProps = {
   running: boolean;
   canRemove: boolean;
   canRotate: boolean;
-  undoLabel?: string;
-  canUndo?: boolean;
   onReset: () => void;
   onRemove: () => void;
   onRotateLeft: () => void;
@@ -13,7 +11,6 @@ type GameToolbarProps = {
   onPhysics: () => void;
   onEditor: () => void;
   onLevels: () => void;
-  onUndo?: () => void;
   levelNumber: number;
   levelCount: number;
 };
@@ -24,7 +21,6 @@ export default function GameToolbar(props: GameToolbarProps) {
       <div><span>VERSUCH</span><b>{props.attempt + 1}</b></div>
       <button className="reset" onClick={props.onReset}><i>↻</i><span>ZURÜCKSETZEN</span></button>
       <button className="delete" onClick={props.onRemove} disabled={props.running || !props.canRemove}><i>×</i><span>ENTFERNEN</span></button>
-      {props.undoLabel && <button className="reset" onClick={props.onUndo} disabled={props.running || !props.canUndo}><i>↩</i><span>{props.undoLabel}</span></button>}
       <button className="reset" onClick={props.onRotateLeft} disabled={props.running || !props.canRotate}><i>↶</i><span>LINKS DREHEN</span></button>
       <button className="reset" onClick={props.onRotateRight} disabled={props.running || !props.canRotate}><i>↷</i><span>RECHTS DREHEN</span></button>
       <button className={props.running ? "stop" : "start"} onClick={props.onToggleMachine}>

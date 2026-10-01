@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "id": "focused-candle",
+  "number": 29,
+  "scene": "focused-candle",
+  "title": "Ein heißer Punkt",
+  "objective": "Entzünde die Kerze mit dem gebündelten Licht",
+  "hint": "Die Lampe leuchtet bereits. Die Lupe bündelt ihr Licht 90 Pixel vor der Linse.",
+  "buildTip": "Platziere die Lupe zwischen Lampe und Kerzendocht. Die Brennpunktmarkierung hilft.",
+  "successText": "Licht wird Hitze – der Docht brennt!",
+  "inventory": [
+    {
+      "type": "magnifier",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "lamp",
+      "type": "lamp",
+      "x": 330,
+      "y": 320,
+      "state": "on"
+    },
+    {
+      "id": "candle",
+      "type": "candle",
+      "x": 580,
+      "y": 350,
+      "state": "unlit",
+      "properties": {
+        "standalone": true
+      }
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "signal",
+    "name": "heat.ignited.candle"
+  }
+}

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { GADGET_CATALOG } from "@/engine/gadget-catalog";
-import type { InventoryEntry, LevelDefinition, PlaceableGadgetType } from "@/engine/types";
+import type { GadgetConnection, InventoryEntry, LevelDefinition, PlaceableGadgetType } from "@/engine/types";
 import { LEVELS } from "@/levels/catalog";
 import { analyzePulleyRoute, type PulleyRouteKind } from "@/game/pulley";
-import { advanceRopeDraft, ropePorts, ropeUsesGadget, type PendingControlRope } from "@/game/control-ropes";
+import { advanceRopeDraft, ropePorts, ropeUsesGadget, attachmentPoint, handleOffset, type PendingControlRope } from "@/game/control-ropes";
+import { gadgetPorts, connectPorts, distanceToPath, type GadgetPort } from "@/game/gadget-connections";
 import { conveyorWheelCenters } from "@/game/drive";
 import GameCanvas, { routeKindForPart } from "./GameCanvas";
 import GameHeader from "./GameHeader";
@@ -29,7 +30,13 @@ function initialPlacements(level: LevelDefinition): PlacedGadget[] {
     x: gadget.x,
     y: gadget.y,
     rotation: gadget.rotation ?? 0,
+    physics: gadget.physics, properties: gadget.properties, role: gadget.role, tags: gadget.tags, state: gadget.state,
   }));
+}
+
+function initialConnections(level: LevelDefinition): GadgetConnection[] {
+  const ids = new Map((level.initialPlacements ?? []).map((gadget, index) => [gadget.id, `placed-${-(index + 1)}`]));
+  return (level.connections ?? []).map(connection => ({ ...connection, sourceId: ids.get(connection.sourceId) ?? connection.sourceId, targetId: ids.get(connection.targetId) ?? connection.targetId }));
 }
 
 function readScores(): ScoreEntry[] {
@@ -62,6 +69,10 @@ export default function GameApp() {
   const [scissorRopes, setScissorRopes] = useState<ScissorRope[]>([]);
   const [pendingScissor, setPendingScissor] = useState<PendingControlRope | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [connections, setConnections] = useState<GadgetConnection[]>(() => initialConnections(LEVELS[0]));
+  const [pendingConnection, setPendingConnection] = useState<GadgetPort | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
+  const [selectedRope, setSelectedRope] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [won, setWon] = useState(false);
@@ -80,7 +91,7 @@ export default function GameApp() {
 
   useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setPendingScissor(null); setSelected(null); setDrag(null); }
+      if (event.key === "Escape") { setPendingScissor(null); setPendingConnection(null); setSelected(null); setDrag(null); }
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
@@ -100,6 +111,7 @@ export default function GameApp() {
     setScissorRopes([]);
     setPendingScissor(null);
     setSelectedId(null);
+    setConnections(initialConnections(nextLevel)); setPendingConnection(null); setSelectedConnection(null); setSelectedRope(null);
     setWon(false);
     setAttempt((value) => bumpAttempt ? value + 1 : 0);
   };
@@ -127,6 +139,22 @@ export default function GameApp() {
   const boardPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (running) return;
     const point = boardPoint(event);
+    const configs = [...level.fixedGadgets, ...placed.map(part => ({ ...part, id: `placed-${part.id}` }))];
+    const selectRope = (id: string) => { setSelectedRope(id); setSelectedId(null); setSelectedConnection(null); setPendingScissor(null); setSelected(null); };
+    if (selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) {
+      const kind = selected, ports = gadgetPorts(configs).filter(port => kind === "wire" ? port.kind !== "drive" : port.kind === "drive");
+      const port = ports.map(port => ({ port, distance: Math.hypot(point.x - port.x, point.y - port.y) })).sort((a, b) => a.distance - b.distance)[0];
+      if (port && port.distance < 24) {
+        const limit = level.inventory.find(entry => entry.type === kind)?.count ?? 0;
+        if (!pendingConnection) { if (connections.filter(item => item.kind === kind).length < limit) setPendingConnection(port.port); }
+        else {
+          const connection = connectPorts(pendingConnection, port.port, kind, connections, `connection-${Math.round(performance.now() * 1000)}`);
+          if (connection) { setConnections(items => [...items, connection]); setSelectedConnection(connection.id); setSelectedId(null); setSelectedRope(null); setSelected(null); setPendingConnection(null); }
+          else if (pendingConnection.gadgetId === port.port.gadgetId) setPendingConnection(null);
+        }
+        return;
+      }
+    }
 
     if (selected === "rope" && level.systems.includes("tension-rope")) {
       const limit = level.inventory.find(entry => entry.type === "rope")?.count ?? 0;
@@ -134,17 +162,17 @@ export default function GameApp() {
       const port = ports.map(port => ({ port, distance: Math.hypot(port.x - point.x, port.y - point.y) }))
         .filter(item => item.distance < 26).sort((a, b) => a.distance - b.distance)[0]?.port;
       if (port) {
-        // A second click on a connected handle removes just that rope.
+        // Select a connected cable; removal uses the shared toolbar action.
         const connected = scissorRopes.some(rope => rope.targetId === port.gadgetId);
         if (port.kind === "target" && connected) {
-          setScissorRopes(ropes => ropes.filter(rope => rope.targetId !== port.gadgetId));
-          setPendingScissor(null);
+          selectRope(port.gadgetId);
           return;
         }
         const next = advanceRopeDraft(pendingScissor, port, scissorRopes, limit);
         setPendingScissor(next.pending);
         if (next.connection) {
           setScissorRopes(ropes => [...ropes, next.connection!]);
+          setSelectedRope(next.connection.targetId); setSelectedId(null); setSelectedConnection(null);
           setSelected(null);
         }
         return;
@@ -165,21 +193,43 @@ export default function GameApp() {
       return;
     }
 
+    // The center of a movable body stays draggable, including connected rope ends.
+    const bodyCenter = placed.find(part => Math.hypot(part.x - point.x, part.y - point.y) < 23);
+    if (bodyCenter && selected === null) {
+      event.currentTarget.setPointerCapture(event.pointerId); setSelectedId(bodyCenter.id); setSelectedConnection(null); setSelectedRope(null);
+      setDrag({ id: bodyCenter.id, dx: bodyCenter.x - point.x, dy: bodyCenter.y - point.y }); return;
+    }
+    // Connections can be selected along their full path, even when inventory is exhausted.
+    const configById = new Map(configs.map(config => [config.id, config]));
+    const paths = scissorRopes.map(rope => {
+      const target = configById.get(rope.targetId), source = configById.get(rope.source.gadgetId);
+      return { id: rope.targetId, points: target && source ? [attachmentPoint(target, target.rotation ?? 0, handleOffset(target.type)), ...rope.guides.flatMap(id => { const config = configById.get(id); return config ? [config] : []; }), attachmentPoint(source, source.rotation ?? 0, rope.source.local)] : [] };
+    });
+    const cable = paths.map(path => ({ ...path, distance: distanceToPath(point, path.points) })).sort((a, b) => a.distance - b.distance)[0];
+    if (cable && cable.distance < 13) { selectRope(cable.id); return; }
+    const pulleyPoints = ropePath.flatMap(node => node.kind === "anchor" ? [ROPE_ANCHOR] : placed.filter(part => part.id === node.placedId));
+    if (distanceToPath(point, pulleyPoints) < 13 || (pulleyPoints.length === 1 && Math.hypot(point.x - pulleyPoints[0].x, point.y - pulleyPoints[0].y) < 18)) { selectRope("pulley-rope"); return; }
+    const ports = gadgetPorts(configs);
+    const connection = connections.map(item => ({ ...item, distance: distanceToPath(point, [ports.find(port => port.gadgetId === item.sourceId && (item.kind === "wire" ? port.kind === "power" : port.kind === "drive")), ports.find(port => port.gadgetId === item.targetId && (item.kind === "wire" ? port.kind === "socket" : port.kind === "drive"))].filter((port): port is GadgetPort => !!port)) })).sort((a, b) => a.distance - b.distance)[0];
+    if (connection && connection.distance < 13) { setSelectedConnection(connection.id); setSelectedId(null); setSelectedRope(null); setPendingConnection(null); setSelected(null); return; }
+
     const movable = placed
       .map((part) => ({ ...part, distance: Math.hypot(part.x - point.x, part.y - point.y) }))
       .sort((a, b) => a.distance - b.distance)[0];
     if (movable && movable.distance < 52) {
       event.currentTarget.setPointerCapture(event.pointerId);
       setSelectedId(movable.id);
+      setSelectedConnection(null); setSelectedRope(null);
       setDrag({ id: movable.id, dx: movable.x - point.x, dy: movable.y - point.y });
       return;
     }
 
     const allowed = level.inventory.find((entry) => entry.type === selected);
-    if (!selected || !allowed || selected === "rope") return;
+    if (!selected || !allowed || selected === "rope" || selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) return;
     if (placed.filter((part) => part.type === selected).length >= allowed.count) return;
     const id = Math.round(performance.now() * 1000);
     setSelectedId(id);
+    setSelectedConnection(null); setSelectedRope(null);
     const connectorPoint = selected === "belt" ? driveBeltMarker(level) : null;
     setPlaced((items) => [...items, { id, type: selected, x: connectorPoint?.x ?? point.x, y: connectorPoint?.y ?? point.y, rotation: defaultRotation(selected) }]);
   };
@@ -197,6 +247,12 @@ export default function GameApp() {
   const selectedPlaced = placed.find((part) => part.id === selectedId);
   const canRotate = Boolean(selectedPlaced && GADGET_CATALOG[selectedPlaced.type].rotatable);
   const removeSelected = () => {
+    if (selectedConnection) { setConnections(items => items.filter(item => item.id !== selectedConnection)); setSelectedConnection(null); return; }
+    if (selectedRope) {
+      if (selectedRope === "pulley-rope") setRopePath([]);
+      else setScissorRopes(ropes => ropes.filter(rope => rope.targetId !== selectedRope));
+      setSelectedRope(null); setPendingScissor(null); return;
+    }
     if (selectedId === null) return;
     setPlaced((items) => items.filter((part) => part.id !== selectedId));
     setRopePath((nodes) => {
@@ -204,6 +260,7 @@ export default function GameApp() {
       return index < 0 ? nodes : nodes.slice(0, index);
     });
     setScissorRopes((ropes) => ropes.filter(rope => !ropeUsesGadget(rope, `placed-${selectedId}`)));
+    setConnections(items => items.filter(item => item.sourceId !== `placed-${selectedId}` && item.targetId !== `placed-${selectedId}`));
     setSelectedId(null);
     setPendingScissor(null);
   };
@@ -213,12 +270,14 @@ export default function GameApp() {
   const tip = selected === "rope" && level.systems.includes("pulley-rope")
     ? ropePath.length ? ropeAnalysis.tensioned ? "Festpunkt und Kugel bilden die beiden gespannten Enden. Weitere Punkte öffnen den Verlauf wieder." : "Klicke weitere Anschlüsse oder starte auch mit offenen Enden." : "Beginne an einem beliebigen grünen Anschluss – der Festpunkt ist optional."
     : selected === "rope" && level.systems.includes("tension-rope")
-      ? pendingScissor === null ? "Griff oder Riegel anklicken, bei Bedarf über Rollen führen, dann am Zugpunkt befestigen. Ein verbundener Griff löst sein Seil per Klick." : "Klicke weitere Rollen oder schließe am Wippenende, Ballon oder einer Kugel ab. Esc bricht ab."
+      ? pendingScissor === null ? "Griff oder Riegel anklicken, bei Bedarf über Rollen führen, dann am Zugpunkt befestigen. Zum Entfernen das Seil auswählen und ENTFERNEN drücken." : "Klicke weitere Rollen oder schließe am Wippenende, Ballon oder einer Kugel ab. Esc bricht ab."
       : selected === "belt" && level.systems.includes("belt-drive")
         ? placed.some((part) => part.type === "belt") ? "Der Riemen liegt geschlossen um Louis' Antriebsrad und das linke Laufbandrad." : "Klicke auf das Spielfeld: Der Riemen verbindet automatisch die beiden grün markierten Antriebsräder."
-        : level.hint;
+        : selected === "wire" || selected === "belt" ? pendingConnection ? "Klicke den zweiten passenden Anschluss. Esc bricht ab." : selected === "wire" ? "Klicke STROM am Generator und dann STECKDOSE am Verbraucher." : "Verbinde zwei grüne ANTRIEB-Anschlüsse mit einem Riemen."
+        : selectedRope || selectedConnection ? "Verbindung ausgewählt. ENTFERNEN gibt sie ins Inventar zurück." : level.hint;
 
   const remaining = (entry: InventoryEntry) => {
+    if (entry.type === "wire" || (entry.type === "belt" && !level.systems.includes("belt-drive"))) return Math.max(0, entry.count - connections.filter(connection => connection.kind === entry.type).length);
     if (entry.type === "rope" && level.systems.includes("tension-rope")) return Math.max(0, entry.count - scissorRopes.length);
     if (entry.type === "rope" && level.systems.includes("pulley-rope")) return ropePath.length ? 0 : entry.count;
     return Math.max(0, entry.count - placed.filter((part) => part.type === entry.type).length);
@@ -245,14 +304,6 @@ export default function GameApp() {
   if (!name) return <LoginScreen draft={draft} onDraftChange={setDraft} onLogin={login} />;
 
   const nextLevel = availableLevels[levelPosition] ?? null;
-  const undoLabel = level.systems.includes("pulley-rope") ? "SEILPUNKT ZURÜCK" : level.systems.includes("tension-rope") ? "SEIL ZURÜCK" : undefined;
-  const canUndo = level.systems.includes("pulley-rope") ? ropePath.length > 0 : pendingScissor !== null || scissorRopes.length > 0;
-  const undo = () => {
-    if (level.systems.includes("pulley-rope")) setRopePath((nodes) => nodes.slice(0, -1));
-    else if (pendingScissor?.guides.length) setPendingScissor({ ...pendingScissor, guides: pendingScissor.guides.slice(0, -1) });
-    else if (pendingScissor !== null) setPendingScissor(null);
-    else setScissorRopes((ropes) => ropes.slice(0, -1));
-  };
 
   return (
     <main className="game-shell">
@@ -261,19 +312,19 @@ export default function GameApp() {
       <div className="workspace">
         <section className="board-wrap">
           <div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
-            <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} running={running} attempt={attempt} onWin={win} />
+            <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} connections={connections} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={running} attempt={attempt} onWin={win} />
             {!running && placed.length === 0 && level.scene !== "rocket-parade" && <div className="board-tip">{level.buildTip}</div>}
             {won && <div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{level.successText}</p>{nextLevel ? <button onClick={() => changeLevel(nextLevel)}>Nächstes Level →</button> : <button onClick={reset}>Noch einmal bauen ↻</button>}</div>}
           </div>
           <div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div>
         </section>
-        <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={type => { setSelected(type); setPendingScissor(null); }} />
+        <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={type => { setSelected(type); setPendingScissor(null); setPendingConnection(null); }} />
       </div>
-      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null} canRotate={canRotate} undoLabel={undoLabel} canUndo={canUndo} onUndo={undo} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => setShowEditor(true)} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
+      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null || selectedRope !== null || selectedConnection !== null} canRotate={canRotate} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => setShowEditor(true)} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
       {showScores && <ScoreDialog scores={scores} onClose={() => setShowScores(false)} />}
       {showLevels && <LevelSelectDialog levels={availableLevels} current={level} customLevelId={customLevel?.id} onSelect={changeLevel} onClose={() => setShowLevels(false)} />}
       {showPhysics && <PhysicsHandbook onClose={() => setShowPhysics(false)} />}
-      {showEditor && <LevelEditor level={level} placed={placed} onApply={applyEditedLevel} onClose={() => setShowEditor(false)} />}
+      {showEditor && <LevelEditor level={level} placed={placed} connections={connections} onApply={applyEditedLevel} onClose={() => setShowEditor(false)} />}
     </main>
   );
 }

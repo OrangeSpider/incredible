@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "id": "focused-fuse",
+  "number": 30,
+  "scene": "focused-fuse",
+  "title": "Licht zündet Lunte",
+  "objective": "Entzünde die Lunte im Brennpunkt der Lupe",
+  "hint": "Die Taschenlampe strahlt nach rechts. Nur Licht im Kegel kann die Lupe erhitzen.",
+  "buildTip": "Setze die Lupe in den Lichtkegel und ihren Brennpunkt auf die Lunte.",
+  "successText": "Der Lichtkegel hat die Lunte im Brennpunkt entzündet!",
+  "inventory": [
+    {
+      "type": "magnifier",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "flashlight",
+      "type": "flashlight",
+      "x": 280,
+      "y": 300,
+      "state": "on"
+    },
+    {
+      "id": "fuse",
+      "type": "fuse",
+      "x": 580,
+      "y": 300
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "signal",
+    "name": "heat.ignited.fuse"
+  }
+}

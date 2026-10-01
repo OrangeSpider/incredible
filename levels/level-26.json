@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "lamp-switch",
+  "number": 26,
+  "scene": "lamp-switch",
+  "title": "Licht im Umkreis",
+  "objective": "Schalte die batteriebetriebene Lampe mechanisch ein",
+  "hint": "Triff den roten Knopf links oben. Die Lampe beleuchtet ihre Umgebung.",
+  "buildTip": "Setze eine Kugel über den roten Schalter.",
+  "successText": "Die Schalterlampe leuchtet aus eigener Batterie!",
+  "inventory": [
+    {
+      "type": "basketball",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "lamp",
+      "type": "lamp",
+      "x": 430,
+      "y": 310
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "state",
+    "selector": {
+      "id": "lamp"
+    },
+    "state": "on"
+  }
+}

@@ -23,7 +23,7 @@ const solutions = [
 test("level 5 is removed and the remaining level numbers stay stable", () => {
   assert.equal(LEVELS.some(level => level.number === 5), false);
   assert.equal(LEVELS.find(level => level.number === 14)?.id, "snip-snap");
-  assert.deepEqual(LEVELS.slice(-4).map(level => level.number), [21, 22, 23, 24]);
+  assert.deepEqual(LEVELS.filter(level => level.number >= 21 && level.number <= 24).map(level => level.number), [21, 22, 23, 24]);
 });
 
 for (const solution of solutions) {
@@ -95,7 +95,9 @@ test("a control cable cannot transmit through a solid wall", () => {
   const wall = [{ x: 400, y: 200 }, { x: 450, y: 200 }, { x: 450, y: 480 }, { x: 400, y: 480 }];
   assert.equal(ropePathBlocked([{ x: 200, y: 300 }, { x: 700, y: 300 }], [wall]), true);
   assert.equal(ropePathBlocked([{ x: 200, y: 300 }, { x: 250, y: 120 }, { x: 700, y: 160 }], [wall]), false);
-  const scenario = createScenario(loadLevel(21), [{ type: "ball", x: 260, y: 320 }], [cable("cutter", "placed-0")]);
+  const blockedLevel = loadLevel(21);
+  blockedLevel.fixedGadgets.push({id:"test-wall",type:"stoneWall",x:450,y:365,physics:{height:230}});
+  const scenario = createScenario(blockedLevel, [{ type: "ball", x: 260, y: 320 }], [cable("cutter", "placed-0")]);
   scenario.step(600);
   assert.equal(scenario.won, false);
   assert.equal(scenario.runtime.controlRopes.ropes[0].blocked, true);

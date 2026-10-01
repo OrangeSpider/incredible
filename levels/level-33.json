@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "id": "detonator-spark",
+  "number": 33,
+  "scene": "detonator-spark",
+  "title": "Ein Funke genügt",
+  "objective": "Drücke den Sprengzünder von oben und zünde TNT",
+  "hint": "Der Sprengzünder erzeugt einen kurzen Funken rechts unten. TNT muss seine Luntenspitze daran halten.",
+  "buildTip": "Platziere TNT rechts am Funkenkontakt und eine Kugel über dem Griff.",
+  "successText": "Der Stoß von oben erzeugt einen Funken und zündet die kurze TNT-Lunte!",
+  "inventory": [
+    {
+      "type": "ball",
+      "count": 1
+    },
+    {
+      "type": "tnt",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "detonator",
+      "type": "detonator",
+      "x": 350,
+      "y": 320
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "state",
+        "selector": {
+          "id": "detonator"
+        },
+        "state": "spent"
+      },
+      {
+        "kind": "state",
+        "selector": {
+          "type": "tnt"
+        },
+        "state": "exploded"
+      }
+    ]
+  }
+}

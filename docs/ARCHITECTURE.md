@@ -27,6 +27,8 @@ GameCanvas ◄──── Simulationszustand und Ereignisse
 | `engine/effect-handlers.ts` | Registrierte Ausführung einer Regelwirkung, etwa `pop`, `ignite`, `bounce` oder `push`. Eine neue Wirkung erfordert keinen weiteren Zweig in der Engine. |
 | `engine/step-behaviors.ts` | Registrierte kontinuierliche Verhaltensweisen für selektierte Gadgets, derzeit unter anderem der Laufbandkontakt. |
 | `engine/physics-engine.ts` | Besitzt Matter-Welt, Gadget-Instanzen, Zustandswechsel, Zustandszeiten, Signale und Ereignisverlauf; liefert die Daten für Ziele und Animationen. |
+| `engine/gadget-mechanics.ts` | Gemeinsame Modelle für Strom, Licht, Brennpunkte, Wind, TNT, Sprengzünder und Boxhandschuh. Verwendet Gadget-Zustände und Verbindungen ohne Szenensonderfälle. |
+| `game/gadget-connections.ts`, `game/airflow.ts` | Gemeinsame Anschlussgeometrie für Aufbau und Zeichnung sowie das begrenzte Luftstrommodell. |
 | `game/machine-runtime.ts` und `game/runtime-systems.ts` | Aktivieren die in `level.systems` genannten Mechaniken und führen ihre Kollisions- und Zeitschritt-Hooks aus. Darunter fallen Geometrie mit zusätzlichen Verbindungen sowie die bestehenden Spezialmodelle. |
 | `game/runtime-pulley.ts` | Zug-only-Seilmodell des Flaschenzugs; lose Seile übertragen keine Druckkraft. |
 | `engine/goal-evaluator.ts` | Wertet Ziele gegen einen lesenden Snapshot aus Zuständen, Positionen, Ereignissen und Signalen aus. |
@@ -90,3 +92,5 @@ Einige ältere Spezialmodelle erzeugen zusätzliche Matter-Körper, etwa Wassert
 `components/game/control-rope-renderer.ts` zeichnet Seile, Rollenbewegung, Griffweg und Scheren ausschließlich aus dem Runtime-Zustand. Die Level 14 und 21–24 verwenden diese Mechanik. Das alte Level 5 wurde aus dem Katalog entfernt; die übrigen Level behalten ihre Nummern. Das bisherige Lastseilmodell bleibt als Mechanik für importierte Aufbauten erhalten.
 
 `tests/control-ropes.test.mjs` prüft vollständige Lösungen, getrennte Seile, Zugrichtung, rotierende Anschlüsse, Mauerblockaden, Bearbeitung und die Reihenfolge der Seilstaffel bei mehreren Simulationsraten.
+
+Neue Gadgets, Umsetzungsabschnitte, Mini-Levels 25–35 und das Verbindungsformat sind in [GADGETS.md](GADGETS.md) beschrieben. `connections` speichert Leitungen und Antriebsriemen zwischen Gadget-IDs. Stromverbraucher unterscheiden `electrical.supply: battery` und `socket`; der Generator verwendet `generator`. Katalog und Engine sind damit die gemeinsame Quelle für elektrische Varianten und ihre Anschlüsse.

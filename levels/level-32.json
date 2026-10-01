@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 2,
+  "id": "tnt-impulse",
+  "number": 32,
+  "scene": "tnt-impulse",
+  "title": "Die kurze Lunte",
+  "objective": "Zünde TNT an der Flamme und stoße den Basketball nach rechts",
+  "hint": "Nur direktes Feuer an der kurzen Lunte zündet TNT. Die Explosion überträgt einen Impuls.",
+  "buildTip": "Setze die TNT-Luntenspitze an die Kerzenflamme.",
+  "successText": "Die kurze Lunte brennt ab – die Druckwelle bewegt den Basketball!",
+  "inventory": [
+    {
+      "type": "tnt",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "candle",
+      "type": "candle",
+      "x": 270,
+      "y": 350,
+      "state": "burning",
+      "properties": {
+        "standalone": true
+      }
+    },
+    {
+      "id": "payload",
+      "type": "basketball",
+      "x": 390,
+      "y": 345
+    },
+    {
+      "id": "support",
+      "type": "steelBeam",
+      "x": 430,
+      "y": 373,
+      "physics": {
+        "width": 340
+      }
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "state",
+        "selector": {
+          "type": "tnt"
+        },
+        "state": "exploded"
+      },
+      {
+        "kind": "position",
+        "selector": {
+          "id": "payload"
+        },
+        "axis": "x",
+        "operator": "above",
+        "value": 450
+      }
+    ]
+  }
+}

@@ -41,6 +41,7 @@ erreichbar. Mit `docker compose down` wird der Container wieder gestoppt.
 - `tests/` – Physik-, Animations-, Architektur- und Renderingtests
 
 Die ausführliche Beschreibung steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Die neuen Strom-, Licht-, Stoß- und Windgadgets mit elf Mini-Levels sind in [docs/GADGETS.md](docs/GADGETS.md) nach Umsetzungsabschnitten beschrieben.
 
 ## Level-Editor
 

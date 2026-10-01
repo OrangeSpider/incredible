@@ -1,4 +1,4 @@
-import type { PlaceableGadgetType } from "@/engine/types";
+import type { GadgetInstanceConfig, PlaceableGadgetType } from "@/engine/types";
 
 export type PlacedGadget = {
   id: number;
@@ -6,6 +6,11 @@ export type PlacedGadget = {
   x: number;
   y: number;
   rotation: number;
+  physics?: GadgetInstanceConfig["physics"];
+  properties?: GadgetInstanceConfig["properties"];
+  role?: string;
+  tags?: string[];
+  state?: string;
 };
 
 export type RopeNode =

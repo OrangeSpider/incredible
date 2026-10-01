@@ -21,11 +21,23 @@ import level21 from "./level-21.json" with { type: "json" };
 import level22 from "./level-22.json" with { type: "json" };
 import level23 from "./level-23.json" with { type: "json" };
 import level24 from "./level-24.json" with { type: "json" };
+import level25 from "./level-25.json" with { type: "json" };
+import level26 from "./level-26.json" with { type: "json" };
+import level27 from "./level-27.json" with { type: "json" };
+import level28 from "./level-28.json" with { type: "json" };
+import level29 from "./level-29.json" with { type: "json" };
+import level30 from "./level-30.json" with { type: "json" };
+import level31 from "./level-31.json" with { type: "json" };
+import level32 from "./level-32.json" with { type: "json" };
+import level33 from "./level-33.json" with { type: "json" };
+import level34 from "./level-34.json" with { type: "json" };
+import level35 from "./level-35.json" with { type: "json" };
 import {GADGET_CATALOG} from "../engine/gadget-catalog.ts";
 import {KNOWN_RUNTIME_SYSTEM_IDS} from "../game/runtime-system-ids.ts";
+import {gadgetPorts,connectPorts} from "../game/gadget-connections.ts";
 import type {ComposableGoalSpec,GoalSelector,LevelDefinition,PlaceableGadgetType} from "../engine/types.ts";
 
-const rawLevels=[level01,level02,level03,level04,level06,level07,level08,level09,level10,level11,level12,level13,level14,level15,level16,level17,level18,level19,level20,level21,level22,level23,level24];
+const rawLevels=[level01,level02,level03,level04,level06,level07,level08,level09,level10,level11,level12,level13,level14,level15,level16,level17,level18,level19,level20,level21,level22,level23,level24,level25,level26,level27,level28,level29,level30,level31,level32,level33,level34,level35];
 
 const isObject=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value);
 const nonempty=(value:unknown):value is string=>typeof value==="string"&&value.trim().length>0;
@@ -150,6 +162,17 @@ export function validateLevel(value:unknown):LevelDefinition{
   if(level.initialPlacements!==undefined&&!Array.isArray(level.initialPlacements))throw new Error("initialPlacements must be an array");
   for(const gadget of level.initialPlacements??[]){const definition=GADGET_CATALOG[gadget.type];if(!definition)throw new Error(`Unknown initial gadget type: ${gadget.type}`);if(!definition.removable)throw new Error(`Initial gadget must be placeable: ${gadget.type}`);if(ids.has(gadget.id))throw new Error(`Duplicate gadget id: ${gadget.id}`);ids.add(gadget.id)}
   for(const item of level.inventory){if(!GADGET_CATALOG[item.type as PlaceableGadgetType])throw new Error(`Unknown inventory type: ${item.type}`);if(!Number.isInteger(item.count)||item.count<1)throw new Error(`Invalid inventory count for ${item.type}`)}
+  if(level.connections!==undefined&&!Array.isArray(level.connections))throw new Error("connections must be an array");
+  const ports=gadgetPorts([...level.fixedGadgets,...(level.initialPlacements??[])]),connectionIds=new Set<string>();
+  for(const connection of level.connections??[]){
+    if(!nonempty(connection.id)||connectionIds.has(connection.id))throw new Error("Connection needs a unique id");
+    if(connection.kind!=="wire"&&connection.kind!=="belt")throw new Error("Unknown connection kind");
+    const source=ports.find(port=>port.gadgetId===connection.sourceId&&(connection.kind==="wire"?port.kind==="power":port.kind==="drive"));
+    const target=ports.find(port=>port.gadgetId===connection.targetId&&(connection.kind==="wire"?port.kind==="socket":port.kind==="drive"));
+    if(!source||!target||!connectPorts(source,target,connection.kind,[],connection.id))throw new Error(`Invalid connection: ${connection.id}`);
+    if((level.connections??[]).some(other=>other!==connection&&other.kind===connection.kind&&((other.sourceId===connection.sourceId&&other.targetId===connection.targetId)||(other.targetId===connection.sourceId&&other.sourceId===connection.targetId))))throw new Error(`Duplicate connection: ${connection.id}`);
+    connectionIds.add(connection.id);
+  }
   if(level.schemaVersion===1)validateLegacyGoal(level.goal);
   else validateGoal(level.goal,ids);
   return structuredClone(level as LevelDefinition);

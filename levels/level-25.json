@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "flashlight-switch",
+  "number": 25,
+  "scene": "flashlight-switch",
+  "title": "Ein Klick macht Licht",
+  "objective": "Schalte die Taschenlampe durch einen Treffer auf den Knopf ein",
+  "hint": "Der rote Knopf liegt oben auf der Taschenlampe. Eine fallende Kugel drückt ihn.",
+  "buildTip": "Setze den Basketball direkt über den roten Knopf.",
+  "successText": "Der Knopf ist gedrückt – die Batterie versorgt den Lichtkegel!",
+  "inventory": [
+    {
+      "type": "basketball",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "flashlight",
+      "type": "flashlight",
+      "x": 350,
+      "y": 310
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "state",
+    "selector": {
+      "id": "flashlight"
+    },
+    "state": "on"
+  }
+}

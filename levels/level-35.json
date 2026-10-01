@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 2,
+  "id": "boxing-punch",
+  "number": 35,
+  "scene": "boxing-punch",
+  "title": "Einmal kräftig schlagen",
+  "objective": "Löse den Boxhandschuh aus und schlage den Basketball nach rechts",
+  "hint": "Der Handschuh reagiert auf einen Stoß an seiner linken Rückseite. Er schlägt genau einmal.",
+  "buildTip": "Baue eine Planke, die die fallende Kugel seitlich zum Auslöser führt.",
+  "successText": "Ein Treffer am Auslöser – ein Schlag bringt den Basketball in Bewegung!",
+  "inventory": [
+    {
+      "type": "ramp",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "glove",
+      "type": "boxingGlove",
+      "x": 410,
+      "y": 350
+    },
+    {
+      "id": "falling-ball",
+      "type": "ball",
+      "x": 250,
+      "y": 200
+    },
+    {
+      "id": "payload",
+      "type": "basketball",
+      "x": 500,
+      "y": 354
+    },
+    {
+      "id": "support",
+      "type": "steelBeam",
+      "x": 430,
+      "y": 382,
+      "physics": {
+        "width": 460
+      }
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "state",
+        "selector": {
+          "id": "glove"
+        },
+        "state": "spent"
+      },
+      {
+        "kind": "position",
+        "selector": {
+          "id": "payload"
+        },
+        "axis": "x",
+        "operator": "above",
+        "value": 580
+      }
+    ]
+  }
+}

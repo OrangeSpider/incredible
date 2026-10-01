@@ -1,30 +1,32 @@
 import { useRef, useState } from "react";
 import { validateLevel } from "@/levels/catalog";
-import type { GadgetInstanceConfig, LevelDefinition } from "@/engine/types";
+import type { GadgetConnection, GadgetInstanceConfig, LevelDefinition } from "@/engine/types";
 import type { PlacedGadget } from "./types";
 
 const LOCAL_DRAFT_KEY = "machine-level-editor-draft";
 
-function editableLevel(level: LevelDefinition, placed: PlacedGadget[]) {
+function editableLevel(level: LevelDefinition, placed: PlacedGadget[], connections: GadgetConnection[]) {
   const initialPlacements: GadgetInstanceConfig[] = placed.map((gadget) => ({
     id: `placed-${gadget.id}`,
     type: gadget.type,
     x: Math.round(gadget.x * 10) / 10,
     y: Math.round(gadget.y * 10) / 10,
     rotation: Math.round(gadget.rotation * 10000) / 10000,
+    physics: gadget.physics, properties: gadget.properties, role: gadget.role, tags: gadget.tags, state: gadget.state,
   }));
-  return { ...level, initialPlacements };
+  return { ...level, initialPlacements, connections };
 }
 
 type LevelEditorProps = {
   level: LevelDefinition;
   placed: PlacedGadget[];
+  connections: GadgetConnection[];
   onApply: (level: LevelDefinition) => void;
   onClose: () => void;
 };
 
-export default function LevelEditor({ level, placed, onApply, onClose }: LevelEditorProps) {
-  const [json, setJson] = useState(() => JSON.stringify(editableLevel(level, placed), null, 2));
+export default function LevelEditor({ level, placed, connections, onApply, onClose }: LevelEditorProps) {
+  const [json, setJson] = useState(() => JSON.stringify(editableLevel(level, placed, connections), null, 2));
   const [message, setMessage] = useState("Die aktuell platzierten Gadgets sind unter initialPlacements enthalten.");
   const fileInput = useRef<HTMLInputElement>(null);
 

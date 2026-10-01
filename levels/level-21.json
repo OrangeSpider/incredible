@@ -44,16 +44,6 @@
       "properties": {
         "balloon": "balloon"
       }
-    },
-    {
-      "id": "wall",
-      "type": "stoneWall",
-      "x": 450,
-      "y": 365,
-      "collisionLabel": "stoneWall",
-      "physics": {
-        "height": 230
-      }
     }
   ],
   "systems": [

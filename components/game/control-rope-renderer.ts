@@ -21,7 +21,7 @@ function strokeRope(ctx: CanvasRenderingContext2D, points: readonly Point[], sla
   ctx.stroke(); ctx.strokeStyle = "#d7b784"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]); ctx.stroke(); ctx.restore();
 }
 
-export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: MachineRuntime, configs: GadgetInstanceConfig[], pending: PendingControlRope | null, ropeMode: boolean) {
+export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: MachineRuntime, configs: GadgetInstanceConfig[], pending: PendingControlRope | null, ropeMode: boolean, selectedRope: string | null = null) {
   const { machine, now, running } = runtime;
   for (const rope of runtime.controlRopes.ropes) {
     const points = runtime.controlRopes.points(rope.definition) ?? rope.points;
@@ -31,7 +31,7 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
       // The operated handle lets go; the free cable end hangs from its first guide.
       const pivot = points[1];
       strokeRope(ctx, [{ x: pivot.x + Math.sin(now / 180) * 8, y: pivot.y + 36 }, ...points.slice(1)], 10, true);
-    } else strokeRope(ctx, points, 8 * (1 - rope.progress), true, rope.blocked);
+    } else strokeRope(ctx, points, 8 * (1 - rope.progress), true, rope.blocked || selectedRope === rope.definition.targetId);
     if (rope.blocked && !rope.triggered) {
       ctx.save(); ctx.fillStyle = "#b53f2d"; ctx.font = "bold 13px system-ui";
       ctx.fillText("Seil blockiert – über eine Rolle um die Mauer führen", 215, 58); ctx.restore();
@@ -84,6 +84,6 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
     const active = pending?.targetId === port.gadgetId || pending?.guides.includes(port.gadgetId);
     ctx.save(); ctx.fillStyle = active ? "#db9a25" : connected ? "#bd6241" : "#2f9b67";
     ctx.strokeStyle = "#fff6d7"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(port.x, port.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.font = "bold 10px system-ui"; ctx.fillStyle = "#4b2b17"; ctx.fillText(connected && port.kind === "target" ? "LÖSEN" : port.label, port.x + 13, port.y - 12); ctx.restore();
+    ctx.font = "bold 10px system-ui"; ctx.fillStyle = "#4b2b17"; ctx.fillText(connected && port.kind === "target" ? "AUSWÄHLEN" : port.label, port.x + 13, port.y - 12); ctx.restore();
   }
 }

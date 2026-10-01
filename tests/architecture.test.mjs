@@ -31,8 +31,8 @@ test("canvas delegates simulation and collision handling to the machine runtime"
 });
 
 test("all shipped levels are validated standalone JSON documents", () => {
-  assert.equal(LEVELS.length, 23);
-  assert.deepEqual(LEVELS.map((level) => level.number), Array.from({ length: 24 }, (_, index) => index + 1).filter(number => number !== 5));
+  assert.equal(LEVELS.length, 34);
+  assert.deepEqual(LEVELS.map((level) => level.number), Array.from({ length: 35 }, (_, index) => index + 1).filter(number => number !== 5));
   for (const level of LEVELS) {
     assert.deepEqual(validateLevel(level), level);
     assert.ok(level.inventory.every((entry) => GADGET_CATALOG[entry.type]));

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "id": "windmill-drive",
+  "number": 34,
+  "scene": "windmill-drive",
+  "title": "Wind wird Drehung",
+  "objective": "Treibe das Zielrad mit Windrad und Riemen an",
+  "hint": "Der Ventilator dreht ein Windrad in seinem Luftstrom. Verbinde dessen Antrieb mit dem Zielrad.",
+  "buildTip": "Setze das Windrad vor den Ventilator und verbinde beide ANTRIEB-Anschlüsse mit dem Riemen.",
+  "successText": "Wind dreht die Flügel und der Riemen überträgt die Kraft!",
+  "inventory": [
+    {
+      "type": "windmill",
+      "count": 1
+    },
+    {
+      "type": "belt",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "fan",
+      "type": "fan",
+      "x": 240,
+      "y": 300
+    },
+    {
+      "id": "target",
+      "type": "gearTarget",
+      "x": 700,
+      "y": 300
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "state",
+    "selector": {
+      "id": "target"
+    },
+    "state": "running"
+  }
+}

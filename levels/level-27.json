@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 2,
+  "id": "generator-lamp",
+  "number": 27,
+  "scene": "generator-lamp",
+  "title": "Vom Stoß zum Strom",
+  "objective": "Versorge die Steckdosenlampe mit dem Generator",
+  "hint": "Eine Leitung verbindet STROM am Generator mit STECKDOSE an der Lampe. Eine Kugel startet den Generator.",
+  "buildTip": "Verbinde die Anschlüsse und lasse eine Kugel auf den Generator fallen.",
+  "successText": "Ein Stoß startet den Generator, die Leitung versorgt die Lampe!",
+  "inventory": [
+    {
+      "type": "ball",
+      "count": 1
+    },
+    {
+      "type": "wire",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "generator",
+      "type": "generator",
+      "x": 260,
+      "y": 360
+    },
+    {
+      "id": "lamp",
+      "type": "socketLamp",
+      "x": 630,
+      "y": 310
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "state",
+        "selector": {
+          "id": "generator"
+        },
+        "state": "running"
+      },
+      {
+        "kind": "state",
+        "selector": {
+          "id": "lamp"
+        },
+        "state": "on"
+      }
+    ]
+  }
+}

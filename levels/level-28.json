@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "id": "generator-fan",
+  "number": 28,
+  "scene": "generator-fan",
+  "title": "Wind aus der Steckdose",
+  "objective": "Starte den Ventilator über eine Stromleitung",
+  "hint": "Die neue Ventilatorvariante läuft nur mit angeschlossenem Generator.",
+  "buildTip": "Verbinde Generator und Steckdose; starte den Generator mit einer fallenden Kugel.",
+  "successText": "Strom fließt und die Flügel drehen sich!",
+  "inventory": [
+    {
+      "type": "ball",
+      "count": 1
+    },
+    {
+      "type": "wire",
+      "count": 1
+    }
+  ],
+  "fixedGadgets": [
+    {
+      "id": "generator",
+      "type": "generator",
+      "x": 220,
+      "y": 380
+    },
+    {
+      "id": "fan",
+      "type": "socketFan",
+      "x": 460,
+      "y": 370
+    },
+    {
+      "id": "balloon",
+      "type": "balloon",
+      "x": 580,
+      "y": 360,
+      "collisionLabel": "levelBalloon"
+    }
+  ],
+  "systems": [],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "state",
+        "selector": {
+          "id": "generator"
+        },
+        "state": "running"
+      },
+      {
+        "kind": "state",
+        "selector": {
+          "id": "fan"
+        },
+        "state": "running"
+      }
+    ]
+  }
+}

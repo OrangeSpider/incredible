@@ -20,6 +20,7 @@ export class FuseNetwork{
   private readonly states=new Map<string,SegmentState>();
   private readonly fireRadius:number;
   private readonly flameLifetimeMs:number;
+  private readonly wet=new Set<string>();
 
   constructor(segments:FuseSegment[],fireRadius=22,flameLifetimeMs=100){
     this.fireRadius=fireRadius;this.flameLifetimeMs=flameLifetimeMs;
@@ -30,6 +31,7 @@ export class FuseNetwork{
   }
 
   private igniteIndex(state:SegmentState,index:number,now:number){
+    if(this.wet.has(state.definition.id))return;
     const duration=state.definition.burnDurationMs??1200;
     const step=duration/(state.burnAt.length-1);
     for(let candidate=0;candidate<state.burnAt.length;candidate++){
@@ -41,6 +43,12 @@ export class FuseNetwork{
     const state=this.states.get(id);if(!state)return;
     const index=Math.round(Math.max(0,Math.min(1,t))*(state.burnAt.length-1));
     this.igniteIndex(state,index,now);
+  }
+
+  extinguish(id:string,now:number){
+    const state=this.states.get(id);if(!state)return;
+    this.wet.add(id);
+    state.burnAt=state.burnAt.map(time=>time<=now?time:Infinity);
   }
 
   igniteNear(point:FusePoint,radius:number,now:number){
@@ -61,7 +69,7 @@ export class FuseNetwork{
       const flames:[string,FusePoint][]=[];
       for(const [id,state] of this.states)for(let index=0;index<state.burnAt.length;index++){
         const age=now-state.burnAt[index];
-        if(age>=0&&age<=this.flameLifetimeMs)flames.push([id,pointOn(state.definition,index/(state.burnAt.length-1))]);
+        if(!this.wet.has(id)&&age>=0&&age<=this.flameLifetimeMs)flames.push([id,pointOn(state.definition,index/(state.burnAt.length-1))]);
       }
       for(const [sourceId,flame] of flames)for(const [targetId,state] of this.states){
         if(targetId===sourceId)continue;
@@ -90,7 +98,7 @@ export class FuseNetwork{
   snapshot(id:string,now:number):{samples:FuseSample[];flames:number[]}{
     const state=this.states.get(id);if(!state)return{samples:[],flames:[]};
     const samples=state.burnAt.map((time,index)=>({t:index/(state.burnAt.length-1),burned:time<=now}));
-    const active=state.burnAt.flatMap((time,index)=>{const age=now-time;return age>=0&&age<=this.flameLifetimeMs?[index]:[]});
+    const active=state.burnAt.flatMap((time,index)=>{const age=now-time;return !this.wet.has(id)&&age>=0&&age<=this.flameLifetimeMs?[index]:[]});
     const flames:number[]=[];
     for(const index of active){
       const t=index/(state.burnAt.length-1),last=flames.at(-1);

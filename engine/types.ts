@@ -1,9 +1,10 @@
 export type GadgetType=
   |"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw"
   |"hamsterWheel"|"conveyor"|"exit"|"balloon"|"candle"|"targetRing"|"basket"|"weight"|"cat"|"gearSource"|"gearTarget"|"cannonTarget"
-  |"steelBeam"|"woodWall"|"stoneWall"|"payloadBall"|"fishBowl"|"fish"|"scissor"|"water"|"cannonball"|"rocket"|"magnet"|"snapGate";
+  |"steelBeam"|"woodWall"|"stoneWall"|"payloadBall"|"fishBowl"|"fish"|"scissor"|"water"|"cannonball"|"rocket"|"magnet"|"snapGate"
+  |"flashlight"|"lamp"|"socketLamp"|"socketFan"|"magnifier"|"basketball"|"generator"|"tnt"|"detonator"|"windmill"|"boxingGlove"|"wire";
 
-export type PlaceableGadgetType=Extract<GadgetType,"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw"|"magnet">;
+export type PlaceableGadgetType=Extract<GadgetType,"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw"|"magnet"|"flashlight"|"lamp"|"socketLamp"|"socketFan"|"magnifier"|"basketball"|"generator"|"tnt"|"detonator"|"windmill"|"boxingGlove"|"wire">;
 
 export type GadgetCategory="dynamic"|"fixed"|"animal"|"fluid"|"force-source"|"force-transfer"|"connector"|"trigger"|"target"|"fire"|"container"|"surface";
 export type BodyShape="circle"|"rectangle"|"compound"|"sensor"|"none";
@@ -67,6 +68,7 @@ export type GadgetDefinition={
   tags:string[];
   physics:PhysicalProperties;
   appearance:{renderer:string;color?:string;outline?:string};
+  electrical?:{supply:"battery"|"socket"|"generator";switch?:{x:number;y:number}};
   joint?:{kind:"pivot";localX:number;localY:number;stiffness:number;damping:number};
   defaultState:string;
   animations:Record<string,GadgetAnimation>;
@@ -92,6 +94,8 @@ export type GadgetInstanceConfig={
 };
 
 export type InventoryEntry={type:PlaceableGadgetType;count:number};
+
+export type GadgetConnection={id:string;kind:"wire"|"belt";sourceId:string;targetId:string};
 
 export type LegacyGoalSpec={
   mode:"event"|"all"|"any"|"state"|"position";
@@ -132,6 +136,7 @@ export type LevelDefinition={
   inventory:InventoryEntry[];
   fixedGadgets:GadgetInstanceConfig[];
   initialPlacements?:GadgetInstanceConfig[];
+  connections?:GadgetConnection[];
   systems:string[];
   goal:GoalSpec;
 };

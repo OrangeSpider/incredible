@@ -6,7 +6,8 @@ import {evaluateGoal} from "./goal-evaluator.ts";
 import {createDefaultEffectRegistry, type EffectRegistry} from "./effect-handlers.ts";
 import {createDefaultStepBehaviors, type StepBehaviorRegistry} from "./step-behaviors.ts";
 import {resolveGadgetAnimation} from "./animation.ts";
-import type {GadgetInstanceConfig,GadgetRuntimeState,GoalEvent,GoalSpec,LevelDefinition} from "./types.ts";
+import {GadgetMechanics} from "./gadget-mechanics.ts";
+import type {GadgetConnection,GadgetInstanceConfig,GadgetRuntimeState,GoalEvent,GoalSpec,LevelDefinition} from "./types.ts";
 
 export type PhysicsEvent=
   |{type:"collision";bodyA:Matter.Body;bodyB:Matter.Body;normal:{x:number;y:number}}
@@ -28,6 +29,8 @@ export class MachinePhysicsEngine{
   private elapsedMs=0;
   readonly effects:EffectRegistry;
   readonly behaviors:StepBehaviorRegistry;
+  readonly mechanics:GadgetMechanics;
+  connections:GadgetConnection[]=[];
 
   constructor(
     level?:LevelDefinition,
@@ -36,11 +39,13 @@ export class MachinePhysicsEngine{
   ){
     this.effects=effects;
     this.behaviors=behaviors;
+    this.mechanics=new GadgetMechanics(this,level?.systems.includes("fuse-network"));
     Matter.Events.on(this.matter,"collisionStart",event=>event.pairs.forEach(pair=>this.processCollision(pair.bodyA,pair.bodyB,pair.collision.normal)));
     if(level)this.loadLevel(level);
   }
 
   loadLevel(level:LevelDefinition){
+    this.connections=structuredClone(level.connections??[]);
     for(const gadget of level.fixedGadgets)this.addGadget(gadget);
   }
 
@@ -61,6 +66,8 @@ export class MachinePhysicsEngine{
 
   addConstraint(constraint:Matter.Constraint){Matter.Composite.add(this.world,constraint);return constraint}
   body(id:string){return this.entries.get(id)?.body??null}
+  config(id:string){return this.entries.get(id)?.config??null}
+  get timeMs(){return this.elapsedMs}
   bodyByRole(role:string){return [...this.entries.values()].find(entry=>entry.state.role===role)?.body??null}
   bodiesByType(type:GadgetInstanceConfig["type"]){return [...this.entries.values()].filter(entry=>entry.config.type===type).flatMap(entry=>entry.body?[entry.body]:[])}
   state(id:string){return this.entries.get(id)?.state??null}
@@ -103,6 +110,7 @@ export class MachinePhysicsEngine{
   release(id:string,velocity?:{x:number;y:number}){const body=this.body(id);if(!body)return;Matter.Body.setStatic(body,false);if(velocity)Matter.Body.setVelocity(body,velocity)}
 
   private processCollision(bodyA:Matter.Body,bodyB:Matter.Body,normal:{x:number;y:number}){
+    this.mechanics.collision(bodyA,bodyB);
     this.emit({type:"collision",bodyA,bodyB,normal});
     const a=this.bodyEntries.get(bodyA.id),b=this.bodyEntries.get(bodyB.id);if(!a||!b)return;
     this.recordEvent({name:"contact",sourceId:a.config.id,targetId:b.config.id});
@@ -134,6 +142,7 @@ export class MachinePhysicsEngine{
 
   step(deltaMs:number){
     this.elapsedMs+=deltaMs;
+    this.mechanics.beforeStep(deltaMs);
     const active=[...this.entries.values()].filter(entry=>entry.body&&entry.state.state!=="hidden"&&entry.state.state!=="popped");
     for(let left=0;left<active.length;left++)for(let right=left+1;right<active.length;right++){
       const source=active[left],target=active[right],sourceBody=source.body!,targetBody=target.body!,relativeVelocity={x:sourceBody.velocity.x-targetBody.velocity.x,y:sourceBody.velocity.y-targetBody.velocity.y};

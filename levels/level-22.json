@@ -5,8 +5,8 @@
   "scene": "double-redirect",
   "title": "Der Fernöffner",
   "objective": "Öffne die Falltür mit einem Seil über zwei Rollen",
-  "hint": "Leite den Seilzug um die Mauer: vom Riegel über zwei hoch gesetzte Rollen zur fallenden Kugel.",
-  "buildTip": "Baue zwei Rollen über der Mauer und eine Zugkugel darunter links. Die Bowlingkugel wartet auf der Falltür.",
+  "hint": "Führe das Seil vom Riegel über zwei hoch gesetzte Rollen zur fallenden Kugel.",
+  "buildTip": "Baue zwei Rollen oberhalb der Falltür und eine Zugkugel darunter links. Die Bowlingkugel wartet auf der Falltür.",
   "successText": "Zwei Umlenkungen, ein Klick: Die Falltür öffnet sich und die Kugel landet im Korb!",
   "inventory": [
     {
@@ -23,16 +23,6 @@
     }
   ],
   "fixedGadgets": [
-    {
-      "id": "wall",
-      "type": "stoneWall",
-      "x": 450,
-      "y": 335,
-      "collisionLabel": "stoneWall",
-      "physics": {
-        "height": 290
-      }
-    },
     {
       "id": "payload",
       "type": "ball",

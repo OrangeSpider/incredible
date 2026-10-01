@@ -49,20 +49,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       if (runtime.running && state.motor && cat) Matter.Body.setPosition(cat, { x: Math.min(850, 555 + (runtime.now - state.motorStartedAt) * .075), y: 365 });
     },
   }),
-  "fan-airflow": runtime => ({
-    afterStep() {
-      const balloon = runtime.bodies.balloon;
-      if (!runtime.running || !balloon || runtime.state.balloonPopped) return;
-      for (const fan of Matter.Composite.allBodies(runtime.matter.world).filter(body => body.label === "fan")) {
-        const dx = balloon.position.x - fan.position.x, dy = balloon.position.y - fan.position.y, c = Math.cos(fan.angle), s = Math.sin(fan.angle);
-        const forward = dx * c + dy * s, side = -dx * s + dy * c;
-        if (forward > 0 && forward < 420 && Math.abs(side) < 100 + forward * .3) {
-          const force = .00035 * (1 - forward / 420);
-          Matter.Body.applyForce(balloon, balloon.position, { x: c * force, y: s * force });
-        }
-      }
-    },
-  }),
   fire: runtime => ({
     onCollision(collision) {
       if (!hasPair(collision, "candle", "levelBalloon") || runtime.state.candleExtinguished) return;
@@ -79,7 +65,7 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       if (id) runtime.machine.setState(id, "popped");
     },
   }),
-  trampoline: runtime => ({
+  trampoline: () => ({
     onCollision(collision) {
       const trampoline = bodyWithLabel(collision, "trampoline");
       const ball = [collision.bodyA,collision.bodyB].find(body => ["levelBall","ball","tennisBall"].includes(body.label));
