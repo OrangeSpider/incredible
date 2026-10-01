@@ -21,7 +21,24 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
   const plugin = machinePlugin(body); if (!plugin) return false;
   const { type, instanceId: id } = plugin, state = machine.state(id)?.state, age = machine.stateAgeMs(id) ?? 0;
   ctx.lineWidth = 3; ctx.strokeStyle = "#173f50";
-  if (type === "candle" && machine.config(id)?.properties?.standalone) {
+  if (type === "balloon") {
+    if (state === "popped") return true;
+    ctx.fillStyle = "#d85c52"; ctx.beginPath(); ctx.ellipse(0, 0, 22, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fbe5d8"; ctx.beginPath(); ctx.ellipse(-7, -9, 5, 9, -.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#6e5842"; ctx.beginPath(); ctx.moveTo(0, 28); ctx.lineTo(0, 57); ctx.stroke();
+  } else if (type === "targetRing" || type === "cannonTarget") {
+    const radius = machine.config(id)?.physics?.radius ?? GADGET_CATALOG[type].physics.radius ?? 45;
+    ctx.strokeStyle = "#b93422"; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
+    if (type === "cannonTarget") { ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, radius / 2, 0, Math.PI * 2); ctx.stroke(); }
+  } else if (type === "exit") {
+    drawMouseHole(ctx, 0, 30, 52, 58);
+  } else if (type === "payloadBall") {
+    ctx.fillStyle = "#c73b2e"; ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  } else if (type === "scissor") {
+    const spread = state === "closed" ? .12 : .5;
+    ctx.strokeStyle = "#536a72"; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-Math.sin(spread) * 31, -Math.cos(spread) * 31); ctx.moveTo(0, 0); ctx.lineTo(Math.sin(spread) * 31, -Math.cos(spread) * 31); ctx.stroke();
+    ctx.strokeStyle = "#a86a32"; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(-19, 20, 10, 0, Math.PI * 2); ctx.arc(19, 20, 10, 0, Math.PI * 2); ctx.stroke();
+  } else if (type === "candle" && machine.config(id)?.properties?.standalone) {
     ctx.fillStyle = "#eed08b"; ctx.beginPath(); ctx.roundRect(-16, -39, 32, 89, 5); ctx.fill(); ctx.stroke();
     ctx.strokeStyle = "#63523b"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -39); ctx.lineTo(0, -49); ctx.stroke();
     if (state === "burning") { ctx.fillStyle = "#ed862d"; ctx.beginPath(); ctx.ellipse(0, -50, 7, 15, Math.sin(now / 180) * .15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#ffe878"; ctx.beginPath(); ctx.ellipse(0, -47, 3, 7, 0, 0, Math.PI * 2); ctx.fill(); }
@@ -37,17 +54,17 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
     ctx.fillStyle = "#e18a32"; ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.strokeStyle = "#714525"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-19, 0); ctx.lineTo(19, 0); ctx.moveTo(0, -19); ctx.lineTo(0, 19); ctx.stroke();
     for (const side of [-1, 1]) { ctx.beginPath(); ctx.ellipse(side * 18, 0, 14, 19, 0, Math.PI / 2, Math.PI * 1.5, side === 1); ctx.stroke(); }
-  } else if (type === "flashlight") {
+  } else if (type === "flashlight" || type === "socketFlashlight") {
     ctx.fillStyle = "#cc5841"; ctx.beginPath(); ctx.roundRect(-38, -14, 63, 28, 6); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#dfb651"; ctx.beginPath(); ctx.moveTo(20, -15); ctx.lineTo(38, -22); ctx.lineTo(38, 22); ctx.lineTo(20, 15); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = state === "on" ? "#fff1a7" : "#bcc8c4"; ctx.fillRect(33, -17, 6, 34);
-    drawButton(ctx, 0, -18, state === "on");
+    if (type === "flashlight") drawButton(ctx, 0, -18, state === "on");
   } else if (type === "lamp" || type === "socketLamp") {
     ctx.fillStyle = "#526e78"; ctx.beginPath(); ctx.roundRect(-28, 23, 56, 9, 4); ctx.fill(); ctx.stroke(); ctx.fillRect(-4, -9, 8, 33);
     ctx.fillStyle = state === "on" ? "#ffe481" : "#c4cecb"; ctx.beginPath(); ctx.arc(0, -20, 20, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.strokeStyle = "#817044"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-6, -7); ctx.lineTo(-9, -22); ctx.lineTo(9, -22); ctx.lineTo(6, -7); ctx.stroke();
     if (type === "lamp") drawButton(ctx, -24, -32, state === "on");
-  } else if (type === "fan" || type === "socketFan") {
+  } else if (type === "fan" || type === "socketFan" || type === "switchFan") {
     const active = state === "running";
     ctx.fillStyle = "#64858e"; ctx.fillRect(-4, 24, 8, 22); ctx.beginPath(); ctx.roundRect(-22, 41, 44, 8, 4); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#d4e6df"; ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -56,6 +73,7 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
     ctx.strokeStyle = "#76939a"; ctx.lineWidth = 1;
     for (const radius of [10, 20, 27]) { ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke(); }
     ctx.fillStyle = "#d9ab47"; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    if (type === "switchFan") drawButton(ctx, 0, -30, active);
     if (active) { ctx.strokeStyle = "rgba(62,147,173,.42)"; ctx.setLineDash([8, 10]); ctx.lineDashOffset = running ? -now / 35 : 0;
       ctx.beginPath(); ctx.moveTo(35, -28); ctx.lineTo(AIRFLOW_RANGE, -38 - AIRFLOW_RANGE * .19); ctx.moveTo(35, 28); ctx.lineTo(AIRFLOW_RANGE, 38 + AIRFLOW_RANGE * .19); ctx.stroke(); ctx.setLineDash([]); }
   } else if (type === "magnifier") {

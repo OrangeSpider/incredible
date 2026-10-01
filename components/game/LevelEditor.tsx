@@ -1,99 +1,259 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { validateLevel } from "@/levels/catalog";
-import type { GadgetConnection, GadgetInstanceConfig, LevelDefinition } from "@/engine/types";
-import type { PlacedGadget } from "./types";
+import { GADGET_CATALOG } from "@/engine/gadget-catalog";
+import type { GadgetConnection, GadgetInstanceConfig, GadgetType, GoalSelector, LevelDefinition } from "@/engine/types";
+import { combineGoals, goalList, hitGadget, newLevel, rectangleGoal, redo, remember, removeGadget, STATE_LABELS, undo, updateGadget, type LevelHistory } from "@/levels/authoring";
+import { downloadLevel, pickLevelDirectory, readLevelDirectory, readLevelFiles, supportsLevelFolders, writeLevelFile, type LevelDirectory, type LevelFile } from "@/levels/file-storage";
+import { connectPorts, distanceToPath, gadgetPorts, type GadgetPort } from "@/game/gadget-connections";
+import { advanceRopeDraft, ropePorts, type PendingControlRope } from "@/game/control-ropes";
+import GameCanvas from "./GameCanvas";
+import GoalEditor from "./GoalEditor";
+import GoalOverlay from "./GoalOverlay";
+import { placedConfigId, type PlacedGadget } from "./types";
 
 const LOCAL_DRAFT_KEY = "machine-level-editor-draft";
+const EMPTY: never[] = [];
+const NO_WIN = () => {};
 
 function editableLevel(level: LevelDefinition, placed: PlacedGadget[], connections: GadgetConnection[]) {
-  const initialPlacements: GadgetInstanceConfig[] = placed.map((gadget) => ({
-    id: `placed-${gadget.id}`,
-    type: gadget.type,
-    x: Math.round(gadget.x * 10) / 10,
-    y: Math.round(gadget.y * 10) / 10,
-    rotation: Math.round(gadget.rotation * 10000) / 10000,
-    physics: gadget.physics, properties: gadget.properties, role: gadget.role, tags: gadget.tags, state: gadget.state,
+  const initialPlacements: GadgetInstanceConfig[] = placed.map(gadget => ({
+    id: placedConfigId(gadget), type: gadget.type, x: gadget.x, y: gadget.y, rotation: gadget.rotation,
+    collisionLabel: gadget.collisionLabel, physics: gadget.physics, properties: gadget.properties, role: gadget.role, tags: gadget.tags?.filter(tag => tag !== "player-part"), state: gadget.state,
   }));
-  return { ...level, initialPlacements, connections };
+  return structuredClone({ ...level, initialPlacements, connections });
 }
 
 type LevelEditorProps = {
-  level: LevelDefinition;
-  placed: PlacedGadget[];
-  connections: GadgetConnection[];
-  onApply: (level: LevelDefinition) => void;
-  onClose: () => void;
+  level: LevelDefinition; placed: PlacedGadget[]; connections: GadgetConnection[];
+  onApply: (level: LevelDefinition) => void; onClose: (draft: LevelDefinition) => void;
+  savedLevel?: LevelDefinition | null;
+  renderTest: (level: LevelDefinition, onClose: () => void) => ReactNode;
 };
 
-export default function LevelEditor({ level, placed, connections, onApply, onClose }: LevelEditorProps) {
-  const [json, setJson] = useState(() => JSON.stringify(editableLevel(level, placed, connections), null, 2));
-  const [message, setMessage] = useState("Die aktuell platzierten Gadgets sind unter initialPlacements enthalten.");
-  const fileInput = useRef<HTMLInputElement>(null);
+export default function LevelEditor({ level, placed, connections, onApply, onClose, renderTest, savedLevel }: LevelEditorProps) {
+  const [history, setHistory] = useState<LevelHistory>(() => ({ past: [], present: savedLevel ? structuredClone(savedLevel) : editableLevel(level, placed, connections), future: [] }));
+  const draft = history.present;
+  const [tool, setTool] = useState<GadgetType | null>(null);
+  const [placement, setPlacement] = useState<"fixedGadgets" | "initialPlacements">("fixedGadgets");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
+  const [pendingConnection, setPendingConnection] = useState<GadgetPort | null>(null);
+  const [pendingRope, setPendingRope] = useState<PendingControlRope | null>(null);
+  const [selectedRope, setSelectedRope] = useState<string | null>(null);
+  const [showGoals, setShowGoals] = useState(false);
+  const [areaSelector, setAreaSelector] = useState<GoalSelector | null>(null);
+  const [areaDrag, setAreaDrag] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
+  const drag = useRef<{ id: string; dx: number; dy: number; before: LevelDefinition } | null>(null);
+  const [search, setSearch] = useState("");
+  const [message, setMessage] = useState("Wähle ein Bauteil und klicke auf das Spielfeld. Die Zahl rechts legt das zusätzliche Spielerinventar fest.");
+  const [directory, setDirectory] = useState<LevelDirectory | null>(null);
+  const [files, setFiles] = useState<LevelFile[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [json, setJson] = useState<string | null>(null);
+  const [testLevel, setTestLevel] = useState<LevelDefinition | null>(null);
+  const [savedDraft] = useState(() => { try { return typeof window === "undefined" ? null : localStorage.getItem(LOCAL_DRAFT_KEY); } catch { return null; } });
+  const fileInput = useRef<HTMLInputElement>(null), folderInput = useRef<HTMLInputElement>(null);
+  const gadgets = useMemo(() => [...draft.fixedGadgets, ...(draft.initialPlacements ?? [])], [draft]);
+  const selected = gadgets.find(gadget => gadget.id === selectedId);
+  const preview = useMemo(() => ({ ...draft, fixedGadgets: gadgets, initialPlacements: [] }), [draft, gadgets]);
+  const change = useCallback((next: LevelDefinition) => setHistory(current => remember(current, next)), []);
+  const resetTools = () => { setSelectedId(null); setSelectedConnection(null); setSelectedRope(null); setPendingConnection(null); setPendingRope(null); setAreaSelector(null); setAreaDrag(null); drag.current = null; };
+  const stepBack = useCallback(() => { setHistory(undo); setSelectedId(null); setSelectedConnection(null); setSelectedRope(null); setPendingConnection(null); setPendingRope(null); setAreaSelector(null); setAreaDrag(null); drag.current = null; }, []);
+  const stepForward = useCallback(() => { setHistory(redo); setSelectedId(null); setSelectedConnection(null); setSelectedRope(null); setPendingConnection(null); setPendingRope(null); }, []);
 
-  const parse = () => {
-    const parsed = validateLevel(JSON.parse(json));
-    setMessage("JSON ist gültig.");
-    return parsed;
+  useEffect(() => {
+    if (testLevel) return;
+    const timer = window.setTimeout(() => {
+      try { localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(draft)); }
+      catch { setMessage("Der Browserentwurf konnte nicht gespeichert werden. Speichere das Level als Datei."); }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [draft, testLevel]);
+
+  const remove = useCallback(() => {
+    if (selectedId) change(removeGadget(draft, selectedId));
+    else if (selectedConnection) change({ ...draft, connections: (draft.connections ?? []).filter(connection => connection.id !== selectedConnection) });
+    else if (selectedRope) change({ ...draft, controlRopes: (draft.controlRopes ?? []).filter(rope => rope.targetId !== selectedRope) });
+    setSelectedId(null); setSelectedConnection(null); setSelectedRope(null);
+  }, [change, draft, selectedId, selectedConnection, selectedRope]);
+  useEffect(() => {
+    if (testLevel) return;
+    const keydown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLElement && event.target.closest("input,textarea,select,[contenteditable=true]")) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey) stepForward(); else stepBack(); }
+      else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") { event.preventDefault(); stepForward(); }
+      else if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); remove(); }
+      else if (event.key === "Escape") {
+        if (drag.current) { const before = drag.current.before; setHistory(current => ({ ...current, present: before })); }
+        setTool(null); resetTools();
+      }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, [testLevel, remove, stepBack, stepForward]);
+
+  const point = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const canvas = event.currentTarget.querySelector("canvas")!;
+    const bounds = canvas.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(900, (event.clientX - bounds.left) / bounds.width * 900)), y: Math.max(0, Math.min(520, (event.clientY - bounds.top) / bounds.height * 520)) };
   };
-
-  const tryAction = (action: (parsed: LevelDefinition) => void) => {
-    try { action(parse()); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Ungültiges Level-JSON"); }
+  const pointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const at = point(event);
+    if (areaSelector) { event.currentTarget.setPointerCapture(event.pointerId); setAreaDrag({ start: at, end: at }); return; }
+    if (tool === "rope") {
+      const port = ropePorts(gadgets).find(port => Math.hypot(at.x - port.x, at.y - port.y) < 26);
+      if (!port) { setMessage("Klicke einen Griff, optional Umlenkrollen und zuletzt einen Zugpunkt."); return; }
+      const next = advanceRopeDraft(pendingRope, port, draft.controlRopes ?? [], Infinity);
+      setPendingRope(next.pending);
+      if (next.connection) { change({ ...draft, systems: [...new Set([...draft.systems, "tension-rope"])], controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(next.connection.targetId); }
+      return;
+    }
+    if (tool === "wire" || tool === "belt") {
+      const port = gadgetPorts(gadgets).filter(port => tool === "wire" ? port.kind !== "drive" : port.kind === "drive").find(port => Math.hypot(at.x - port.x, at.y - port.y) < 26);
+      if (!port) { setMessage(tool === "wire" ? "Verbinde STROM am Generator mit STECKDOSE am Verbraucher." : "Verbinde zwei ANTRIEB-Anschlüsse."); return; }
+      if (!pendingConnection) setPendingConnection(port);
+      else {
+        const connection = connectPorts(pendingConnection, port, tool, draft.connections ?? [], `connection-${crypto.randomUUID()}`);
+        if (connection) { change({ ...draft, connections: [...(draft.connections ?? []), connection] }); setPendingConnection(null); setSelectedConnection(connection.id); }
+        else { setPendingConnection(null); setMessage("Diese Anschlüsse können nicht verbunden werden."); }
+      }
+      return;
+    }
+    if (tool && !showGoals) {
+      const definition = GADGET_CATALOG[tool], id = `${tool}-${crypto.randomUUID().slice(0, 8)}`;
+      const gadget: GadgetInstanceConfig = { id, type: tool, ...at, rotation: definition.defaultRotation ?? 0,
+        ...(["candle", "cat", "mouse", "fish", "fishBowl"].includes(tool) ? { properties: { standalone: true } } : {}), ...(tool === "fish" ? { state: "flopping" } : {}) };
+      change({ ...draft, [placement]: [...(draft[placement] ?? []), gadget] }); setSelectedId(id); setSelectedConnection(null); setSelectedRope(null); return;
+    }
+    const gadget = hitGadget(gadgets, at);
+    setSelectedId(gadget?.id ?? null); setSelectedConnection(null); setSelectedRope(null);
+    if (gadget) {
+      if (!showGoals) { event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: gadget.id, dx: gadget.x - at.x, dy: gadget.y - at.y, before: draft }; }
+      return;
+    }
+    const ports = gadgetPorts(gadgets);
+    const connection = (draft.connections ?? []).find(connection => distanceToPath(at, ports.filter(port => port.gadgetId === connection.sourceId || port.gadgetId === connection.targetId)) < 12);
+    if (connection) setSelectedConnection(connection.id);
+    const rope = (draft.controlRopes ?? []).find(rope => {
+      const path = [rope.targetId, ...rope.guides, rope.source.gadgetId].flatMap(id => gadgets.filter(item => item.id === id));
+      return distanceToPath(at, path) < 12;
+    });
+    if (rope) { setSelectedRope(rope.targetId); setSelectedConnection(null); }
   };
-
-  const download = () => tryAction((parsed) => {
-    const blob = new Blob([JSON.stringify(parsed, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${parsed.id}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setMessage("Level-JSON wurde heruntergeladen.");
-  });
-
-  const saveLocal = () => tryAction((parsed) => {
-    localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(parsed, null, 2));
-    setMessage("Entwurf wurde in diesem Browser gespeichert.");
-  });
-
-  const loadLocal = () => {
-    const draft = localStorage.getItem(LOCAL_DRAFT_KEY);
-    if (!draft) { setMessage("Es gibt noch keinen lokalen Entwurf."); return; }
-    setJson(draft);
-    setMessage("Lokaler Entwurf geladen. Mit „Im Spiel testen“ anwenden.");
-  };
-
-  const loadFile = async (file?: File) => {
-    if (!file) return;
-    try {
-      const text = await file.text();
-      validateLevel(JSON.parse(text));
-      setJson(text);
-      setMessage(`${file.name} wurde geladen und geprüft.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Datei konnte nicht gelesen werden.");
+  const pointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const at = point(event);
+    if (areaDrag) setAreaDrag({ ...areaDrag, end: at });
+    if (drag.current) {
+      const moving = drag.current;
+      setHistory(current => ({ ...current, present: updateGadget(current.present, moving.id, { x: Math.max(0, Math.min(900, at.x + moving.dx)), y: Math.max(0, Math.min(520, at.y + moving.dy)) }) }));
     }
   };
+  const pointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (areaDrag && areaSelector) {
+      const goal = rectangleGoal(areaSelector, areaDrag.start, point(event));
+      if (goal.kind === "area" && goal.width >= 5 && goal.height >= 5) { change({ ...draft, schemaVersion: 2, goal: combineGoals([...goalList(draft.goal), goal], "kind" in draft.goal && draft.goal.kind === "any" ? "any" : "all") }); setAreaSelector(null); }
+      else setMessage("Der Zielbereich muss mindestens 5 × 5 Pixel groß sein.");
+      setAreaDrag(null);
+    }
+    if (drag.current) { const before = drag.current.before; setHistory(current => remember({ ...current, present: before }, current.present)); drag.current = null; }
+  };
 
-  return (
-    <div className="modal editor-modal" onClick={onClose}>
-      <section onClick={(event) => event.stopPropagation()}>
-        <button className="close" onClick={onClose}>×</button>
-        <p className="eyebrow">LEVEL-EDITOR</p>
-        <h2>{level.title}</h2>
-        <p className="editor-help">Baue auf dem Spielfeld, öffne den Editor und speichere die Anordnung als JSON. Metadaten, Inventar, feste Gadgets, Systeme und Zielprüfung können hier direkt geändert werden.</p>
-        <textarea aria-label="Level JSON" value={json} onChange={(event) => setJson(event.target.value)} spellCheck={false} />
-        <p className="editor-message" role="status">{message}</p>
-        <div className="editor-actions">
-          <button onClick={() => tryAction((parsed) => { onApply(parsed); onClose(); })}>▶ Im Spiel testen</button>
-          <button onClick={download}>⇩ JSON herunterladen</button>
-          <button onClick={() => fileInput.current?.click()}>⇧ JSON einlesen</button>
-          <button onClick={saveLocal}>Entwurf speichern</button>
-          <button onClick={loadLocal}>Entwurf laden</button>
-        </div>
-        <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={(event) => void loadFile(event.target.files?.[0])} />
-      </section>
+  const tryAction = (action: () => void | Promise<void>) => {
+    Promise.resolve().then(action).catch(error => { if (error?.name !== "AbortError") setMessage(error instanceof Error ? error.message : "Die Aktion konnte nicht abgeschlossen werden."); });
+  };
+  const load = (next: LevelDefinition) => { change(next); resetTools(); setTool(null); setJson(null); };
+  const openFolder = () => {
+    if (!supportsLevelFolders()) { folderInput.current?.click(); return; }
+    tryAction(async () => {
+      const folder = await pickLevelDirectory("readwrite");
+      setDirectory(folder);
+      try { const imported = await readLevelDirectory(folder); setFiles(imported); load(imported[0].level); setMessage(`${imported.length} Levels aus „${folder.name}“ geladen.`); }
+      catch (error) { setFiles([]); setMessage(error instanceof Error ? error.message : "Leerer Ordner ausgewählt."); }
+    });
+  };
+  const save = () => tryAction(async () => {
+    const parsed = validateLevel(draft);
+    if (!goalList(parsed.goal).length) throw new Error("Definiere zuerst mindestens ein Goal.");
+    if (!directory && !supportsLevelFolders()) { downloadLevel(parsed); setMessage("Level-JSON wurde heruntergeladen. Lege die Datei in deinem Levelordner ab."); return; }
+    const folder = directory ?? await pickLevelDirectory("readwrite");
+    setDirectory(folder); setBusy(true);
+    try {
+      const path = await writeLevelFile(folder, parsed, files.find(file => file.level.id === parsed.id)?.path);
+      setFiles(current => [...current.filter(file => file.level.id !== parsed.id), { level: parsed, path }].sort((a, b) => a.level.number - b.level.number));
+      setMessage(`„${folder.name}/${path}“ gespeichert.`);
+    } finally { setBusy(false); }
+  });
+  const loadFile = (file?: File) => tryAction(async () => { if (file) { const [imported] = await readLevelFiles([file]); load(imported.level); setMessage(`${file.name} geladen.`); } });
+
+  if (testLevel) return renderTest(testLevel, () => setTestLevel(null));
+  const catalog = Object.values(GADGET_CATALOG).filter(gadget => `${gadget.displayName} ${gadget.type} ${gadget.description}`.toLowerCase().includes(search.toLowerCase()));
+  return <main className="game-shell visual-editor">
+    <header className="editor-header"><div><small>WERKSTATT</small><h1>Level-Editor</h1></div><div className="editor-actions">
+      <button onClick={() => { load(newLevel(Math.max(draft.number, ...files.map(file => file.level.number)) + 1)); setMessage("Neues leeres Level angelegt."); }}>+ Neues Level</button>
+      <button onClick={openFolder}>Ordner öffnen</button><button onClick={save} disabled={busy}>{busy ? "Speichert…" : "Im Ordner speichern"}</button>
+      <button onClick={() => tryAction(() => { const parsed = validateLevel(draft); if (!goalList(parsed.goal).length) throw new Error("Definiere zuerst mindestens ein Goal."); setTool(null); resetTools(); setTestLevel(parsed); })}>▶ Im Spiel testen</button>
+      <button onClick={() => tryAction(() => { onApply(validateLevel(draft)); onClose(draft); })}>Level übernehmen</button><button onClick={() => onClose(draft)}>Zurück zum Spiel</button>
+    </div></header>
+    <section className="editor-metadata" aria-label="Levelbeschreibung">
+      <label>Levelname<input value={draft.title} onChange={event => change({ ...draft, title: event.target.value })} /></label>
+      <label>Nummer<input type="number" min="1" value={draft.number} onChange={event => change({ ...draft, number: Math.max(1, Math.trunc(Number(event.target.value))) })} /></label>
+      <label className="editor-objective">Zielbeschreibung<input value={draft.objective} onChange={event => change({ ...draft, objective: event.target.value })} /></label>
+      {files.length > 0 && <label>Levels im Ordner<select value={files.some(file => file.level.id === draft.id) ? draft.id : ""} onChange={event => { const file = files.find(file => file.level.id === event.target.value); if (file) load(file.level); }}><option value="">Neues / anderes Level</option>{files.map(file => <option key={file.level.id} value={file.level.id}>{file.level.number} · {file.level.title}</option>)}</select></label>}
+    </section>
+    <div className="editor-controls editor-actions">
+      <button onClick={() => { setTool(null); resetTools(); setShowGoals(false); }} aria-pressed={tool === null && !showGoals}>↖ Bearbeiten</button>
+      <label>Neue Bauteile<select value={placement} onChange={event => setPlacement(event.target.value as typeof placement)}><option value="fixedGadgets">Fest vorgegeben</option><option value="initialPlacements">Verschiebbarer Startaufbau</option></select></label>
+      <button onClick={stepBack} disabled={!history.past.length}>↶ Undo</button><button onClick={stepForward} disabled={!history.future.length}>↷ Redo</button>
+      <button onClick={remove} disabled={!selectedId && !selectedConnection && !selectedRope}>× Entfernen</button>
+      <button onClick={() => { setShowGoals(value => !value); setTool(null); setPendingConnection(null); setPendingRope(null); setAreaSelector(null); }} aria-pressed={showGoals}>◎ Goal</button>
+      <label className="editor-checkbox"><input type="checkbox" checked={draft.floor !== false} onChange={event => change({ ...draft, floor: event.target.checked })} />Boden</label>
+      <span>{directory ? `Ordner: ${directory.name}` : "Entwurf im Browser"} · {gadgets.length} gesetzte Bauteile</span>
     </div>
-  );
+    <div className="workspace editor-workspace">
+      <section className="board-wrap">
+        <div className="board" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { if (drag.current) { const before = drag.current.before; setHistory(current => ({ ...current, present: before })); } drag.current = null; setAreaDrag(null); }}>
+          <GameCanvas level={preview} placed={EMPTY} ropePath={EMPTY} scissorRopes={draft.controlRopes ?? EMPTY} pendingScissor={pendingRope} ropeMode={tool === "rope"} selectedTool={tool} selectedId={null} connections={draft.connections ?? EMPTY} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={false} attempt={0} onWin={NO_WIN} />
+          <GoalOverlay goal={draft.goal} />
+          <svg className="editor-overlay" viewBox="0 0 900 520" aria-hidden="true">
+            {selected && <g transform={`translate(${selected.x} ${selected.y}) rotate(${(selected.rotation ?? 0) * 180 / Math.PI})`}><rect className="selection" x={-(selected.physics?.width ?? GADGET_CATALOG[selected.type].physics.width ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) / 2 - 6} y={-(selected.physics?.height ?? GADGET_CATALOG[selected.type].physics.height ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) / 2 - 6} width={(selected.physics?.width ?? GADGET_CATALOG[selected.type].physics.width ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) + 12} height={(selected.physics?.height ?? GADGET_CATALOG[selected.type].physics.height ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) + 12} /></g>}
+            {areaDrag && <rect className="area-draft" x={Math.min(areaDrag.start.x, areaDrag.end.x)} y={Math.min(areaDrag.start.y, areaDrag.end.y)} width={Math.abs(areaDrag.start.x - areaDrag.end.x)} height={Math.abs(areaDrag.start.y - areaDrag.end.y)} />}
+          </svg>
+        </div>
+        <p className="editor-message" role="status">{message}</p>
+        {selected && !showGoals && <div className="gadget-properties">
+          <b>{GADGET_CATALOG[selected.type].displayName} · {selected.id}</b>
+          <label>Ablage<select value={draft.fixedGadgets.some(gadget => gadget.id === selected.id) ? "fixedGadgets" : "initialPlacements"} onChange={event => {
+            const group = event.target.value as typeof placement;
+            change({ ...draft, fixedGadgets: draft.fixedGadgets.filter(gadget => gadget.id !== selected.id), initialPlacements: (draft.initialPlacements ?? []).filter(gadget => gadget.id !== selected.id), [group]: [...(draft[group] ?? []).filter(gadget => gadget.id !== selected.id), selected] });
+          }}><option value="fixedGadgets">Fest vorgegeben</option><option value="initialPlacements">Verschiebbarer Startaufbau</option></select></label>
+          <label>Startstatus<select value={selected.state ?? GADGET_CATALOG[selected.type].defaultState} onChange={event => change(updateGadget(draft, selected.id, { state: event.target.value }))}>{[...new Set([selected.state ?? GADGET_CATALOG[selected.type].defaultState, ...Object.keys(GADGET_CATALOG[selected.type].animations)])].map(state => <option key={state} value={state}>{STATE_LABELS[state] ?? state}</option>)}</select></label>
+          <label>Drehung °<input type="number" step="15" value={Math.round((selected.rotation ?? 0) * 180 / Math.PI)} onChange={event => change(updateGadget(draft, selected.id, { rotation: Number(event.target.value) * Math.PI / 180 }))} /></label>
+          {(["x", "y"] as const).map(axis => <label key={axis}>{axis.toUpperCase()}<input type="number" value={Math.round(selected[axis])} onChange={event => change(updateGadget(draft, selected.id, { [axis]: Number(event.target.value) }))} /></label>)}
+        </div>}
+        <details className="editor-advanced"><summary>Dateien, Hinweise und JSON</summary><div className="editor-actions">
+          <button onClick={() => tryAction(() => { downloadLevel(draft); setMessage("Level-JSON heruntergeladen."); })}>JSON herunterladen</button><button onClick={() => fileInput.current?.click()}>JSON einlesen</button>
+          <button onClick={() => tryAction(() => { const saved = savedDraft ?? localStorage.getItem(LOCAL_DRAFT_KEY); if (!saved) throw new Error("Kein lokaler Entwurf vorhanden."); load(validateLevel(JSON.parse(saved))); setMessage("Lokaler Entwurf geladen."); })}>Entwurf laden</button>
+          <button onClick={() => setJson(JSON.stringify(draft, null, 2))}>JSON bearbeiten</button>
+        </div><label>Tipp<input value={draft.hint} onChange={event => change({ ...draft, hint: event.target.value })} /></label><label>Erfolgstext<input value={draft.successText} onChange={event => change({ ...draft, successText: event.target.value })} /></label></details>
+      </section>
+      <aside className="editor-palette" aria-label="Bauteile und Spielerinventar"><h2>BAUTEILE</h2>
+        {showGoals && <GoalEditor level={draft} selectedId={selectedId} onChange={change} drawing={areaSelector !== null} onDrawArea={selector => { setAreaSelector(selector); setTool(null); }} />}
+        <label>Bauteil suchen<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Kugel, Katze, Steckdose…" /></label>
+        <p className="inventory-help">Bauteil anklicken: beliebig oft setzen. Anzahl: zusätzliche frei platzierbare Bauteile für den Spieler.</p>
+        <div className="editor-part-list">{catalog.map(gadget => <div className="editor-part-row" key={gadget.type}>
+          <button className={tool === gadget.type ? "selected" : ""} title={gadget.description} aria-label={`${gadget.displayName} platzieren`} aria-pressed={tool === gadget.type} onClick={() => { setTool(gadget.type); setShowGoals(false); resetTools(); }}><span className={`part ${gadget.type}`}>{gadget.icon}</span><span>{gadget.displayName}</span></button>
+          <input type="number" min="0" step="1" aria-label={`Spielerinventar ${gadget.displayName}`} title="Zusätzliche frei platzierbare Bauteile" value={draft.inventory.find(entry => entry.type === gadget.type)?.count ?? 0} onChange={event => {
+            const count = Math.max(0, Math.trunc(Number(event.target.value)));
+            const inventory = draft.inventory.filter(entry => entry.type !== gadget.type);
+            change({ ...draft, inventory: count > 0 ? [...inventory, { type: gadget.type, count }] : inventory });
+          }} />
+        </div>)}</div>
+      </aside>
+    </div>
+    <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={event => { loadFile(event.target.files?.[0]); event.target.value = ""; }} />
+    <input ref={folderInput} type="file" {...{ webkitdirectory: "", directory: "" }} multiple hidden onChange={event => { const selectedFiles = Array.from(event.target.files ?? []); event.target.value = ""; tryAction(async () => { const imported = await readLevelFiles(selectedFiles); setDirectory(null); setFiles(imported); load(imported[0].level); setMessage(`${imported.length} Levels geladen. Speichern über JSON herunterladen.`); }); }} />
+    {json !== null && <div className="modal editor-modal"><section><button className="close" aria-label="JSON schließen" onClick={() => setJson(null)}>×</button><h2>Level JSON</h2><textarea aria-label="Level JSON" value={json} onChange={event => setJson(event.target.value)} spellCheck={false} /><p role="status">{message}</p><div className="editor-actions"><button onClick={() => tryAction(() => { load(validateLevel(JSON.parse(json))); setMessage("JSON übernommen."); })}>JSON übernehmen</button><button onClick={() => setJson(null)}>Abbrechen</button></div></section></div>}
+  </main>;
 }

@@ -18,6 +18,8 @@
     "inventory":{"type":"array","items":{"type":"object","required":["type","count"],"properties":{"type":{"type":"string"},"count":{"type":"integer","minimum":1}},"additionalProperties":false}},
     "fixedGadgets":{"$ref":"#/$defs/gadgetInstances"},
     "initialPlacements":{"$ref":"#/$defs/gadgetInstances"},
+    "floor":{"type":"boolean","default":true},
+    "controlRopes":{"type":"array","items":{"type":"object","required":["targetId","guides","source"],"properties":{"targetId":{"type":"string","minLength":1},"guides":{"type":"array","items":{"type":"string"},"uniqueItems":true},"source":{"type":"object","required":["gadgetId","local"],"properties":{"gadgetId":{"type":"string","minLength":1},"local":{"type":"object","required":["x","y"],"properties":{"x":{"type":"number"},"y":{"type":"number"}},"additionalProperties":false}},"additionalProperties":false}},"additionalProperties":false}},
     "connections":{"type":"array","items":{"type":"object","required":["id","kind","sourceId","targetId"],"properties":{"id":{"type":"string","minLength":1},"kind":{"enum":["wire","belt"]},"sourceId":{"type":"string","minLength":1},"targetId":{"type":"string","minLength":1}},"additionalProperties":false}},
     "systems":{"type":"array","items":{"type":"string"},"uniqueItems":true},
     "goal":{"oneOf":[{"$ref":"#/$defs/legacyGoal"},{"$ref":"#/$defs/goal"}]}
@@ -39,6 +41,8 @@
       {"type":"object","required":["kind","name"],"properties":{"kind":{"const":"event"},"name":{"type":"string","minLength":1},"source":{"$ref":"#/$defs/selector"},"target":{"$ref":"#/$defs/selector"}},"additionalProperties":false},
       {"type":"object","required":["kind","selector","state"],"properties":{"kind":{"const":"state"},"selector":{"$ref":"#/$defs/selector"},"state":{"type":"string","minLength":1}},"additionalProperties":false},
       {"type":"object","required":["kind","selector","axis","operator","value"],"properties":{"kind":{"const":"position"},"selector":{"$ref":"#/$defs/selector"},"axis":{"enum":["x","y"]},"operator":{"$ref":"#/$defs/comparison"},"value":{"type":"number"}},"additionalProperties":false},
+      {"type":"object","required":["kind","selector","x","y","width","height"],"properties":{"kind":{"const":"area"},"selector":{"$ref":"#/$defs/selector"},"x":{"type":"number"},"y":{"type":"number"},"width":{"type":"number","exclusiveMinimum":0},"height":{"type":"number","exclusiveMinimum":0}},"additionalProperties":false},
+      {"type":"object","required":["kind","selector","minimumSpeed"],"properties":{"kind":{"const":"motion"},"selector":{"$ref":"#/$defs/selector"},"minimumSpeed":{"type":"number","exclusiveMinimum":0}},"additionalProperties":false},
       {"type":"object","required":["kind","source","target"],"properties":{"kind":{"const":"contact"},"source":{"$ref":"#/$defs/selector"},"target":{"$ref":"#/$defs/selector"}},"additionalProperties":false},
       {"type":"object","required":["kind","entity","zone"],"properties":{"kind":{"const":"zone"},"entity":{"$ref":"#/$defs/selector"},"zone":{"$ref":"#/$defs/selector"}},"additionalProperties":false},
       {"type":"object","required":["kind","goals"],"properties":{"kind":{"enum":["all","any"]},"goals":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/goal"}}},"additionalProperties":false},

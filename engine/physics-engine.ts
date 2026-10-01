@@ -7,6 +7,7 @@ import {createDefaultEffectRegistry, type EffectRegistry} from "./effect-handler
 import {createDefaultStepBehaviors, type StepBehaviorRegistry} from "./step-behaviors.ts";
 import {resolveGadgetAnimation} from "./animation.ts";
 import {GadgetMechanics} from "./gadget-mechanics.ts";
+import {createBucketAssembly} from "../game/water.ts";
 import type {GadgetConnection,GadgetInstanceConfig,GadgetRuntimeState,GoalEvent,GoalSpec,LevelDefinition} from "./types.ts";
 
 export type PhysicsEvent=
@@ -49,9 +50,17 @@ export class MachinePhysicsEngine{
     for(const gadget of level.fixedGadgets)this.addGadget(gadget);
   }
 
-  addGadget(config:GadgetInstanceConfig){
+  addGadget(config:GadgetInstanceConfig,providedBody?:Matter.Body):Matter.Body|null{
     if(this.entries.has(config.id))throw new Error(`Duplicate gadget id: ${config.id}`);
-    const definition=getGadgetDefinition(config.type),body=createGadgetBody(config),entry:RuntimeEntry={config,body,stateEnteredAtMs:this.elapsedMs,state:{id:config.id,type:config.type,state:config.state??definition.defaultState,role:config.role,properties:{...(config.properties??{})}}};
+    if(config.type==="bucket"&&!providedBody){
+      const assembly=createBucketAssembly(config.x,config.y,config.rotation??0);
+      if(config.physics?.isStatic===false)Matter.Body.setStatic(assembly.bucket,false);
+      const bucket=this.addGadget(config,assembly.bucket);
+      assembly.water.forEach((drop,index)=>this.addGadget({id:`${config.id}:water:${index}`,type:"water",x:drop.position.x,y:drop.position.y},drop));
+      return bucket;
+    }
+    const definition=getGadgetDefinition(config.type),body=providedBody??createGadgetBody(config),entry:RuntimeEntry={config,body,stateEnteredAtMs:this.elapsedMs,state:{id:config.id,type:config.type,state:config.state??definition.defaultState,role:config.role,properties:{...(config.properties??{})}}};
+    if(providedBody)providedBody.plugin={...providedBody.plugin,machine:{instanceId:config.id,type:config.type,state:entry.state.state,role:config.role,properties:entry.state.properties}};
     this.entries.set(config.id,entry);
     if(body){
       this.bodyEntries.set(body.id,entry);
@@ -80,6 +89,7 @@ export class MachinePhysicsEngine{
     role:entry.state.role,state:entry.state.state,
     x:entry.body?.position.x??entry.config.x,
     y:entry.body?.position.y??entry.config.y,
+    speed:entry.body?.speed??0,
   }))}
   eventHistory():readonly GoalEvent[]{return this.events}
   signal(name:string){return this.signals.get(name)}

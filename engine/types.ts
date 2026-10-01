@@ -2,9 +2,9 @@ export type GadgetType=
   |"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw"
   |"hamsterWheel"|"conveyor"|"exit"|"balloon"|"candle"|"targetRing"|"basket"|"weight"|"cat"|"gearSource"|"gearTarget"|"cannonTarget"
   |"steelBeam"|"woodWall"|"stoneWall"|"payloadBall"|"fishBowl"|"fish"|"scissor"|"water"|"cannonball"|"rocket"|"magnet"|"snapGate"
-  |"flashlight"|"lamp"|"socketLamp"|"socketFan"|"magnifier"|"basketball"|"generator"|"tnt"|"detonator"|"windmill"|"boxingGlove"|"wire";
+  |"flashlight"|"socketFlashlight"|"lamp"|"socketLamp"|"socketFan"|"switchFan"|"magnifier"|"basketball"|"generator"|"tnt"|"detonator"|"windmill"|"boxingGlove"|"wire";
 
-export type PlaceableGadgetType=Extract<GadgetType,"ball"|"tennisBall"|"ramp"|"belt"|"fan"|"trampoline"|"pulley"|"movingPulley"|"rope"|"needle"|"mouse"|"gear"|"cannon"|"fuse"|"bucket"|"seesaw"|"magnet"|"flashlight"|"lamp"|"socketLamp"|"socketFan"|"magnifier"|"basketball"|"generator"|"tnt"|"detonator"|"windmill"|"boxingGlove"|"wire">;
+export type PlaceableGadgetType=GadgetType;
 
 export type GadgetCategory="dynamic"|"fixed"|"animal"|"fluid"|"force-source"|"force-transfer"|"connector"|"trigger"|"target"|"fire"|"container"|"surface";
 export type BodyShape="circle"|"rectangle"|"compound"|"sensor"|"none";
@@ -96,6 +96,7 @@ export type GadgetInstanceConfig={
 export type InventoryEntry={type:PlaceableGadgetType;count:number};
 
 export type GadgetConnection={id:string;kind:"wire"|"belt";sourceId:string;targetId:string};
+export type ControlRopeConfig={targetId:string;guides:string[];source:{gadgetId:string;local:{x:number;y:number}}};
 
 export type LegacyGoalSpec={
   mode:"event"|"all"|"any"|"state"|"position";
@@ -105,7 +106,7 @@ export type LegacyGoalSpec={
 
 /** A selector matches every supplied field. At least one field is required by validation. */
 export type GoalSelector={id?:string;type?:GadgetType;tag?:string;role?:string};
-export type GoalEntity={id:string;type:GadgetType;tags?:readonly string[];role?:string;state?:string;x?:number;y?:number};
+export type GoalEntity={id:string;type:GadgetType;tags?:readonly string[];role?:string;state?:string;x?:number;y?:number;speed?:number};
 export type GoalEvent={name:string;sourceId?:string;targetId?:string};
 export type GoalComparison="equals"|"above"|"below"|"atLeast"|"atMost";
 export type EntityPredicate=
@@ -116,6 +117,8 @@ export type ComposableGoalSpec=
   |{kind:"event";name:string;source?:GoalSelector;target?:GoalSelector}
   |{kind:"state";selector:GoalSelector;state:string}
   |{kind:"position";selector:GoalSelector;axis:"x"|"y";operator:GoalComparison;value:number}
+  |{kind:"area";selector:GoalSelector;x:number;y:number;width:number;height:number}
+  |{kind:"motion";selector:GoalSelector;minimumSpeed:number}
   |{kind:"contact";source:GoalSelector;target:GoalSelector}
   |{kind:"zone";entity:GoalSelector;zone:GoalSelector}
   |{kind:"all"|"any";goals:ComposableGoalSpec[]}
@@ -137,6 +140,8 @@ export type LevelDefinition={
   fixedGadgets:GadgetInstanceConfig[];
   initialPlacements?:GadgetInstanceConfig[];
   connections?:GadgetConnection[];
+  controlRopes?:ControlRopeConfig[];
+  floor?:boolean;
   systems:string[];
   goal:GoalSpec;
 };

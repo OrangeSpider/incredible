@@ -2,6 +2,8 @@ import type { GadgetInstanceConfig, PlaceableGadgetType } from "@/engine/types";
 
 export type PlacedGadget = {
   id: number;
+  configId?: string;
+  collisionLabel?: string;
   type: PlaceableGadgetType;
   x: number;
   y: number;
@@ -12,6 +14,8 @@ export type PlacedGadget = {
   tags?: string[];
   state?: string;
 };
+
+export const placedConfigId = (gadget: PlacedGadget) => gadget.configId ?? `placed-${gadget.id}`;
 
 export type RopeNode =
   | { kind: "anchor" }

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
-import { createBucketAssembly } from "@/game/water";
 import { SEESAW_WIDTH } from "@/game/seesaw";
 import { analyzePulleyRoute,LEVEL_FIVE_INITIAL_WEIGHT_Y, type PulleyRouteKind,ropeGeometry,type RopePoint } from "@/game/pulley";
 import {catSpriteOffsetX,catSpritePose} from "@/game/cat";
@@ -19,6 +18,7 @@ import { MachinePhysicsEngine } from "@/engine/physics-engine";
 import { machinePlugin } from "@/engine/body-factory";
 import type { LevelDefinition, PlaceableGadgetType } from "@/engine/types";
 import type { PlacedGadget, RopeNode, ScissorRope } from "./types";
+import { placedConfigId } from "./types";
 import { drawSceneHints, presentationForScene, type ScenePresentationFrame } from "./scene-presentation";
 import { createCatalogSpriteRenderer } from "./catalog-sprite-renderer";
 import { createFluidWaterRenderer } from "./fluid-water-renderer";
@@ -109,38 +109,32 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const engine = machine.matter;
     const W = 900, H = 520;
     const floor = Matter.Bodies.rectangle(W / 2, 500, W, 40, { isStatic: true, label:"floor" });
-    Matter.Composite.add(engine.world, floor);
-    const waterBodies:Matter.Body[]=[];
-    const cat=machine.bodiesByType("cat")[0]??null;
-    const balloon=machine.bodiesByType("balloon").find(body=>body.label==="levelBalloon")??null;
+    if (level.floor !== false) Matter.Composite.add(engine.world, floor);
     const levelBall=machine.body("falling-ball");
     const weight=machine.body("weight");
-    let bucketBody:Matter.Body|null=null;
     let seesawBody:Matter.Body|null=machine.bodiesByType("seesaw")[0]??null;
     const fishBowl=machine.body("fish-bowl");
     const fishBody=machine.body("mr-blue");
-    const hamsterWheelBody=machine.bodiesByType("hamsterWheel")[0]??null;
-    const conveyorBody=machine.bodiesByType("conveyor")[0]??null;
     const fallingCandle=machine.body("falling-candle");
-    const rocketBodies=machine.bodiesByType("rocket");
     const conveyorConfig=level.fixedGadgets.find(gadget=>gadget.type==="conveyor");
     const conveyorWidth=Number(conveyorConfig?.physics?.width??270);
     const tetheredBalloonConfigs=level.fixedGadgets.filter(gadget=>gadget.type==="balloon"&&gadget.state==="tethered");
     const scissorBalloons=tetheredBalloonConfigs.flatMap(gadget=>{const body=machine.body(gadget.id);return body?[body]:[]});
     for(const p of placed){
-      let body:Matter.Body|null;
-      if(p.type==="bucket"){
-        const assembly=createBucketAssembly(p.x,p.y,p.rotation);body=assembly.bucket;bucketBody=body;
-        waterBodies.push(...assembly.water);Matter.Composite.add(engine.world,[body,...assembly.water]);
-      }else{
         const physics = p.type==="movingPulley" || (p.type==="ball"&&level.systems.includes("pulley-rope"))
           ? {isStatic:true}
           : p.type==="mouse" ? {isStatic:!running} : undefined;
-        body=machine.addGadget({id:`placed-${p.id}`,type:p.type,x:p.x,y:p.y,rotation:p.rotation,collisionLabel:p.type,physics:{...p.physics,...physics},properties:p.properties,role:p.role,tags:p.tags,state:p.state});
+        const body=machine.addGadget({id:placedConfigId(p),type:p.type,x:p.x,y:p.y,rotation:p.rotation,collisionLabel:p.collisionLabel??p.type,physics:{...physics,...p.physics},properties:p.properties,role:p.role,tags:p.tags,state:p.state});
         if(p.type==="seesaw")seesawBody=body;
-      }
       if(body)body.plugin={...body.plugin,placedId:p.id};
     }
+    const cat=machine.bodiesByType("cat")[0]??null;
+    const balloon=machine.bodiesByType("balloon").find(body=>body.label==="levelBalloon")??null;
+    const waterBodies=machine.bodiesByType("water");
+    const bucketBody=machine.bodiesByType("bucket")[0]??null;
+    const hamsterWheelBody=machine.bodiesByType("hamsterWheel")[0]??null;
+    const conveyorBody=machine.bodiesByType("conveyor")[0]??null;
+    const rocketBodies=machine.bodiesByType("rocket");
     const driveBelt=placed.find(p=>p.type==="belt")??null,beltConnected=!!driveBelt,allBodies=Matter.Composite.allBodies(engine.world),bodyByPlacedId=new Map<number,Matter.Body>();
     allBodies.forEach(body=>{const placedId=body.plugin?.placedId;if(typeof placedId==="number")bodyByPlacedId.set(placedId,body)});
     const placedById=new Map(placed.map(part=>[part.id,part])),routeKinds=ropePath.map(node=>node.kind==="anchor"?"anchor":routeKindForPart(placedById.get(node.placedId)?.type??"rope")).filter((kind):kind is PulleyRouteKind=>kind!==null),routeAnalysis=analyzePulleyRoute(routeKinds);
@@ -187,7 +181,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       const {wetFuseIds, scissorClosedAt, rocketIgnitedAt} = runtime;
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
-      ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40);
+      if (level.floor !== false) { ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40); }
       if(conveyorBody&&hamsterWheelBody&&hasSystem("conveyor")){
         const conveyorRunning=motor&&beltConnected,conveyorVisual=drawConveyor(ctx,{centerX:conveyorBody.position.x,centerY:conveyorBody.position.y,width:conveyorWidth,now,running:conveyorRunning});
         const sourcePort={x:hamsterWheelBody.position.x+55,y:hamsterWheelBody.position.y+13},targetPort=conveyorVisual.leftWheel;
@@ -240,7 +234,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         const {x,y}=b.position;ctx.save();ctx.translate(x,y);ctx.rotate(b.angle);
         const gadgetId=machinePlugin(b)?.instanceId;
         const catalogAnimation=gadgetId?machine.animation(gadgetId):null;
-        const genericSprite=!CUSTOM_SPRITE_LABELS.has(b.label)&&drawCatalogSprite(ctx,catalogAnimation,0,0);
+        const genericSprite=(!CUSTOM_SPRITE_LABELS.has(b.label)||(machine.config(gadgetId??"")?.properties?.standalone&&b.label!=="candle"))&&drawCatalogSprite(ctx,catalogAnimation,0,0);
         const drawnGadget=!genericSprite&&drawGadget(ctx,b,machine,now,running);
         if(!genericSprite&&!drawnGadget){
         if(b.label==="ball"||b.label==="mainBall"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,18,0,7);ctx.fill();ctx.fillStyle=b.label==="mainBall"?"#e7a849":"#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
@@ -316,7 +310,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       }
       if (hasSystem("tension-rope")) drawControlRopes(ctx, runtime, [
         ...level.fixedGadgets,
-        ...placed.map(part => ({ ...part, id: `placed-${part.id}` })),
+        ...placed.map(part => ({ ...part, id: placedConfigId(part) })),
       ], pendingScissor, ropeMode, selectedRope);
       drawConnections(ctx,machine,selectedConnection,pendingConnection,selectedTool,now,running);
       if (selectedRope === "pulley-rope" && !running) {

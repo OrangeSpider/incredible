@@ -54,7 +54,7 @@ export class GadgetMechanics {
         const offset = { x: impact.position.x - point.x, y: impact.position.y - point.y };
         const radius = Math.max(impact.circleRadius || 0, (impact.bounds.max.x - impact.bounds.min.x) / 2);
         if (offset.x * normal.x + offset.y * normal.y < 0 && Math.abs(offset.x * normal.y - offset.y * normal.x) < radius + 9) {
-          this.machine.setState(plugin.instanceId, "on"); this.machine.setSignal(`switch.pressed.${plugin.instanceId}`);
+          this.machine.setState(plugin.instanceId, plugin.type === "switchFan" ? "running" : "on"); this.machine.setSignal(`switch.pressed.${plugin.instanceId}`);
         }
       }
       if (plugin.type === "detonator" && state.state === "ready") {
@@ -138,8 +138,8 @@ export class GadgetMechanics {
     this.lights = machine.entities().flatMap(entity => {
       const body = machine.body(entity.id); if (!body) return [];
       if (GADGET_CATALOG[entity.type].tags.includes("light-source") && entity.state === "on") return [{
-        ...local(body, entity.type === "flashlight" ? { x: 38, y: 0 } : { x: 0, y: -20 }), id: entity.id,
-        radius: entity.type === "flashlight" ? 360 : 260, intensity: 1, angle: entity.type === "flashlight" ? body.angle : undefined,
+        ...local(body, GADGET_CATALOG[entity.type].appearance.renderer === "flashlight" ? { x: 38, y: 0 } : { x: 0, y: -20 }), id: entity.id,
+        radius: GADGET_CATALOG[entity.type].appearance.renderer === "flashlight" ? 360 : 260, intensity: 1, angle: GADGET_CATALOG[entity.type].appearance.renderer === "flashlight" ? body.angle : undefined,
       }];
       if (entity.type === "candle" && entity.state === "burning") return [{ ...local(body, { x: 0, y: -50 }), id: entity.id, radius: 110, intensity: .45 }];
       return [];

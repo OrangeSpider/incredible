@@ -20,24 +20,11 @@ import PartsPanel from "./PartsPanel";
 import PhysicsHandbook from "./PhysicsHandbook";
 import ScoreDialog, { type ScoreEntry } from "./ScoreDialog";
 import type { PlacedGadget, RopeNode, ScissorRope } from "./types";
+import { placedConfigId } from "./types";
+import GoalOverlay from "./GoalOverlay";
+import { initialPlacements, initialConnections, remainingInventory } from "./placements";
 
 const ROPE_ANCHOR = { x: 92, y: 64 };
-
-function initialPlacements(level: LevelDefinition): PlacedGadget[] {
-  return (level.initialPlacements ?? []).map((gadget, index) => ({
-    id: -(index + 1),
-    type: gadget.type as PlaceableGadgetType,
-    x: gadget.x,
-    y: gadget.y,
-    rotation: gadget.rotation ?? 0,
-    physics: gadget.physics, properties: gadget.properties, role: gadget.role, tags: gadget.tags, state: gadget.state,
-  }));
-}
-
-function initialConnections(level: LevelDefinition): GadgetConnection[] {
-  const ids = new Map((level.initialPlacements ?? []).map((gadget, index) => [gadget.id, `placed-${-(index + 1)}`]));
-  return (level.connections ?? []).map(connection => ({ ...connection, sourceId: ids.get(connection.sourceId) ?? connection.sourceId, targetId: ids.get(connection.targetId) ?? connection.targetId }));
-}
 
 function readScores(): ScoreEntry[] {
   try { return JSON.parse(localStorage.getItem("machine-scores") || "[]") as ScoreEntry[]; }
@@ -58,18 +45,20 @@ function driveBeltMarker(level: LevelDefinition) {
   return { x: (sourcePort.x + target.x) / 2, y: (sourcePort.y + target.y) / 2 };
 }
 
-export default function GameApp() {
-  const [name, setName] = useState("");
+export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { initialLevel?: LevelDefinition; onExitTest?: () => void } = {}) {
+  const [name, setName] = useState(onExitTest ? "Level-Test" : "");
   const [draft, setDraft] = useState("");
-  const [level, setLevel] = useState<LevelDefinition>(LEVELS[0]);
+  const [level, setLevel] = useState<LevelDefinition>(initialLevel);
+  const [folderLevels, setFolderLevels] = useState<LevelDefinition[] | null>(null);
+  const [folderName, setFolderName] = useState<string | null>(null);
   const [customLevel, setCustomLevel] = useState<LevelDefinition | null>(null);
-  const [selected, setSelected] = useState<PlaceableGadgetType | null>(LEVELS[0].inventory[0]?.type ?? null);
-  const [placed, setPlaced] = useState<PlacedGadget[]>(() => initialPlacements(LEVELS[0]));
+  const [selected, setSelected] = useState<PlaceableGadgetType | null>(initialLevel.inventory[0]?.type ?? null);
+  const [placed, setPlaced] = useState<PlacedGadget[]>(() => initialPlacements(initialLevel));
   const [ropePath, setRopePath] = useState<RopeNode[]>([]);
-  const [scissorRopes, setScissorRopes] = useState<ScissorRope[]>([]);
+  const [scissorRopes, setScissorRopes] = useState<ScissorRope[]>(() => structuredClone(initialLevel.controlRopes ?? []));
   const [pendingScissor, setPendingScissor] = useState<PendingControlRope | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [connections, setConnections] = useState<GadgetConnection[]>(() => initialConnections(LEVELS[0]));
+  const [connections, setConnections] = useState<GadgetConnection[]>(() => initialConnections(initialLevel));
   const [pendingConnection, setPendingConnection] = useState<GadgetPort | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [selectedRope, setSelectedRope] = useState<string | null>(null);
@@ -82,33 +71,37 @@ export default function GameApp() {
   const [showPhysics, setShowPhysics] = useState(false);
   const [showLevels, setShowLevels] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
+  const [editorDraft, setEditorDraft] = useState<LevelDefinition | null>(null);
   const [drag, setDrag] = useState<{ id: number; dx: number; dy: number } | null>(null);
 
   useEffect(() => {
+    if (onExitTest) return;
     const timer = window.setTimeout(() => setName(localStorage.getItem("machine-user") || ""), 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [onExitTest]);
 
   useEffect(() => {
+    if (showEditor) return;
     const cancel = (event: KeyboardEvent) => {
       if (event.key === "Escape") { setPendingScissor(null); setPendingConnection(null); setSelected(null); setDrag(null); }
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, []);
+  }, [showEditor]);
 
   const availableLevels = useMemo(() => {
-    if (!customLevel) return LEVELS;
-    const withoutSameId = LEVELS.filter((item) => item.id !== customLevel.id);
+    const source = onExitTest ? [initialLevel] : folderLevels ?? LEVELS;
+    if (!customLevel) return source;
+    const withoutSameId = source.filter((item) => item.id !== customLevel.id);
     return [...withoutSameId, customLevel].sort((a, b) => a.number - b.number);
-  }, [customLevel]);
+  }, [customLevel, folderLevels, onExitTest, initialLevel]);
   const levelPosition = Math.max(0, availableLevels.indexOf(level)) + 1;
 
   const clearAttempt = (nextLevel: LevelDefinition, bumpAttempt = false) => {
     setRunning(false);
     setPlaced(initialPlacements(nextLevel));
     setRopePath([]);
-    setScissorRopes([]);
+    setScissorRopes(structuredClone(nextLevel.controlRopes ?? []));
     setPendingScissor(null);
     setSelectedId(null);
     setConnections(initialConnections(nextLevel)); setPendingConnection(null); setSelectedConnection(null); setSelectedRope(null);
@@ -117,6 +110,7 @@ export default function GameApp() {
   };
 
   const changeLevel = (nextLevel: LevelDefinition) => {
+    setEditorDraft(null);
     setLevel(nextLevel);
     setSelected(nextLevel.inventory[0]?.type ?? null);
     clearAttempt(nextLevel);
@@ -139,13 +133,13 @@ export default function GameApp() {
   const boardPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (running) return;
     const point = boardPoint(event);
-    const configs = [...level.fixedGadgets, ...placed.map(part => ({ ...part, id: `placed-${part.id}` }))];
+    const configs = [...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))];
     const selectRope = (id: string) => { setSelectedRope(id); setSelectedId(null); setSelectedConnection(null); setPendingScissor(null); setSelected(null); };
     if (selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) {
       const kind = selected, ports = gadgetPorts(configs).filter(port => kind === "wire" ? port.kind !== "drive" : port.kind === "drive");
       const port = ports.map(port => ({ port, distance: Math.hypot(point.x - port.x, point.y - port.y) })).sort((a, b) => a.distance - b.distance)[0];
       if (port && port.distance < 24) {
-        const limit = level.inventory.find(entry => entry.type === kind)?.count ?? 0;
+        const limit = (level.inventory.find(entry => entry.type === kind)?.count ?? 0) + (level.connections ?? []).filter(item => item.kind === kind).length;
         if (!pendingConnection) { if (connections.filter(item => item.kind === kind).length < limit) setPendingConnection(port.port); }
         else {
           const connection = connectPorts(pendingConnection, port.port, kind, connections, `connection-${Math.round(performance.now() * 1000)}`);
@@ -157,8 +151,8 @@ export default function GameApp() {
     }
 
     if (selected === "rope" && level.systems.includes("tension-rope")) {
-      const limit = level.inventory.find(entry => entry.type === "rope")?.count ?? 0;
-      const ports = ropePorts([...level.fixedGadgets, ...placed.map(part => ({ ...part, id: `placed-${part.id}` }))]);
+      const limit = (level.inventory.find(entry => entry.type === "rope")?.count ?? 0) + (level.controlRopes ?? []).length;
+      const ports = ropePorts([...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))]);
       const port = ports.map(port => ({ port, distance: Math.hypot(port.x - point.x, port.y - point.y) }))
         .filter(item => item.distance < 26).sort((a, b) => a.distance - b.distance)[0]?.port;
       if (port) {
@@ -226,12 +220,12 @@ export default function GameApp() {
 
     const allowed = level.inventory.find((entry) => entry.type === selected);
     if (!selected || !allowed || selected === "rope" || selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) return;
-    if (placed.filter((part) => part.type === selected).length >= allowed.count) return;
+    if (placed.filter((part) => part.type === selected && !part.configId).length >= allowed.count) return;
     const id = Math.round(performance.now() * 1000);
     setSelectedId(id);
     setSelectedConnection(null); setSelectedRope(null);
     const connectorPoint = selected === "belt" ? driveBeltMarker(level) : null;
-    setPlaced((items) => [...items, { id, type: selected, x: connectorPoint?.x ?? point.x, y: connectorPoint?.y ?? point.y, rotation: defaultRotation(selected) }]);
+    setPlaced((items) => [...items, { id, type: selected, x: connectorPoint?.x ?? point.x, y: connectorPoint?.y ?? point.y, rotation: defaultRotation(selected), tags: ["player-part"], ...(["candle", "cat", "mouse", "fish", "fishBowl"].includes(selected) ? { properties: { standalone: true } } : {}), ...(selected === "fish" ? { state: "flopping" } : {}) }]);
   };
 
   const boardPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -240,7 +234,7 @@ export default function GameApp() {
     setPlaced((items) => items.map((part) => part.id === drag.id ? {
       ...part,
       x: Math.max(25, Math.min(875, point.x + drag.dx)),
-      y: Math.max(25, Math.min(475, point.y + drag.dy)),
+      y: Math.max(25, Math.min(level.floor === false ? 495 : 475, point.y + drag.dy)),
     } : part));
   };
 
@@ -259,8 +253,11 @@ export default function GameApp() {
       const index = nodes.findIndex((node) => node.kind === "part" && node.placedId === selectedId);
       return index < 0 ? nodes : nodes.slice(0, index);
     });
-    setScissorRopes((ropes) => ropes.filter(rope => !ropeUsesGadget(rope, `placed-${selectedId}`)));
-    setConnections(items => items.filter(item => item.sourceId !== `placed-${selectedId}` && item.targetId !== `placed-${selectedId}`));
+    const configId = placed.find(part => part.id === selectedId);
+    if (configId) {
+      setScissorRopes((ropes) => ropes.filter(rope => !ropeUsesGadget(rope, placedConfigId(configId))));
+      setConnections(items => items.filter(item => item.sourceId !== placedConfigId(configId) && item.targetId !== placedConfigId(configId)));
+    }
     setSelectedId(null);
     setPendingScissor(null);
   };
@@ -277,14 +274,12 @@ export default function GameApp() {
         : selectedRope || selectedConnection ? "Verbindung ausgewählt. ENTFERNEN gibt sie ins Inventar zurück." : level.hint;
 
   const remaining = (entry: InventoryEntry) => {
-    if (entry.type === "wire" || (entry.type === "belt" && !level.systems.includes("belt-drive"))) return Math.max(0, entry.count - connections.filter(connection => connection.kind === entry.type).length);
-    if (entry.type === "rope" && level.systems.includes("tension-rope")) return Math.max(0, entry.count - scissorRopes.length);
-    if (entry.type === "rope" && level.systems.includes("pulley-rope")) return ropePath.length ? 0 : entry.count;
-    return Math.max(0, entry.count - placed.filter((part) => part.type === entry.type).length);
+    return remainingInventory(entry, level, placed, connections, scissorRopes, ropePath.length > 0);
   };
 
   const win = useCallback(() => {
     setWon(true);
+    if (onExitTest) return;
     setScore((oldScore) => {
       const nextScore = oldScore + Math.max(500, 1800 - placed.length * 120);
       const nextBoard = [...readScores(), { name, score: nextScore }].sort((a, b) => b.score - a.score).slice(0, 10);
@@ -292,7 +287,7 @@ export default function GameApp() {
       setScores(nextBoard);
       return nextScore;
     });
-  }, [name, placed.length]);
+  }, [name, placed.length, onExitTest]);
 
   const applyEditedLevel = (editedLevel: LevelDefinition) => {
     setCustomLevel(editedLevel);
@@ -302,17 +297,21 @@ export default function GameApp() {
   };
 
   if (!name) return <LoginScreen draft={draft} onDraftChange={setDraft} onLogin={login} />;
+  if (showEditor) return <LevelEditor level={{ ...level, controlRopes: scissorRopes }} savedLevel={editorDraft} placed={placed} connections={connections} onApply={applyEditedLevel} onClose={draft => { setEditorDraft(draft); setShowEditor(false); }} renderTest={(testLevel, close) => <GameApp initialLevel={testLevel} onExitTest={close} />} />;
 
   const nextLevel = availableLevels[levelPosition] ?? null;
 
   return (
     <main className="game-shell">
+      {onExitTest && <div className="playtest-banner"><b>LEVEL-TEST</b><span>Baue mit dem Spielerinventar und starte die Maschine.</span><button onClick={onExitTest}>← Zurück zum Editor</button></div>}
+      {folderName && <div className="folder-banner">Levelordner: <b>{folderName}</b> · {levelPosition} / {availableLevels.length}</div>}
       <GameHeader score={score} playerName={name} levelNumber={level.number} levelCount={availableLevels.length} onScores={() => { setScores(readScores()); setShowScores(true); }} onLevels={() => setShowLevels(true)} onLogout={() => { localStorage.removeItem("machine-user"); setName(""); }} />
       <MissionPanel level={level} />
       <div className="workspace">
         <section className="board-wrap">
           <div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
             <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} connections={connections} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={running} attempt={attempt} onWin={win} />
+            <GoalOverlay goal={level.goal} />
             {!running && placed.length === 0 && level.scene !== "rocket-parade" && <div className="board-tip">{level.buildTip}</div>}
             {won && <div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{level.successText}</p>{nextLevel ? <button onClick={() => changeLevel(nextLevel)}>Nächstes Level →</button> : <button onClick={reset}>Noch einmal bauen ↻</button>}</div>}
           </div>
@@ -320,11 +319,10 @@ export default function GameApp() {
         </section>
         <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={type => { setSelected(type); setPendingScissor(null); setPendingConnection(null); }} />
       </div>
-      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null || selectedRope !== null || selectedConnection !== null} canRotate={canRotate} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => setShowEditor(true)} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
+      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null || selectedRope !== null || selectedConnection !== null} canRotate={canRotate} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setWon(false); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => { if (onExitTest) onExitTest(); else { setRunning(false); setShowEditor(true); } }} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
       {showScores && <ScoreDialog scores={scores} onClose={() => setShowScores(false)} />}
-      {showLevels && <LevelSelectDialog levels={availableLevels} current={level} customLevelId={customLevel?.id} onSelect={changeLevel} onClose={() => setShowLevels(false)} />}
+      {showLevels && <LevelSelectDialog levels={availableLevels} current={level} customLevelId={customLevel?.id} onSelect={changeLevel} onClose={() => setShowLevels(false)} folderName={folderName} onLoadFolder={onExitTest ? undefined : (levels, folder) => { setFolderLevels(levels); setFolderName(folder); setCustomLevel(null); changeLevel(levels[0]); }} onBuiltinLevels={onExitTest ? undefined : () => { setFolderLevels(null); setFolderName(null); setCustomLevel(null); changeLevel(LEVELS[0]); }} />}
       {showPhysics && <PhysicsHandbook onClose={() => setShowPhysics(false)} />}
-      {showEditor && <LevelEditor level={level} placed={placed} connections={connections} onApply={applyEditedLevel} onClose={() => setShowEditor(false)} />}
     </main>
   );
 }

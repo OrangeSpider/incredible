@@ -212,15 +212,19 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     },
   }),
   "bucket-water": runtime => {
-    const bucket = runtime.bodies.bucket, startAngle = bucket?.angle ?? 0;
-    const start = bucket ? { ...bucket.position } : null;
-    const pivot = start ? { x: start.x + Math.cos(startAngle) * 34 - Math.sin(startAngle) * -23, y: start.y + Math.sin(startAngle) * 34 + Math.cos(startAngle) * -23 } : null;
+    const buckets = [...new Set([...(runtime.bodies.bucket ? [runtime.bodies.bucket] : []), ...runtime.machine.bodiesByType("bucket")])].map(bucket => {
+      const startAngle = bucket.angle, start = bucket.position;
+      return { bucket, startAngle, pivot: { x: start.x + Math.cos(startAngle) * 34 - Math.sin(startAngle) * -23, y: start.y + Math.sin(startAngle) * 34 + Math.cos(startAngle) * -23 } };
+    });
     return { afterStep() {
-      if (!runtime.running || !bucket || !pivot) return;
+      if (!runtime.running || !buckets.length) return;
       if (!runtime.state.bucketTipAt) runtime.state.bucketTipAt = runtime.now;
-      const tip = Math.max(0, Math.min(1, (runtime.now - runtime.state.bucketTipAt) / 1900)), eased = tip * tip * (3 - 2 * tip), angle = startAngle + eased * 2.1;
-      const rotatedX = Math.cos(angle) * 34 - Math.sin(angle) * -23, rotatedY = Math.sin(angle) * 34 + Math.cos(angle) * -23;
-      Matter.Body.setPosition(bucket, { x: pivot.x - rotatedX, y: pivot.y - rotatedY }); Matter.Body.setAngle(bucket, angle);
+      const tip = Math.max(0, Math.min(1, (runtime.now - runtime.state.bucketTipAt) / 1900)), eased = tip * tip * (3 - 2 * tip);
+      for (const { bucket, startAngle, pivot } of buckets) {
+        const angle = startAngle + eased * 2.1, rotatedX = Math.cos(angle) * 34 - Math.sin(angle) * -23, rotatedY = Math.sin(angle) * 34 + Math.cos(angle) * -23;
+        Matter.Body.setPosition(bucket, { x: pivot.x - rotatedX, y: pivot.y - rotatedY }); Matter.Body.setAngle(bucket, angle);
+        const id = machinePlugin(bucket)?.instanceId; if (id) runtime.machine.setState(id, tip >= 1 ? "empty" : "pouring");
+      }
     } };
   },
   "water-collisions": runtime => ({

@@ -51,6 +51,7 @@ Die ursprünglichen *The Incredible Machine*-Aufgaben verlangen unter anderem, G
 | --- | --- | --- |
 | `zone`, `contact` | Ein ausgewähltes Objekt erreicht einen Zielbereich oder berührt ein anderes. | Joanne betritt den Ausgang. |
 | `state`, `position` | Ein Objekt hat einen Zustand oder überschreitet eine Koordinate. | Eine Kerze ist erloschen; ein Gewicht erreicht die Markierung. |
+| `motion`, `area` | Ein einzelnes ausgewähltes Objekt überschreitet das Mindesttempo oder sein Mittelpunkt liegt in einem Rechteck. | Eine Bowlingkugel bewegt sich oder erreicht den aufgezogenen Zielbereich. |
 | `event`, `signal` | Ein einmaliges Ereignis oder ein gemessener Mechanikwert tritt ein. | Die vollständig verbundene Zahnradkette lief lange genug. |
 | `count` | Eine Anzahl passender Objekte erfüllt ein Zustands- oder Positionsprädikat. | Drei Ballons verlassen oben das Spielfeld. |
 | `all`, `any` | Teilziele müssen gemeinsam oder alternativ gelten. | Laufband angetrieben **und** vier Raketen gestartet. |

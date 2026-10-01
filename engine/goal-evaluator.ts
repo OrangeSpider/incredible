@@ -52,6 +52,9 @@ function evaluateComposable(goal:ComposableGoalSpec,context:GoalContext):boolean
     }
     case "state":return matchingEntities(goal.selector,context).some(entity=>entity.state===goal.state);
     case "position":return matchingEntities(goal.selector,context).some(entity=>compare(entity[goal.axis],goal.operator,goal.value));
+    case "motion":return matchingEntities(goal.selector,context).some(entity=>(entity.speed??0)>=goal.minimumSpeed);
+    case "area":return matchingEntities(goal.selector,context).some(entity=>
+      entity.x!==undefined&&entity.y!==undefined&&entity.x>=goal.x&&entity.x<=goal.x+goal.width&&entity.y>=goal.y&&entity.y<=goal.y+goal.height);
     case "contact":return context.events?.().some(event=>event.name==="contact"&&(
       (matchesId(event.sourceId,goal.source,context)&&matchesId(event.targetId,goal.target,context))||
       (matchesId(event.sourceId,goal.target,context)&&matchesId(event.targetId,goal.source,context))

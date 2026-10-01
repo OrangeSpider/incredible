@@ -6,6 +6,19 @@ Ein Browser-Physikspiel im Stil klassischer Rube-Goldberg-Maschinen. Der Spieler
 
 Voraussetzung ist Node.js `>=22.13.0`.
 
+Zum lokalen Starten, auch unter Windows/PowerShell, im Projektordner ausführen:
+
+```sh
+npm ci
+npm run dev:local
+```
+
+Das Spiel ist unter [http://localhost:3000](http://localhost:3000) erreichbar.
+Mit `Strg+C` den Server beenden. Für einen lokalen Produktionsstart zuerst
+`npm run build:local`, danach `npm run start:local` ausführen.
+
+Der bestehende Vite-/Worker-Entwicklungsweg bleibt verfügbar:
+
 ```bash
 npm install
 npm run dev
@@ -45,14 +58,23 @@ Die neuen Strom-, Licht-, Stoß- und Windgadgets mit elf Mini-Levels sind in [do
 
 ## Level-Editor
 
-Der Button **EDITOR** öffnet das JSON des aktuellen Levels. Der Editor kann:
+Der Button **EDITOR** öffnet eine visuelle Werkstatt mit dem aktuellen Level. **Neues Level** legt ein leeres Spielfeld an. Rechts stehen alle Gadgets aus dem gemeinsamen Katalog; über die Suche lässt sich die Auswahl filtern.
 
-- die aktuelle Anordnung als `initialPlacements` übernehmen,
-- JSON lokal im Browser speichern,
-- eine `.json`-Datei herunterladen oder einlesen,
-- das validierte Level sofort im Spiel testen.
+1. Bauteil rechts auswählen und beliebig oft auf das Spielfeld klicken. Unter **Neue Bauteile** bestimmen, ob es als fest vorgegebenes Objekt (`fixedGadgets`) oder als verschiebbarer Startaufbau (`initialPlacements`) gespeichert wird. In **Bearbeiten** lassen sich beide Varianten verschieben, drehen, löschen und über ihre Koordinaten präzise einstellen.
+2. Die Zahlen neben den Bauteilen legen das **zusätzliche Spielerinventar** fest. `0` entfernt den Typ aus dem Inventar. Startobjekte und vorgegebene Verbindungen verbrauchen dieses Inventar nicht.
+3. Levelname, Levelnummer und Zielbeschreibung eingeben. Über **Goal** ein gesetztes Einzelobjekt oder einen Typ aus dem Spielerinventar auswählen. Ein Ziel kann einen Zustand, Bewegung, das Verlassen einer der vier Spielfeldseiten oder einen aufgezogenen rechteckigen Zielbereich verlangen. Für einen Ausgang unten wird der Boden abgeschaltet. Mehrere Ziele können mit **alle gleichzeitig** oder **eines genügt** verknüpft werden.
+4. **Im Spiel testen** öffnet den normalen Spielaufbau mit genau diesem Spielerinventar. Die Maschine starten, abbrechen und zurücksetzen. **Zurück zum Editor** kehrt zum unveränderten Entwurf zurück; Tests verändern keine Punktestände.
+5. **Ordner öffnen** wählt eine lokale Levelsammlung, **Im Ordner speichern** schreibt jedes Level in eine eigene JSON-Datei. Gespeicherte Levels lassen sich oben wechseln. Neue Dateien heißen beispielsweise `02-level-abc.json`; bei geladenen Dateien bleibt der ursprüngliche Pfad erhalten. JSON-Import, Download und direkte JSON-Bearbeitung stehen unter **Dateien, Hinweise und JSON** zur Verfügung.
 
-Das Format wird durch `levels/level.schema.json` beschrieben. Feste Startobjekte stehen in `fixedGadgets`, das Spielerinventar in `inventory`, aktive Verhaltensmodule in `systems` und das abstrakte Ziel in `goal`.
+**Undo/Redo** funktioniert für Bauteile, Verschieben, Drehungen, Inventar, Metadaten, Ziele und Verbindungen. Eine Ziehbewegung entspricht einem Undo-Schritt. Tastatur: `Strg+Z`, `Strg+Umschalt+Z` / `Strg+Y`, `Entf`; `Esc` beendet das aktuelle Werkzeug. Beim Löschen eines Objekts werden seine Verbindungen und die darauf bezogenen Einzelziele mit entfernt und beim Rückgängigmachen gemeinsam wiederhergestellt. Der Entwurf wird automatisch im Browser gesichert und kann über **Entwurf laden** wiederhergestellt werden.
+
+Lampen, Taschenlampen und Ventilatoren stehen mit Einschaltknopf und mit Steckdose zur Verfügung. Für Steckdosenvarianten **Stromleitung** auswählen und den Generatoranschluss mit der Steckdose verbinden. **Seil** verbindet einen Scherengriff oder Torriegel über optionale Umlenkrollen mit einem Zugpunkt. Auch diese Verbindungen werden gespeichert.
+
+Direktes Schreiben in Ordner verwendet die vom Browser angebotene `showDirectoryPicker`-API und benötigt einen sicheren Kontext (HTTPS oder localhost). Falls diese API fehlt, können Ordner über den Dateidialog eingelesen und einzelne Levels als JSON heruntergeladen werden. Die heruntergeladenen Dateien anschließend im gewünschten Levelordner ablegen.
+
+Zum Spielen einer Sammlung im Dialog **LEVEL** auf **Ordner zum Spielen auswählen** klicken. Alle JSON-Level im Ordner einschließlich Unterordnern werden vorab geprüft und nach Levelnummer, danach nach Dateinamen sortiert. Nach jedem Erfolg lädt **Nächstes Level** die nächste Datei dieser Sammlung. **Mitgelieferte Levels** wechselt zurück zum ursprünglichen Katalog. Ungültige Dateien und doppelte Level-IDs werden mit Dateiname beziehungsweise ID gemeldet.
+
+Das Format wird durch `levels/level.schema.json` beschrieben. Feste Startobjekte stehen in `fixedGadgets`, das Spielerinventar in `inventory`, aktive Verhaltensmodule in `systems` und das Ziel in `goal`. `connections` speichert Stromleitungen und Riemen, `controlRopes` Steuerseile und `floor: false` ein unten offenes Spielfeld. Objekt-IDs bleiben beim Testen und Laden erhalten. Bewegungsziele verwenden `kind: "motion"` und `minimumSpeed` (Matter.js-Tempo), Rechteckziele `kind: "area"` mit `selector`, `x`, `y`, `width` und `height`; geprüft wird der Objektmittelpunkt. Ziele für Spielerbauteile verwenden zusätzlich `tag: "player-part"`.
 
 ## Physikmodell
 
