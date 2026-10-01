@@ -203,7 +203,11 @@ export function validateLevel(value:unknown):LevelDefinition{
   }
   if(level.schemaVersion===1)validateLegacyGoal(level.goal);
   else validateGoal(level.goal,ids);
-  return structuredClone(level as LevelDefinition);
+  const validated=structuredClone(level as LevelDefinition);
+  // Older editor exports omit the runtime hook required by their magnets.
+  const hasMagnet=[...validated.fixedGadgets,...(validated.initialPlacements??[]),...validated.inventory].some(gadget=>gadget.type==="magnet");
+  if(hasMagnet&&!seenSystems.has("magnetic-field"))validated.systems.push("magnetic-field");
+  return validated;
 }
 
 export const LEVELS:LevelDefinition[]=rawLevels.map(validateLevel).sort((a,b)=>a.number-b.number);
