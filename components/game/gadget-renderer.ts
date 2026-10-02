@@ -6,7 +6,7 @@ import { machinePlugin } from "../../engine/body-factory.ts";
 import { GADGET_CATALOG } from "../../engine/gadget-catalog.ts";
 import { gadgetPorts } from "../../game/gadget-connections.ts";
 import { drawConveyor, drawDriveBelt, driveBeltGeometry } from "../../game/drive.ts";
-import { AIRFLOW_RANGE } from "../../game/airflow.ts";
+import { drawFan, drawWindmill, drawMagnifier } from "./gadget-motion-renderer.ts";
 
 export function drawMouseHole(ctx: CanvasRenderingContext2D, x: number, floorY: number, width = 52, height = 58) {
   ctx.save(); ctx.translate(x, floorY); ctx.lineWidth = 5; ctx.strokeStyle = "#aa7950";
@@ -66,19 +66,10 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
     if (type === "lamp") drawButton(ctx, -24, -32, state === "on");
   } else if (type === "fan" || type === "socketFan" || type === "switchFan") {
     const active = state === "running";
-    ctx.fillStyle = "#64858e"; ctx.fillRect(-4, 24, 8, 22); ctx.beginPath(); ctx.roundRect(-22, 41, 44, 8, 4); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = material(ctx,"#e7efd8","#9cbcbc"); ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.save(); ctx.rotate(active && running ? now / 110 : 0); ctx.fillStyle = "#528e9c";
-    for (let blade = 0; blade < 4; blade++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.ellipse(11, 7, 15, 7, .5, 0, Math.PI * 2); ctx.fill(); } ctx.restore();
-    ctx.strokeStyle = "#76939a"; ctx.lineWidth = 1;
-    for (const radius of [10, 20, 27]) { ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.fillStyle = "#d9ab47"; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    drawFan(ctx, Number(machine.state(id)?.properties.rotorAngle ?? 0), active, machine.timeMs);
     if (type === "switchFan") drawButton(ctx, 0, -30, active);
-    if (active) { ctx.strokeStyle = "rgba(62,147,173,.42)"; ctx.setLineDash([8, 10]); ctx.lineDashOffset = running ? -now / 35 : 0;
-      ctx.beginPath(); ctx.moveTo(35, -28); ctx.lineTo(AIRFLOW_RANGE, -38 - AIRFLOW_RANGE * .19); ctx.moveTo(35, 28); ctx.lineTo(AIRFLOW_RANGE, 38 + AIRFLOW_RANGE * .19); ctx.stroke(); ctx.setLineDash([]); }
   } else if (type === "magnifier") {
-    ctx.fillStyle = "rgba(130,201,222,.38)"; ctx.beginPath(); ctx.ellipse(0, 0, 11, 30, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = "#a46c34"; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(0, 31); ctx.lineTo(0, 59); ctx.stroke();
+    drawMagnifier(ctx, state === "focusing", machine.timeMs);
     if (!running) { ctx.strokeStyle = "#d78837"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(90, 0); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(90, 0, 7, 0, Math.PI * 2); ctx.stroke(); ctx.font = "10px system-ui"; ctx.fillStyle = "#81542f"; ctx.fillText("BRENNPUNKT", 57, -14); }
   } else if (type === "generator") {
     ctx.fillStyle = "#58747e"; ctx.beginPath(); ctx.roundRect(-42, -29, 84, 58, 8); ctx.fill(); ctx.stroke();
@@ -105,10 +96,7 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
     ctx.strokeStyle = "#b4944f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(23, 20); ctx.lineTo(40, 20); ctx.stroke();
     if (pressed && age < 160) drawSpark(ctx, 40, 20, now);
   } else if (type === "windmill") {
-    ctx.strokeStyle = "#9b6331"; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(0, 66); ctx.moveTo(-23, 66); ctx.lineTo(23, 66); ctx.stroke();
-    ctx.save(); ctx.rotate(state === "running" && running ? now / 200 : 0); ctx.fillStyle = material(ctx, "#f9d681", "#aa772c");
-    for (let blade = 0; blade < 4; blade++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.moveTo(8, -4); ctx.lineTo(39, -12); ctx.lineTo(34, 10); ctx.lineTo(8, 5); ctx.closePath(); ctx.fill(); ctx.stroke(); } ctx.restore();
-    ctx.fillStyle = material(ctx, "#94b4b9", "#344e5c"); ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+    drawWindmill(ctx, Number(machine.state(id)?.properties.rotorAngle ?? 0), state === "running");
   } else if (type === "boxingGlove") {
     const extension = state === "spent" ? Math.sin(Math.min(1, age / 400) * Math.PI) * 82 : 0;
     ctx.fillStyle = "#617b83"; ctx.fillRect(-36, -22, 15, 44); ctx.strokeRect(-36, -22, 15, 44);
@@ -152,10 +140,18 @@ export function drawFields(ctx: CanvasRenderingContext2D, machine: MachinePhysic
   }
   for (const focus of machine.mechanics.focuses) {
     const lens = machine.body(focus.lensId)!;
-    ctx.fillStyle = "rgba(252,199,67,.21)"; ctx.strokeStyle = "rgba(230,151,31,.55)"; ctx.lineWidth = 1.5;
+    const clock = machine.timeMs, pulse = .5 + .5 * Math.sin(clock / 160);
+    ctx.fillStyle = `rgba(252,199,67,${.14 + pulse * .12})`; ctx.strokeStyle = "rgba(230,151,31,.55)"; ctx.lineWidth = 1.5;
     ctx.beginPath(); const a = bodyPoint(lens, { x: 0, y: -28 }), b = bodyPoint(lens, { x: 0, y: 28 });
     ctx.moveTo(a.x, a.y); ctx.lineTo(focus.point.x, focus.point.y); ctx.lineTo(b.x, b.y); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#ed8b27"; ctx.beginPath(); ctx.arc(focus.point.x, focus.point.y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,242,172,.8)";
+    for (const start of [a, b]) {
+      const progress = (clock % 650) / 650;
+      ctx.beginPath(); ctx.arc(start.x + (focus.point.x - start.x) * progress, start.y + (focus.point.y - start.y) * progress, 2, 0, Math.PI * 2); ctx.fill();
+    }
+    const glow = ctx.createRadialGradient(focus.point.x, focus.point.y, 1, focus.point.x, focus.point.y, 12 + pulse * 4);
+    glow.addColorStop(0, "rgba(255,245,172,.95)"); glow.addColorStop(.3, "rgba(244,159,45,.75)"); glow.addColorStop(1, "rgba(244,159,45,0)");
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(focus.point.x, focus.point.y, 12 + pulse * 4, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
 }

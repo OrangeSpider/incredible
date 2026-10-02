@@ -3,6 +3,8 @@ import test from "node:test";
 import Matter from "matter-js";
 import {advanceCatTowardFish,catSeesFish,FISHBOWL_BREAK_SPEED,fishbowlBreaks} from "../game/fish.ts";
 import {CHARACTERS} from "../game/characters.ts";
+import {MachinePhysicsEngine} from "../engine/physics-engine.ts";
+import {FISH_REVEAL_DELAY_MS} from "../game/fish.ts";
 
 test("the recurring animal characters keep their names",()=>{
   assert.deepEqual(CHARACTERS,{hamster:"Louis",cat:"Joanne",mouse:"Mogli",fish:"Mr. Blue"});
@@ -41,4 +43,34 @@ test("Joanne sees visible Mr. Blue on her level and runs toward him",()=>{
   assert.equal(catSeesFish({catX:130,catY:450,fishX:700,fishY:460,fishVisible:false}),false);
   assert.ok(advanceCatTowardFish(130,700,100)>130);
   assert.equal(advanceCatTowardFish(690,700,100),652,"Joanne stops just before Mr. Blue");
+});
+
+test("TNT breaks nearby bowls, releases one fish per bowl, and respects range and walls", () => {
+  const machine = new MachinePhysicsEngine();
+  machine.matter.gravity.y = 0;
+  for (const config of [
+    { id: "tnt", type: "tnt", x: 300, y: 260, state: "burning" },
+    { id: "right", type: "fishBowl", x: 410, y: 260 },
+    { id: "above", type: "fishBowl", x: 300, y: 150 },
+    { id: "far", type: "fishBowl", x: 600, y: 260 },
+    { id: "shielded", type: "fishBowl", x: 190, y: 260 },
+    { id: "wall", type: "stoneWall", x: 245, y: 260 },
+  ]) machine.addGadget(config);
+  for (let i = 0; i < 40; i++) machine.step(1000 / 60);
+  assert.equal(machine.state("tnt").state, "exploded");
+  for (const id of ["right", "above"]) {
+    assert.equal(machine.state(id).state, "breaking");
+    assert.equal(machine.body(id).collisionFilter.mask, 0);
+    assert.equal(machine.signal(`fishBowl.broken.${id}`), true);
+    assert.equal(machine.state(`${id}:fish`).state, "hidden");
+  }
+  for (const id of ["far", "shielded"]) assert.equal(machine.state(id).state, "intact");
+  for (let i = 0; i < Math.ceil(FISH_REVEAL_DELAY_MS / (1000 / 60)) + 2; i++) machine.step(1000 / 60);
+  for (const id of ["right", "above"]) {
+    assert.equal(machine.state(id).state, "broken");
+    assert.equal(machine.state(`${id}:fish`).state, "flopping");
+    assert.equal(machine.body(`${id}:fish`).isStatic, false);
+  }
+  assert.equal(machine.bodiesByType("fish").length, 4);
+  machine.destroy();
 });

@@ -18,11 +18,12 @@ Die bisherigen Ventilatoren besitzen ihren eigenen Antrieb. Ein gemeinsames Luft
 - Lupe (`magnifier`): bündelt tatsächlich eintreffendes Licht in einem Brennpunkt 90 Pixel vor der Linse. Drehen verändert die Richtung. Der markierte Punkt hilft beim Aufbau.
 - Ein Docht oder Luntenabschnitt im Brennpunkt entzündet sich nach kurzer Erwärmung. Ohne Licht, bei falscher Ausrichtung oder mit einer Wand im Strahlweg bleibt er kalt.
 - Neue Lunten nutzen das räumliche Abbrandmodell: Feuer bewegt sich vom Zündpunkt durch die Lunte. Die bestehenden Kanonenlevels behalten ihre Luntennetzwerke.
+- Raketenfeuer folgt der sichtbaren Flugbahn und entzündet beim Vorbeifliegen Kerzendochte, Lunten und die Zündlunten von Kanonen oder TNT. Der Weg zwischen Simulationsschritten wird ebenfalls geprüft; nasse Lunten bleiben gelöscht.
 
 ## 3. Stoß und Antrieb — Level 31–35
 
 - Basketball (`basketball`): 0,62 kg gegenüber 7,2 kg bei der Bowlingkugel; stärkerer Rückprall.
-- TNT (`tnt`): direktes Feuer an der kurzen Lunte, 650 ms Abbrand, einmalige Explosion mit abnehmendem Impuls bis 180 Pixel. Wände schirmen den Stoß ab; leichtere Körper reagieren stärker. Wasser löscht die Lunte vor der Explosion.
+- TNT (`tnt`): direktes Feuer an der kurzen Lunte, 650 ms Abbrand, einmalige Explosion mit abnehmendem Impuls bis 180 Pixel. Goldfischgläser im ungeschützten Wirkungsbereich zerbrechen und geben nach ihrer Bruchanimation jeweils einen Fisch frei. Wände schirmen den Stoß ab; leichtere Körper reagieren stärker. Wasser löscht die Lunte vor der Explosion.
 - Sprengzünder (`detonator`): ein Treffer von oben drückt den Griff. Rechts unten erscheint ein Funke für 160 ms. Er kann eine unmittelbar angrenzende Lunte entzünden.
 - Windrad (`windmill`): dreht im Luftstrom. Ein Antriebsriemen zwischen seinen ANTRIEB-Anschlüssen und Zahnrad oder Laufband überträgt Drehung. Ohne Wind stoppt der Antrieb.
 - Boxhandschuh (`boxingGlove`): ein Treffer an der Rückseite löst genau einen Schlag nach vorne aus. Die Schlagrichtung lässt sich durch Drehen ändern. Zurücksetzen der Maschine macht ihn erneut bereit.
@@ -31,6 +32,8 @@ Die bisherigen Ventilatoren besitzen ihren eigenen Antrieb. Ein gemeinsames Luft
 
 - Mäuselöcher sind dunkle Rundbogenöffnungen am Boden.
 - Trampoline zeigen Sprungfläche, Rahmen, Federn und Beine.
+- Ventilatoren zeigen rotierende Flügel und wandernde Luftstromlinien; ausgeschaltete Varianten stehen still. Windräder drehen entsprechend der Windstärke und behalten beim Stoppen ihre Flügelstellung. Bei beleuchteten Lupen bewegen sich Lichtpunkte zum pulsierenden Brennpunkt, während die Linse schimmert.
+- Größenänderungen an Holzplanken, Stahlträgern, Holzwänden und Steinmauern sind dem Level-Editor vorbehalten. Im Spielaufbau behalten diese Flächen ihre vorgegebene Länge beziehungsweise Höhe.
 - Level 21 und 22 enthalten die überflüssige Steinwand nicht mehr. Ihre Seilaufgaben und bisherigen Lösungen bleiben erhalten.
 - Seil anklicken oder verbundenen Griff auswählen, anschließend **ENTFERNEN** drücken. Es kommt ins Inventar zurück. Dasselbe gilt für Stromleitungen und die neuen Riemenverbindungen. Es gibt keinen zusätzlichen „Seil zurück“-Button. Escape bricht einen begonnenen Verbindungsaufbau ab.
 - Verbundene Bauteile können weiterhin an ihrer Mitte verschoben werden.

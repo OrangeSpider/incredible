@@ -23,7 +23,7 @@ import type { PlacedGadget, RopeNode, ScissorRope } from "./types";
 import { placedConfigId } from "./types";
 import GoalOverlay from "./GoalOverlay";
 import GadgetSelection from "./GadgetSelection";
-import { resizeHandles, resizeGadget, localPoint } from "@/engine/gadget-geometry";
+import { localPoint } from "@/engine/gadget-geometry";
 import { hitGadget } from "@/levels/authoring";
 import { initialPlacements, initialConnections, remainingInventory } from "./placements";
 
@@ -77,7 +77,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   const [editorDraft, setEditorDraft] = useState<LevelDefinition | null>(null);
   const [drag, setDrag] = useState<{ id: number; dx: number; dy: number } | null>(null);
 
-  const transformDrag = useRef<{ before: PlacedGadget; end?: 0 | 1 } | null>(null);
+  const transformDrag = useRef<{ before: PlacedGadget } | null>(null);
 
   useEffect(() => {
     if (onExitTest) return;
@@ -139,11 +139,6 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     if (running) return;
     if (event.button !== 0) return;
     const point = boardPoint(event);
-    const current = placed.find(part => part.id === selectedId);
-    if (current) {
-      const end = resizeHandles({ ...current, id: placedConfigId(current) }).findIndex(handle => Math.hypot(point.x - handle.x, point.y - handle.y) < 14);
-      if (end >= 0) { event.currentTarget.setPointerCapture(event.pointerId); transformDrag.current = { before: current, end: end as 0 | 1 }; return; }
-    }
     const configs = [...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))];
     const selectRope = (id: string) => { setSelectedRope(id); setSelectedId(null); setSelectedConnection(null); setPendingScissor(null); setSelected(null); };
     if (selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) {
@@ -239,11 +234,6 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   const boardPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (running) return;
     const point = boardPoint(event);
-    const resizing = transformDrag.current;
-    if (resizing?.end !== undefined) {
-      const resized = resizeGadget({ ...resizing.before, id: placedConfigId(resizing.before) }, resizing.end, point);
-      setPlaced(items => items.map(part => part.id === resizing.before.id ? { ...part, x: resized.x, y: resized.y, physics: resized.physics } : part)); return;
-    }
     if (!drag) return;
     setPlaced((items) => items.map((part) => part.id === drag.id ? {
       ...part,

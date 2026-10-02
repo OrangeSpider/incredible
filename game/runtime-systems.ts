@@ -244,7 +244,9 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     afterStep() {
       const state = runtime.state, network = runtime.options.fuseNetwork;
       if (!runtime.running || state.fuseExtinguishedAt) return;
-      state.fuseClock += runtime.dt; for (const candle of runtime.machine.bodiesByType("candle")) { const id=machinePlugin(candle)!.instanceId; if(runtime.machine.state(id)?.state==="burning") network.igniteNear(bodyPoint(candle,candleFlameLocal(runtime.machine.config(id)!)),30,state.fuseClock); } network.update(state.fuseClock);
+      state.fuseClock += runtime.dt; for (const candle of runtime.machine.bodiesByType("candle")) { const id=machinePlugin(candle)!.instanceId; if(runtime.machine.state(id)?.state==="burning") network.igniteNear(bodyPoint(candle,candleFlameLocal(runtime.machine.config(id)!)),30,state.fuseClock); }
+      for (const flame of runtime.machine.mechanics.rocketFlames) network.igniteNear(flame, 14, state.fuseClock);
+      network.update(state.fuseClock);
       state.fuseIgnited = network.hasAnyBurned(state.fuseClock); state.fuseReady = network.burnTimeAt(runtime.options.cannonFuseId, 0) < Infinity;
       const cannon = runtime.bodies.cannon;
       if (cannon && !state.cannonFired) {

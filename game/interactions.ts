@@ -42,6 +42,7 @@ export const INTERACTIONS: Interaction[] = [
   { source: "Affenfahrrad", target: "Laufband", trigger: "Rad und Laufband sind mit einem Riemen verbunden", effect: "Überträgt Drehmoment als lineare Bandbewegung", status: "aktiv" },
   { source: "Laufband", target: "Kiste", trigger: "Kiste berührt das angetriebene Band", effect: "Bewegt die Kiste in Bandrichtung", status: "aktiv" },
   { source: "Kerzenflamme", target: "Lunte", trigger: "Direkter Kontakt", effect: "Startet einen fortschreitenden Abbrand entlang verbundener Luntenteile", status: "aktiv" },
+  { source: "Raketenflamme", target: "Kerze / Lunte / Kanone / TNT", trigger: "Flamme streift beim Vorbeifliegen den Docht oder die Zündlunte", effect: "Entzündet das Bauteil entlang der sichtbaren Flugbahn", status: "aktiv" },
   { source: "Lunte", target: "Kanone", trigger: "Abbrand erreicht den Zündkanal", effect: "Kanone feuert nach ihrer Zündverzögerung genau eine Kanonenkugel", status: "aktiv" },
   { source: "Kanone", target: "Kanonenkugel", trigger: "Zündung", effect: "Erzeugt eine kleinere, leichtere Kugel mit Impuls entlang des Rohrs", status: "aktiv" },
   { source: "Wasser", target: "Hamsterrad / Ventilator / Trampolin / Wippe / Kanone / Kugel / Laufband / Rampe", trigger: "Kontakt mit fester Außenkontur", effect: "Wird physikalisch umgelenkt und fließt außen herum", status: "aktiv" },
@@ -55,5 +56,5 @@ export const INTERACTIONS: Interaction[] = [
   { source: "Wasser", target: "Holz / Kork / Boot", trigger: "Eintauchen", effect: "Auftrieb entsprechend verdrängtem Volumen", status: "geplant" },
   { source: "Lava", target: "Holz / Lunte", trigger: "Kontakt", effect: "Entzündet brennbares Material", status: "geplant" },
   { source: "Wasser", target: "Lava", trigger: "Kontakt beider Fluide", effect: "Wasser verdampft, Lava erstarrt zu einem Körper", status: "geplant" },
-  { source: "Explosion", target: "Bewegliche Körper", trigger: "Lunte abgebrannt", effect: "Radialer Impuls; Stärke nimmt mit Entfernung ab", status: "geplant" },
+  { source: "TNT-Explosion", target: "Bewegliche Körper / Goldfischglas", trigger: "Lunte abgebrannt und Ziel im ungeschützten Wirkungsbereich", effect: "Radialer Impuls mit abnehmender Stärke; Goldfischgläser zerbrechen und geben ihren Fisch frei", status: "aktiv" },
 ];

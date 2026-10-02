@@ -8,7 +8,7 @@ import { airflowAt, AIRFLOW_ACCELERATION } from "../game/airflow.ts";
 import { FuseNetwork } from "../game/fuse.ts";
 import { bodyPoint, bodyVector, bodyTransform, inversePoint, candleFlameLocal, rocketNozzleLocal } from "./gadget-geometry.ts";
 import { FISH_REVEAL_DELAY_MS } from "../game/fish.ts";
-import { ROCKET_IGNITION_MS, ROCKET_TOTAL_LAUNCH_MS } from "../game/rocket.ts";
+import { rocketVisual, ROCKET_IGNITION_MS, ROCKET_TOTAL_LAUNCH_MS } from "../game/rocket.ts";
 
 export type LightField = Point & { id: string; radius: number; angle?: number; intensity: number };
 export type Focus = { lensId: string; lens: Point; point: Point; intensity: number };
@@ -20,6 +20,7 @@ export class GadgetMechanics {
   readonly machine: MachinePhysicsEngine;
   lights: LightField[] = [];
   focuses: Focus[] = [];
+  rocketFlames: Point[] = [];
   private readonly heat = new Map<string, number>();
   private readonly punches = new Map<string, Set<number>>();
   private readonly velocities = new Map<number, Point>();
@@ -78,6 +79,15 @@ export class GadgetMechanics {
     if (!body.isStatic && !body.isSensor) Matter.Body.setVelocity(body, { x: body.velocity.x + velocity.x, y: body.velocity.y + velocity.y });
   }
 
+  private breakBowl(body: Matter.Body) {
+    const id = machinePlugin(body)!.instanceId;
+    if (this.machine.state(id)?.state !== "intact") return;
+    body.isSensor = true; body.collisionFilter.mask = 0;
+    this.machine.setState(id, "breaking");
+    this.machine.setSignal("fishBowl.broken");
+    this.machine.setSignal(`fishBowl.broken.${id}`);
+  }
+
   collision(a: Matter.Body, b: Matter.Body) {
     for (const [device, impact] of [[a, b], [b, a]]) {
       const plugin = machinePlugin(device); if (!plugin || impact.isStatic || impact.isSensor) continue;
@@ -85,9 +95,7 @@ export class GadgetMechanics {
       const movement = this.velocities.get(impact.id) ?? impact.velocity;
       const speed = Math.max(impact.speed, Math.hypot(movement.x, movement.y));
       if (plugin.type === "fishBowl" && state.state === "intact" && impact.position.y < device.position.y && movement.y >= 4.5) {
-        device.isSensor = true; device.collisionFilter.mask = 0;
-        this.machine.setState(plugin.instanceId, "breaking"); this.machine.setSignal("fishBowl.broken");
-        this.machine.setSignal(`fishBowl.broken.${plugin.instanceId}`);
+        this.breakBowl(device);
       }
       if (speed < .8) continue;
       if (plugin.type === "generator") this.strike(device, { x: speed, y: 0 });
@@ -139,6 +147,11 @@ export class GadgetMechanics {
       const body = machine.body(entity.id); if (!body) continue;
       const wind = fans.reduce((sum, fan) => sum + airflowAt(machine.body(fan.id)!, body.position, obstacles), 0);
       if (entity.type === "windmill") { machine.setState(entity.id, wind > .03 ? "running" : "idle"); Matter.Body.setAngularVelocity(body,wind*.12); machine.setSignal(`windmill.rotation.${entity.id}`, wind * .12); }
+      if (entity.type === "windmill" || GADGET_CATALOG[entity.type].tags.includes("air-source")) {
+        const state = machine.state(entity.id)!;
+        const speed = state.state === "running" ? entity.type === "windmill" ? wind * .0072 : .018 : 0;
+        state.properties.rotorAngle = (Number(state.properties.rotorAngle ?? 0) + speed * dt) % (Math.PI * 2);
+      }
       if (!body.isStatic && !body.isSensor && GADGET_CATALOG[entity.type].tags.some(tag => tag === "buoyant" || tag === "lightweight")) {
         for (const fan of fans) {
           const source = machine.body(fan.id)!, strength = airflowAt(source, body.position, obstacles) * AIRFLOW_ACCELERATION * body.mass, direction = bodyVector(source, { x: 1, y: 0 });
@@ -174,7 +187,7 @@ export class GadgetMechanics {
       }
     }
     this.optics(dt, obstacles);
-    this.fire();
+    this.fire(dt);
   }
 
   private optics(dt: number, obstacles: Matter.Body[]) {
@@ -220,7 +233,28 @@ export class GadgetMechanics {
 
   fuseSnapshot(id: string) { return this.managedFuses ? this.network?.snapshot(id, this.machine.timeMs) : undefined; }
 
-  private fire() {
+  private advanceRockets(dt: number) {
+    const machine = this.machine;
+    this.rocketFlames = [];
+    for (const body of machine.bodiesByType("rocket")) {
+      const id = machinePlugin(body)!.instanceId, state = machine.state(id)!.state;
+      if (state !== "burning" && state !== "launching") continue;
+      if (!this.rocketStarted.has(id)) this.rocketStarted.set(id, machine.timeMs - (machine.stateAgeMs(id) ?? 0) - (state === "launching" ? ROCKET_IGNITION_MS : 0));
+      const started = this.rocketStarted.get(id)!;
+      const age = machine.timeMs - started;
+      if (age >= ROCKET_TOTAL_LAUNCH_MS) machine.setState(id, "launched");
+      else if (age >= ROCKET_IGNITION_MS) machine.setState(id, "launching");
+      const nozzle = rocketNozzleLocal(machine.config(id)!);
+      const from = rocketVisual("launching", started, machine.timeMs - dt).offsetY;
+      const to = rocketVisual("launching", started, machine.timeMs).offsetY;
+      // Sample the swept exhaust so a passing rocket also ignites thin wicks at low frame rates.
+      const steps = Math.max(1, Math.ceil(Math.abs(to - from) / 8));
+      for (let step = 0; step <= steps; step++) this.rocketFlames.push(local(body, { x: nozzle.x, y: nozzle.y + from + (to - from) * step / steps }));
+    }
+  }
+
+  private fire(dt: number) {
+    this.advanceRockets(dt);
     const machine = this.machine, fuses = machine.bodiesByType("fuse"), cannons = this.managedFuses ? machine.bodiesByType("cannon") : [], ids = [...fuses, ...cannons].map(body => machinePlugin(body)!.instanceId).join("|");
     if (this.managedFuses && ids !== this.fuseIds) {
       this.fuseIds = ids;
@@ -236,7 +270,7 @@ export class GadgetMechanics {
         Matter.Body.setVelocity(shot, {x:direction.x*14,y:direction.y*14});
       }
     }
-    const flames: Point[] = machine.bodiesByType("candle").filter(body => machine.state(machinePlugin(body)!.instanceId)?.state === "burning").map(body => local(body, candleFlameLocal(machine.config(machinePlugin(body)!.instanceId)!)));
+    const flames: Point[] = [...this.rocketFlames, ...machine.bodiesByType("candle").filter(body => machine.state(machinePlugin(body)!.instanceId)?.state === "burning").map(body => local(body, candleFlameLocal(machine.config(machinePlugin(body)!.instanceId)!)))];
     for (const body of machine.bodiesByType("detonator")) {
       const id = machinePlugin(body)!.instanceId;
       if (machine.state(id)?.state === "spent" && (machine.stateAgeMs(id) ?? Infinity) < 160) flames.push(local(body, { x: 40, y: 20 }));
@@ -255,6 +289,12 @@ export class GadgetMechanics {
         for (const t of snapshot.flames) flames.push(local(body, { x: -55 + 110 * t, y: 0 }));
       }
     }
+    for (const candle of machine.bodiesByType("candle")) {
+      const id = machinePlugin(candle)!.instanceId;
+      if (machine.state(id)?.state === "unlit" && flames.some(flame => distance(flame, local(candle, candleFlameLocal(machine.config(id)!))) <= 15)) {
+        machine.setState(id, "burning"); machine.setSignal(`candle.ignited.${id}`);
+      }
+    }
     for (const body of machine.bodiesByType("tnt")) {
       const id = machinePlugin(body)!.instanceId, state = machine.state(id)?.state;
       if (state === "idle" && flames.some(flame => distance(flame, local(body, { x: -18, y: -28 })) <= 15)) {
@@ -267,12 +307,6 @@ export class GadgetMechanics {
       if (state === "mounted" && flames.some(flame => distance(flame, local(body, rocketNozzleLocal(machine.config(id)!))) <= 36)) {
         machine.setState(id, "burning"); machine.setSignal("rocket.ignited"); machine.setSignal(`rocket.ignited.${id}`);
       }
-      if (machine.state(id)!.state === "burning") {
-        if (!this.rocketStarted.has(id)) this.rocketStarted.set(id, machine.timeMs - (machine.stateAgeMs(id) ?? 0));
-        if (machine.timeMs - this.rocketStarted.get(id)! >= ROCKET_IGNITION_MS) machine.setState(id, "launching");
-      }
-      if (machine.state(id)!.state === "launching" && !this.rocketStarted.has(id)) this.rocketStarted.set(id, machine.timeMs - (machine.stateAgeMs(id) ?? 0) - ROCKET_IGNITION_MS);
-      if (machine.state(id)!.state === "launching" && machine.timeMs - this.rocketStarted.get(id)! >= ROCKET_TOTAL_LAUNCH_MS) machine.setState(id, "launched");
     }
     for (const body of machine.bodiesByType("balloon")) {
       const id = machinePlugin(body)!.instanceId;
@@ -292,6 +326,7 @@ export class GadgetMechanics {
       const dx = body.position.x - source.position.x, dy = body.position.y - source.position.y, dist = Math.hypot(dx, dy);
       if (dist > 180 || Matter.Query.ray(obstacles.filter(wall => wall !== body), source.position, body.position).length) continue;
       const strength = 14 * (1 - dist / 180) / Math.max(1, Math.sqrt(Number(machinePlugin(body) ? GADGET_CATALOG[machinePlugin(body)!.type].physics.massKg : body.mass)));
+      if (machinePlugin(body)?.type === "fishBowl" && dist < 180) this.breakBowl(body);
       this.strike(body, { x: dx / (dist || 1) * strength, y: dy / (dist || 1) * strength });
     }
   }

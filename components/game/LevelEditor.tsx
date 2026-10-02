@@ -224,7 +224,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
         <div className="board" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { if (drag.current) { const before = drag.current.before; setHistory(current => ({ ...current, present: before })); } drag.current = null; setAreaDrag(null); }}>
           <GameCanvas level={preview} placed={EMPTY} ropePath={EMPTY} scissorRopes={draft.controlRopes ?? EMPTY} pendingScissor={pendingRope} ropeMode={tool === "rope"} selectedTool={tool} selectedId={null} connections={draft.connections ?? EMPTY} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={false} attempt={0} onWin={NO_WIN} />
           <GoalOverlay goal={draft.goal} />
-          {selected && !showGoals && <GadgetSelection gadget={selected} />}
+          {selected && !showGoals && <GadgetSelection gadget={selected} resizable />}
           <svg className="editor-overlay" viewBox="0 0 900 520" aria-hidden="true">
 
             {areaDrag && <rect className="area-draft" x={Math.min(areaDrag.start.x, areaDrag.end.x)} y={Math.min(areaDrag.start.y, areaDrag.end.y)} width={Math.abs(areaDrag.start.x - areaDrag.end.x)} height={Math.abs(areaDrag.start.y - areaDrag.end.y)} />}
