@@ -60,6 +60,9 @@ export type CanvasAnimation={
 export type GadgetAnimation=SpriteAnimation|CanvasAnimation;
 
 export type GadgetDefinition={
+  paletteGroup?:string;
+  resizeAxis?:"x"|"y";
+  flippable?:boolean;
   type:GadgetType;
   displayName:string;
   icon:string;
@@ -80,6 +83,8 @@ export type GadgetDefinition={
 export type GadgetPhysicsOverride=Partial<PhysicalProperties>;
 
 export type GadgetInstanceConfig={
+  flipX?:boolean;
+  flipY?:boolean;
   id:string;
   type:GadgetType;
   x:number;

@@ -173,6 +173,12 @@ export function validateLevel(value:unknown):LevelDefinition{
   const validateGadget=(gadget:unknown)=>{
     if(!isObject(gadget)||!nonempty(gadget.id)||!nonempty(gadget.type)||!GADGET_CATALOG[gadget.type as keyof typeof GADGET_CATALOG])throw new Error("Gadget needs an id and known type");
     if(!finite(gadget.x)||!finite(gadget.y)||(gadget.rotation!==undefined&&!finite(gadget.rotation)))throw new Error(`Invalid gadget coordinates: ${gadget.id}`);
+    for (const key of ["flipX", "flipY"]) if (gadget[key] !== undefined && typeof gadget[key] !== "boolean") throw new Error(`Invalid gadget ${key}: ${gadget.id}`);
+    if (gadget.physics !== undefined) {
+      if (!isObject(gadget.physics)) throw new Error("Gadget physics must be an object");
+      for (const key of ["width", "height", "radius"]) if (gadget.physics[key] !== undefined && (!finite(gadget.physics[key]) || Number(gadget.physics[key]) <= 0)) throw new Error(`Invalid gadget dimension ${key}: ${gadget.id}`);
+    }
+    if (gadget.type === "candle" && gadget.collisionLabel === "ignitionCandle" && isObject(gadget.physics) && gadget.physics.height === 52) gadget.properties = { flameOffsetY: -50, ...(isObject(gadget.properties) ? gadget.properties : {}) };
     if(ids.has(gadget.id))throw new Error(`Duplicate gadget id: ${gadget.id}`);
     ids.add(gadget.id);
   };

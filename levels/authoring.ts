@@ -1,4 +1,5 @@
 import { GADGET_CATALOG } from "../engine/gadget-catalog.ts";
+import { inversePoint } from "../engine/gadget-geometry.ts";
 import type { ComposableGoalSpec, GadgetInstanceConfig, GadgetType, GoalSelector, GoalSpec, LevelDefinition } from "../engine/types.ts";
 
 export const BOARD_WIDTH = 900;
@@ -71,9 +72,8 @@ export function updateGadget(level: LevelDefinition, id: string, update: Partial
 
 export function hitGadget(gadgets: GadgetInstanceConfig[], point: { x: number; y: number }): GadgetInstanceConfig | undefined {
   return [...gadgets].reverse().find(gadget => {
-    const physics = { ...GADGET_CATALOG[gadget.type].physics, ...gadget.physics }, angle = -(gadget.rotation ?? 0);
-    const dx = point.x - gadget.x, dy = point.y - gadget.y;
-    const x = dx * Math.cos(angle) - dy * Math.sin(angle), y = dx * Math.sin(angle) + dy * Math.cos(angle);
+    const physics = { ...GADGET_CATALOG[gadget.type].physics, ...gadget.physics };
+    const { x, y } = inversePoint(gadget, point);
     return physics.radius !== undefined ? Math.hypot(x, y) <= Math.max(18, physics.radius)
       : Math.abs(x) <= Math.max(18, (physics.width ?? 50) / 2) && Math.abs(y) <= Math.max(18, (physics.height ?? 50) / 2);
   });
@@ -98,7 +98,7 @@ export const STATE_LABELS: Record<string, string> = {
   unlit: "Unangezündet", waiting: "Wartet", slack: "Lose", taut: "Gespannt", full: "Voll", pouring: "Gießt aus", empty: "Leer", splashing: "Spritzt",
   popped: "Geplatzt", free: "Frei", tethered: "Angebunden", open: "Offen", closed: "Geschlossen", intact: "Intakt",
   breaking: "Zerbricht", broken: "Zerbrochen", flopping: "Zappelt", falling: "Fällt", startled: "Erschrocken",
-  mounted: "Startbereit", launching: "Startet", launched: "Gestartet", firing: "Feuert", burned: "Abgebrannt",
+  mounted: "Startbereit", launching: "Startet", launched: "Gestartet", fuseBurning: "Lunte brennt", firing: "Feuert", burned: "Abgebrannt",
   exploded: "Explodiert", ready: "Bereit", spent: "Ausgelöst", focusing: "Bündelt Licht", flowing: "Fließt", flying: "Fliegt", hidden: "Versteckt",
 };
 export function gadgetName(type: GadgetType) { return GADGET_CATALOG[type].displayName; }

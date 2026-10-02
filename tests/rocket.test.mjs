@@ -70,9 +70,10 @@ test("a two-plank route can start Louis and carry the candle under all rockets",
   engine.subscribe((event) => {
     if (event.type === "state" && event.instanceId === "louis-wheel" && event.state === "running") engine.setState("rocket-conveyor", "running");
   });
-  for (let frame = 0; frame < 360; frame++) engine.step(16.666);
+  for (let frame = 0; frame < 660; frame++) engine.step(16.666);
   assert.equal(engine.state("louis-wheel")?.state, "running");
   assert.equal(engine.state("rocket-conveyor")?.state, "running");
-  for (let rocket = 1; rocket <= 4; rocket++) assert.equal(engine.state(`rocket-${rocket}`)?.state, "burning");
+  for (let rocket = 1; rocket <= 4; rocket++) assert.equal(engine.state(`rocket-${rocket}`)?.state, "launched");
+  assert.equal(engine.goalReached(level.goal), true);
   engine.destroy();
 });

@@ -29,7 +29,7 @@
     {"if":{"properties":{"schemaVersion":{"const":2}}},"then":{"properties":{"goal":{"$ref":"#/$defs/goal"}}}}
   ],
   "$defs":{
-    "gadgetInstances":{"type":"array","items":{"type":"object","required":["id","type","x","y"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"x":{"type":"number"},"y":{"type":"number"},"rotation":{"type":"number"},"state":{"type":"string"},"role":{"type":"string"},"tags":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"collisionLabel":{"type":"string"},"physics":{"type":"object"},"properties":{"type":"object"}},"additionalProperties":false}},
+    "gadgetInstances":{"type":"array","items":{"type":"object","required":["id","type","x","y"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"x":{"type":"number"},"y":{"type":"number"},"rotation":{"type":"number"},"flipX":{"type":"boolean","default":false},"flipY":{"type":"boolean","default":false},"state":{"type":"string"},"role":{"type":"string"},"tags":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"collisionLabel":{"type":"string"},"physics":{"type":"object"},"properties":{"type":"object"}},"additionalProperties":false}},
     "selector":{"type":"object","minProperties":1,"properties":{"id":{"type":"string","minLength":1},"type":{"type":"string","minLength":1},"tag":{"type":"string","minLength":1},"role":{"type":"string","minLength":1}},"additionalProperties":false},
     "comparison":{"enum":["equals","above","below","atLeast","atMost"]},
     "entityPredicate":{"oneOf":[

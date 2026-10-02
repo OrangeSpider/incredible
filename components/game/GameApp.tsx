@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { GADGET_CATALOG } from "@/engine/gadget-catalog";
 import type { GadgetConnection, InventoryEntry, LevelDefinition, PlaceableGadgetType } from "@/engine/types";
 import { LEVELS } from "@/levels/catalog";
 import { analyzePulleyRoute, type PulleyRouteKind } from "@/game/pulley";
-import { advanceRopeDraft, ropePorts, ropeUsesGadget, attachmentPoint, handleOffset, type PendingControlRope } from "@/game/control-ropes";
+import { advanceRopeDraft, ropePorts, ropeUsesGadget, handleOffset, type PendingControlRope } from "@/game/control-ropes";
 import { gadgetPorts, connectPorts, distanceToPath, type GadgetPort } from "@/game/gadget-connections";
 import { conveyorWheelCenters } from "@/game/drive";
 import GameCanvas, { routeKindForPart } from "./GameCanvas";
@@ -22,6 +22,9 @@ import ScoreDialog, { type ScoreEntry } from "./ScoreDialog";
 import type { PlacedGadget, RopeNode, ScissorRope } from "./types";
 import { placedConfigId } from "./types";
 import GoalOverlay from "./GoalOverlay";
+import GadgetSelection from "./GadgetSelection";
+import { resizeHandles, resizeGadget, localPoint } from "@/engine/gadget-geometry";
+import { hitGadget } from "@/levels/authoring";
 import { initialPlacements, initialConnections, remainingInventory } from "./placements";
 
 const ROPE_ANCHOR = { x: 92, y: 64 };
@@ -74,6 +77,8 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   const [editorDraft, setEditorDraft] = useState<LevelDefinition | null>(null);
   const [drag, setDrag] = useState<{ id: number; dx: number; dy: number } | null>(null);
 
+  const transformDrag = useRef<{ before: PlacedGadget; end?: 0 | 1 } | null>(null);
+
   useEffect(() => {
     if (onExitTest) return;
     const timer = window.setTimeout(() => setName(localStorage.getItem("machine-user") || ""), 0);
@@ -83,7 +88,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   useEffect(() => {
     if (showEditor) return;
     const cancel = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setPendingScissor(null); setPendingConnection(null); setSelected(null); setDrag(null); }
+      if (event.key === "Escape") { setPendingScissor(null); setPendingConnection(null); setSelected(null); setDrag(null); if (transformDrag.current) { const before = transformDrag.current.before; setPlaced(items => items.map(item => item.id === before.id ? before : item)); transformDrag.current = null; } }
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
@@ -132,7 +137,13 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
 
   const boardPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (running) return;
+    if (event.button !== 0) return;
     const point = boardPoint(event);
+    const current = placed.find(part => part.id === selectedId);
+    if (current) {
+      const end = resizeHandles({ ...current, id: placedConfigId(current) }).findIndex(handle => Math.hypot(point.x - handle.x, point.y - handle.y) < 14);
+      if (end >= 0) { event.currentTarget.setPointerCapture(event.pointerId); transformDrag.current = { before: current, end: end as 0 | 1 }; return; }
+    }
     const configs = [...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))];
     const selectRope = (id: string) => { setSelectedRope(id); setSelectedId(null); setSelectedConnection(null); setPendingScissor(null); setSelected(null); };
     if (selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) {
@@ -191,13 +202,13 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     const bodyCenter = placed.find(part => Math.hypot(part.x - point.x, part.y - point.y) < 23);
     if (bodyCenter && selected === null) {
       event.currentTarget.setPointerCapture(event.pointerId); setSelectedId(bodyCenter.id); setSelectedConnection(null); setSelectedRope(null);
-      setDrag({ id: bodyCenter.id, dx: bodyCenter.x - point.x, dy: bodyCenter.y - point.y }); return;
+      transformDrag.current = { before: bodyCenter }; setDrag({ id: bodyCenter.id, dx: bodyCenter.x - point.x, dy: bodyCenter.y - point.y }); return;
     }
     // Connections can be selected along their full path, even when inventory is exhausted.
     const configById = new Map(configs.map(config => [config.id, config]));
     const paths = scissorRopes.map(rope => {
       const target = configById.get(rope.targetId), source = configById.get(rope.source.gadgetId);
-      return { id: rope.targetId, points: target && source ? [attachmentPoint(target, target.rotation ?? 0, handleOffset(target.type)), ...rope.guides.flatMap(id => { const config = configById.get(id); return config ? [config] : []; }), attachmentPoint(source, source.rotation ?? 0, rope.source.local)] : [] };
+      return { id: rope.targetId, points: target && source ? [localPoint(target, handleOffset(target.type)), ...rope.guides.flatMap(id => { const config = configById.get(id); return config ? [config] : []; }), localPoint(source, rope.source.local)] : [] };
     });
     const cable = paths.map(path => ({ ...path, distance: distanceToPath(point, path.points) })).sort((a, b) => a.distance - b.distance)[0];
     if (cable && cable.distance < 13) { selectRope(cable.id); return; }
@@ -207,15 +218,12 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     const connection = connections.map(item => ({ ...item, distance: distanceToPath(point, [ports.find(port => port.gadgetId === item.sourceId && (item.kind === "wire" ? port.kind === "power" : port.kind === "drive")), ports.find(port => port.gadgetId === item.targetId && (item.kind === "wire" ? port.kind === "socket" : port.kind === "drive"))].filter((port): port is GadgetPort => !!port)) })).sort((a, b) => a.distance - b.distance)[0];
     if (connection && connection.distance < 13) { setSelectedConnection(connection.id); setSelectedId(null); setSelectedRope(null); setPendingConnection(null); setSelected(null); return; }
 
-    const movable = placed
-      .map((part) => ({ ...part, distance: Math.hypot(part.x - point.x, part.y - point.y) }))
-      .sort((a, b) => a.distance - b.distance)[0];
-    if (movable && movable.distance < 52) {
-      event.currentTarget.setPointerCapture(event.pointerId);
-      setSelectedId(movable.id);
-      setSelectedConnection(null); setSelectedRope(null);
-      setDrag({ id: movable.id, dx: movable.x - point.x, dy: movable.y - point.y });
-      return;
+    const hit = hitGadget(placed.map(part => ({ ...part, id: placedConfigId(part) })), point);
+    const movable = hit && placed.find(part => placedConfigId(part) === hit.id);
+    if (movable) {
+      event.currentTarget.setPointerCapture(event.pointerId); setSelectedId(movable.id);
+      setSelectedConnection(null); setSelectedRope(null); transformDrag.current = { before: movable };
+      setDrag({ id: movable.id, dx: movable.x - point.x, dy: movable.y - point.y }); return;
     }
 
     const allowed = level.inventory.find((entry) => entry.type === selected);
@@ -229,8 +237,14 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   };
 
   const boardPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drag || running) return;
+    if (running) return;
     const point = boardPoint(event);
+    const resizing = transformDrag.current;
+    if (resizing?.end !== undefined) {
+      const resized = resizeGadget({ ...resizing.before, id: placedConfigId(resizing.before) }, resizing.end, point);
+      setPlaced(items => items.map(part => part.id === resizing.before.id ? { ...part, x: resized.x, y: resized.y, physics: resized.physics } : part)); return;
+    }
+    if (!drag) return;
     setPlaced((items) => items.map((part) => part.id === drag.id ? {
       ...part,
       x: Math.max(25, Math.min(875, point.x + drag.dx)),
@@ -309,9 +323,10 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
       <MissionPanel level={level} />
       <div className="workspace">
         <section className="board-wrap">
-          <div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
+          <div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={() => { setDrag(null); transformDrag.current = null; }} onPointerCancel={() => { setDrag(null); if (transformDrag.current) { const before = transformDrag.current.before; setPlaced(items => items.map(item => item.id === before.id ? before : item)); transformDrag.current = null; } }}>
             <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} connections={connections} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={running} attempt={attempt} onWin={win} />
             <GoalOverlay goal={level.goal} />
+            {selectedPlaced && !running && <GadgetSelection gadget={{ ...selectedPlaced, id: placedConfigId(selectedPlaced) }} />}
             {!running && placed.length === 0 && level.scene !== "rocket-parade" && <div className="board-tip">{level.buildTip}</div>}
             {won && <div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{level.successText}</p>{nextLevel ? <button onClick={() => changeLevel(nextLevel)}>Nächstes Level →</button> : <button onClick={reset}>Noch einmal bauen ↻</button>}</div>}
           </div>
@@ -319,7 +334,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
         </section>
         <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={type => { setSelected(type); setPendingScissor(null); setPendingConnection(null); }} />
       </div>
-      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null || selectedRope !== null || selectedConnection !== null} canRotate={canRotate} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setWon(false); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => { if (onExitTest) onExitTest(); else { setRunning(false); setShowEditor(true); } }} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
+      <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null || selectedRope !== null || selectedConnection !== null} canRotate={canRotate} canFlip={!!selectedPlaced && !!GADGET_CATALOG[selectedPlaced.type].flippable} onFlip={axis => setPlaced(items => items.map(part => part.id === selectedId ? { ...part, [axis]: !part[axis] } : part))} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setWon(false); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => { if (onExitTest) onExitTest(); else { setRunning(false); setShowEditor(true); } }} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
       {showScores && <ScoreDialog scores={scores} onClose={() => setShowScores(false)} />}
       {showLevels && <LevelSelectDialog levels={availableLevels} current={level} customLevelId={customLevel?.id} onSelect={changeLevel} onClose={() => setShowLevels(false)} folderName={folderName} onLoadFolder={onExitTest ? undefined : (levels, folder) => { setFolderLevels(levels); setFolderName(folder); setCustomLevel(null); changeLevel(levels[0]); }} onBuiltinLevels={onExitTest ? undefined : () => { setFolderLevels(null); setFolderName(null); setCustomLevel(null); changeLevel(LEVELS[0]); }} />}
       {showPhysics && <PhysicsHandbook onClose={() => setShowPhysics(false)} />}

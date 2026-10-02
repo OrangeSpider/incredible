@@ -1,5 +1,8 @@
 "use client";
 
+import { bodyPoint } from "@/engine/gadget-geometry";
+import { resolveGadgetAnimation } from "@/engine/animation";
+
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
 import { SEESAW_WIDTH } from "@/game/seesaw";
@@ -11,7 +14,7 @@ import {FuseNetwork} from "@/game/fuse";
 import {FISH_REVEAL_DELAY_MS} from "@/game/fish";
 import type { PendingControlRope } from "@/game/control-ropes";
 import { drawControlRopes } from "./control-rope-renderer";
-import {drawConveyor,drawDriveBelt,driveBeltGeometry} from "@/game/drive";
+import {conveyorWheelCenters,drawDriveBelt,driveBeltGeometry} from "@/game/drive";
 import {rocketVisual} from "@/game/rocket";
 import {MachineRuntime} from "@/game/machine-runtime";
 import { MachinePhysicsEngine } from "@/engine/physics-engine";
@@ -26,7 +29,6 @@ import { drawGadget, drawFields, drawConnections, drawMouseHole } from "./gadget
 import type { GadgetConnection } from "@/engine/types";
 
 const ROPE_ANCHOR={x:92,y:64};
-const CUSTOM_SPRITE_LABELS=new Set(["wheel","cat","mouse","fish","fishbowl","rocket","cannon","fuse","bucket","candle"]);
 
 export function routeKindForPart(type:PlaceableGadgetType):PulleyRouteKind|null{
   if(type==="movingPulley")return"moving";if(type==="pulley")return"fixed";if(type==="ball")return"pull";return null;
@@ -124,7 +126,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         const physics = p.type==="movingPulley" || (p.type==="ball"&&level.systems.includes("pulley-rope"))
           ? {isStatic:true}
           : p.type==="mouse" ? {isStatic:!running} : undefined;
-        const body=machine.addGadget({id:placedConfigId(p),type:p.type,x:p.x,y:p.y,rotation:p.rotation,collisionLabel:p.collisionLabel??p.type,physics:{...physics,...p.physics},properties:p.properties,role:p.role,tags:p.tags,state:p.state});
+        const body=machine.addGadget({id:placedConfigId(p),type:p.type,x:p.x,y:p.y,rotation:p.rotation,flipX:p.flipX,flipY:p.flipY,collisionLabel:p.collisionLabel??p.type,physics:{...physics,...p.physics},properties:p.properties,role:p.role,tags:p.tags,state:p.state});
         if(p.type==="seesaw")seesawBody=body;
       if(body)body.plugin={...body.plugin,placedId:p.id};
     }
@@ -145,7 +147,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const mouseBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="mouse")??null;
     const gearBodies=Matter.Composite.allBodies(engine.world).filter(body=>["gearSource","gear","gearTarget"].includes(body.label));const gearDepth=new Map<number,number>();const gearSource=gearBodies.find(body=>body.label==="gearSource");if(gearSource){gearDepth.set(gearSource.id,0);const queue=[gearSource];while(queue.length){const current=queue.shift()!;for(const candidate of gearBodies){if(gearDepth.has(candidate.id))continue;const distance=Math.hypot(current.position.x-candidate.position.x,current.position.y-candidate.position.y);if(Math.abs(distance-84)<14){gearDepth.set(candidate.id,(gearDepth.get(current.id)??0)+1);queue.push(candidate)}}}}const gearsConnected=gearBodies.some(body=>body.label==="gearTarget"&&gearDepth.has(body.id));
     const cannonBody=Matter.Composite.allBodies(engine.world).find(body=>body.label==="cannon")??null,fuseBodies=Matter.Composite.allBodies(engine.world).filter(body=>body.label==="fuse");
-    const worldPoint=(body:Matter.Body,x:number,y:number)=>({x:body.position.x+x*Math.cos(body.angle)-y*Math.sin(body.angle),y:body.position.y+x*Math.sin(body.angle)+y*Math.cos(body.angle)}),fuseId=(body:Matter.Body)=>`fuse-${body.id}`,cannonFuseId="cannon-fuse";
+    const worldPoint=(body:Matter.Body,x:number,y:number)=>bodyPoint(body,{x,y}),fuseId=(body:Matter.Body)=>`fuse-${body.id}`,cannonFuseId="cannon-fuse";
     const fuseNetwork=new FuseNetwork([...fuseBodies.map(body=>({id:fuseId(body),start:worldPoint(body,-55,0),end:worldPoint(body,55,0),burnDurationMs:1200})),...(cannonBody?[{id:cannonFuseId,start:worldPoint(cannonBody,-18,-42),end:worldPoint(cannonBody,-26,-17),burnDurationMs:1300,samples:14}]:[])],22,105);
     const runtime = new MachineRuntime({
       level, machine, running, onWin, beltConnected,
@@ -167,7 +169,6 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       },
     });
     let raf=0,last=performance.now();
-    const drawGear = (x:number,y:number,r:number,turn:number) => { ctx.save(); ctx.translate(x,y); ctx.rotate(turn); ctx.fillStyle="#d39a28"; for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.fillRect(r-5,-5,12,10)} ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.fillStyle="#173d50";ctx.beginPath();ctx.arc(0,0,r*.28,0,Math.PI*2);ctx.fill();ctx.restore(); };
     const render = (now:number) => {
       const dt = Math.min(32, now-last); last=now;
       runtime.tick(now, dt);
@@ -183,11 +184,9 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
       if (level.floor !== false) { ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40); }
       if(conveyorBody&&hamsterWheelBody&&hasSystem("conveyor")){
-        const conveyorRunning=motor&&beltConnected,conveyorVisual=drawConveyor(ctx,{centerX:conveyorBody.position.x,centerY:conveyorBody.position.y,width:conveyorWidth,now,running:conveyorRunning});
-        const sourcePort={x:hamsterWheelBody.position.x+55,y:hamsterWheelBody.position.y+13},targetPort=conveyorVisual.leftWheel;
-        if(beltConnected)drawDriveBelt(ctx,driveBeltGeometry(sourcePort,targetPort,18,conveyorVisual.wheelRadius),now,conveyorRunning);
-        const hamsterId=machinePlugin(hamsterWheelBody)?.instanceId;
-        if(!drawCatalogSprite(ctx,hamsterId?machine.animation(hamsterId):null,hamsterWheelBody.position.x,hamsterWheelBody.position.y))drawGear(hamsterWheelBody.position.x,hamsterWheelBody.position.y,42,motor?now/180:0);
+        const conveyorRunning=motor&&beltConnected;
+        const sourcePort=bodyPoint(hamsterWheelBody,{x:55,y:13}),targetPort=bodyPoint(conveyorBody,conveyorWheelCenters(0,0,conveyorWidth)[0]);
+        if(beltConnected)drawDriveBelt(ctx,driveBeltGeometry(sourcePort,targetPort,18,22),now,conveyorRunning);
         ctx.fillStyle="#d69b29";ctx.strokeStyle="#173f50";ctx.lineWidth=4;ctx.beginPath();ctx.arc(sourcePort.x,sourcePort.y,14,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#173f50";ctx.beginPath();ctx.arc(sourcePort.x,sourcePort.y,4,0,Math.PI*2);ctx.fill();
         if(selectedTool==="belt"&&!running){const drawPort=(point:{x:number;y:number},label:string)=>{ctx.save();ctx.fillStyle=beltConnected?"#d39a28":"#2f9b67";ctx.strokeStyle="#fff4cf";ctx.lineWidth=4;ctx.beginPath();ctx.arc(point.x,point.y,12,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.fillText(label,point.x+17,point.y+4);ctx.restore()};drawPort(sourcePort,"LOUIS");drawPort(targetPort,"LAUFBAND")}
         if(driveBelt&&selectedId===driveBelt.id&&!running){const center={x:(sourcePort.x+targetPort.x)/2,y:(sourcePort.y+targetPort.y)/2};ctx.save();ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);ctx.strokeRect(center.x-49,center.y-24,98,48);ctx.setLineDash([]);ctx.fillStyle="#fff4cf";ctx.fillRect(center.x-35,center.y-12,70,22);ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.textAlign="center";ctx.fillText("RIEMEN",center.x,center.y+4);ctx.restore()}
@@ -231,17 +230,20 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       drawFluidWater.draw(ctx, waterBodies.map(body => ({ x: body.position.x, y: body.position.y, vx: body.velocity.x, vy: body.velocity.y })));
       for(const b of Matter.Composite.allBodies(engine.world)){
         if(b.label==="water")continue;
-        const {x,y}=b.position;ctx.save();ctx.translate(x,y);ctx.rotate(b.angle);
+        const {x,y}=b.position;ctx.save();ctx.translate(x,y);ctx.rotate(b.angle);ctx.scale(b.plugin?.machine?.flipX?-1:1,b.plugin?.machine?.flipY?-1:1);
         const gadgetId=machinePlugin(b)?.instanceId;
-        const catalogAnimation=gadgetId?machine.animation(gadgetId):null;
-        const genericSprite=(!CUSTOM_SPRITE_LABELS.has(b.label)||(machine.config(gadgetId??"")?.properties?.standalone&&b.label!=="candle"))&&drawCatalogSprite(ctx,catalogAnimation,0,0);
+        const gadgetConfig=gadgetId?machine.config(gadgetId):null;
+        let catalogAnimation=gadgetId?machine.animation(gadgetId):null;
+        if(!running && catalogAnimation?.definition.loop && gadgetId)catalogAnimation=resolveGadgetAnimation(machine.config(gadgetId)!.type,machine.state(gadgetId)!.state,now);
+        const customSprite=!!gadgetConfig && (["candle","rocket","cannon","fuse","bucket"].includes(gadgetConfig.type) || (["cat","mouse"].includes(gadgetConfig.type) && !gadgetConfig.properties?.standalone));
+        const genericSprite=!customSprite&&drawCatalogSprite(ctx,catalogAnimation,0,0);
         const drawnGadget=!genericSprite&&drawGadget(ctx,b,machine,now,running);
         if(!genericSprite&&!drawnGadget){
         if(b.label==="ball"||b.label==="mainBall"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,18,0,7);ctx.fill();ctx.fillStyle=b.label==="mainBall"?"#e7a849":"#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
         if(b.label==="tennisBall"){ctx.fillStyle="#d7eb4c";ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#fff8c5";ctx.lineWidth=2;ctx.beginPath();ctx.arc(-8,0,9,-1.15,1.15);ctx.stroke();ctx.beginPath();ctx.arc(8,0,9,2,4.3);ctx.stroke()}
         if(b.label==="scissorBalloon"){const colors=["#e84d52","#3f9bd2","#efb630"],index=scissorBalloons.indexOf(b);ctx.fillStyle=colors[Math.max(0,index)];ctx.beginPath();ctx.ellipse(0,0,21,27,0,0,Math.PI*2);ctx.fill();ctx.fillStyle="rgba(255,255,255,.55)";ctx.beginPath();ctx.ellipse(-7,-9,5,9,-.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=colors[Math.max(0,index)];ctx.beginPath();ctx.moveTo(-5,25);ctx.lineTo(5,25);ctx.lineTo(0,34);ctx.closePath();ctx.fill()}
         if(b.label==="ramp"){ctx.fillStyle="#8d5426";ctx.fillRect(-75,-7,150,14);ctx.strokeStyle="#4e2a14";ctx.strokeRect(-75,-7,150,14)}
-        if(b.label==="candle"&&hasSystem("rocket-launch")){ctx.fillStyle="#f1cb62";ctx.strokeStyle="#9a6426";ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(-12,-19,24,53,5);ctx.fill();ctx.stroke();ctx.fillStyle="rgba(255,255,255,.5)";ctx.fillRect(-7,-13,4,40);ctx.strokeStyle="#49382a";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,-19);ctx.lineTo(0,-28);ctx.stroke();if(!drawFireSprite(0,Math.floor(now/105)%6,0,-40,52,58))drawFallbackFlame(0,-36,now,.7)}
+
         if(b.label==="levelBalloon"&&!balloonPopped){ctx.fillStyle="#1976b9";ctx.beginPath();ctx.ellipse(0,0,22,28,0,0,7);ctx.fill();ctx.strokeStyle="#305468";ctx.beginPath();ctx.moveTo(0,28);ctx.lineTo(0,62);ctx.stroke()}
         if(b.label==="levelBall"){ctx.fillStyle="#293c45";ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.fill();ctx.fillStyle="#d9b256";ctx.beginPath();ctx.arc(-5,-6,3,0,7);ctx.fill()}
         if(b.label==="seesaw"){const half=SEESAW_WIDTH/2;ctx.fillStyle="#ad6a2d";ctx.fillRect(-half,-9,SEESAW_WIDTH,18);ctx.fillStyle="#e3aa54";ctx.fillRect(-half,-9,SEESAW_WIDTH,5);ctx.strokeStyle="#51301a";ctx.lineWidth=3;ctx.strokeRect(-half,-9,SEESAW_WIDTH,18);ctx.fillStyle="#173f50";for(const side of [-1,1]){ctx.beginPath();ctx.arc(side*(half-10),0,6,0,Math.PI*2);ctx.fill()}ctx.save();ctx.rotate(-b.angle);ctx.fillStyle="#a43a27";ctx.beginPath();ctx.moveTo(-27,46);ctx.lineTo(27,46);ctx.lineTo(0,8);ctx.closePath();ctx.fill();ctx.strokeStyle="#65251b";ctx.stroke();ctx.restore()}
@@ -303,10 +305,10 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
           ctx.beginPath();ctx.moveTo(-41,-28);ctx.lineTo(-32,-28);ctx.moveTo(32,-28);ctx.lineTo(41,-28);ctx.stroke();
         }
         if(b.label==="cannonball"){ctx.fillStyle="#333f43";ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()}
-        if(b.label==="rocket"){const id=machinePlugin(b)?.instanceId,state=id?(machine.state(id)?.state??"mounted"):"mounted",visual=rocketVisual(state,id?rocketIgnitedAt.get(id):undefined,now);if(visual.visible&&!drawRocketSprite(visual.row,visual.frame,0,visual.offsetY,visual.size)){ctx.fillStyle="#d94d32";ctx.beginPath();ctx.moveTo(0,-55+visual.offsetY);ctx.lineTo(-24,18+visual.offsetY);ctx.lineTo(24,18+visual.offsetY);ctx.closePath();ctx.fill()}if(visual.smokeOpacity>0){ctx.save();ctx.globalAlpha=visual.smokeOpacity;ctx.fillStyle="#d8d2c7";for(let puff=0;puff<7;puff++){const angle=puff/7*Math.PI*2,radius=9+(puff%3)*3;ctx.beginPath();ctx.arc(Math.cos(angle+now*.001)*22,55+Math.sin(angle)*10,radius,0,Math.PI*2);ctx.fill()}ctx.restore()}}
+        if(gadgetConfig?.type==="rocket"){const id=machinePlugin(b)?.instanceId,state=id?(machine.state(id)?.state??"mounted"):"mounted",age=id?(machine.stateAgeMs(id)??0):0,started=state==="burning"?now-age:state==="launching"?now-age-520:state==="launched"?now-age-1780:undefined,visual=rocketVisual(state,started,now);if(visual.visible&&!drawRocketSprite(visual.row,visual.frame,0,visual.offsetY,visual.size)){ctx.fillStyle="#d94d32";ctx.beginPath();ctx.moveTo(0,-55+visual.offsetY);ctx.lineTo(-24,18+visual.offsetY);ctx.lineTo(24,18+visual.offsetY);ctx.closePath();ctx.fill()}if(visual.smokeOpacity>0){ctx.save();ctx.globalAlpha=visual.smokeOpacity;ctx.fillStyle="#d8d2c7";for(let puff=0;puff<7;puff++){const angle=puff/7*Math.PI*2,radius=9+(puff%3)*3;ctx.beginPath();ctx.arc(Math.cos(angle+now*.001)*22,55+Math.sin(angle)*10,radius,0,Math.PI*2);ctx.fill()}ctx.restore()}}
         if(b.label==="seesawPayload"){ctx.fillStyle="#c73b2e";ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();ctx.fillStyle="#f4c64e";ctx.beginPath();ctx.arc(-5,-5,4,0,Math.PI*2);ctx.fill()}
         }
-        if(b.plugin?.placedId===selectedId&&!running){ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);if(b.label==="seesaw")ctx.strokeRect(-126,-48,252,96);else if(["ramp","trampoline","fuse","cannon","bucket"].includes(b.label))ctx.strokeRect(-64,-38,128,76);else{ctx.beginPath();ctx.arc(0,0,48,0,Math.PI*2);ctx.stroke()}ctx.setLineDash([])}ctx.restore();
+        ctx.restore();
       }
       if (hasSystem("tension-rope")) drawControlRopes(ctx, runtime, [
         ...level.fixedGadgets,

@@ -3,6 +3,8 @@ type GameToolbarProps = {
   running: boolean;
   canRemove: boolean;
   canRotate: boolean;
+  canFlip: boolean;
+  onFlip: (axis: "flipX" | "flipY") => void;
   onReset: () => void;
   onRemove: () => void;
   onRotateLeft: () => void;
@@ -23,6 +25,7 @@ export default function GameToolbar(props: GameToolbarProps) {
       <button className="delete" onClick={props.onRemove} disabled={props.running || !props.canRemove}><i>×</i><span>ENTFERNEN</span></button>
       <button className="reset" onClick={props.onRotateLeft} disabled={props.running || !props.canRotate}><i>↶</i><span>LINKS DREHEN</span></button>
       <button className="reset" onClick={props.onRotateRight} disabled={props.running || !props.canRotate}><i>↷</i><span>RECHTS DREHEN</span></button>
+      {props.canFlip && <><button className="flip" onClick={() => props.onFlip("flipX")} disabled={props.running} title="Horizontal entlang der Bauteilachse spiegeln">↔<span>SPIEGELN</span></button><button className="flip" onClick={() => props.onFlip("flipY")} disabled={props.running} title="Vertikal entlang der Bauteilachse spiegeln">↕<span>SPIEGELN</span></button></>}
       <button className={props.running ? "stop" : "start"} onClick={props.onToggleMachine}>
         <span>{props.running ? "MASCHINE ABBRECHEN" : "MASCHINE STARTEN"}</span><i>{props.running ? "■" : "▶"}</i>
       </button>

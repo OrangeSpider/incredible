@@ -1,4 +1,5 @@
 import Matter from "matter-js";
+import { bodyVector } from "./gadget-geometry.ts";
 import type { InteractionEffect, ResolvedInteraction } from "./interaction-rules.ts";
 import type { GadgetInstanceConfig, GadgetRuntimeState } from "./types.ts";
 
@@ -65,10 +66,11 @@ export function createDefaultEffectRegistry(): EffectRegistry {
     const sourceBody = source.body, targetBody = target.body;
     if (source.state.state !== "running" || !sourceBody || !targetBody || targetBody.isStatic) return;
     const speed = Number(source.state.properties.speed ?? 3.4);
-    const direction = Number(source.state.properties.direction ?? 1);
+    const direction = Number(source.state.properties.direction ?? 1), tangent = bodyVector(sourceBody, { x: 1, y: 0 });
+    const previous = targetBody.velocity.x * tangent.x + targetBody.velocity.y * tangent.y;
     Matter.Body.setVelocity(targetBody, {
-      x: Math.cos(sourceBody.angle) * speed * direction,
-      y: targetBody.velocity.y,
+      x: targetBody.velocity.x + tangent.x * (speed * direction - previous),
+      y: targetBody.velocity.y + tangent.y * (speed * direction - previous),
     });
   });
 
@@ -77,7 +79,7 @@ export function createDefaultEffectRegistry(): EffectRegistry {
     if (!sourceBody || !targetBody || targetBody.isStatic) return;
     const dx = targetBody.position.x - sourceBody.position.x;
     const dy = targetBody.position.y - sourceBody.position.y;
-    const c = Math.cos(sourceBody.angle), s = Math.sin(sourceBody.angle);
+    const forwardVector = bodyVector(sourceBody, {x:1,y:0}), c = forwardVector.x, s = forwardVector.y;
     const forward = dx * c + dy * s, side = -dx * s + dy * c;
     const maxDistance = interaction.rule.maxDistance ?? 420;
     if (forward <= 0 || forward > maxDistance || Math.abs(side) >= 100 + forward * .3) return;

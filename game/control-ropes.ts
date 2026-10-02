@@ -1,6 +1,8 @@
 import type { GadgetInstanceConfig, GadgetType } from "../engine/types.ts";
 import type { MachinePhysicsEngine } from "../engine/physics-engine.ts";
 
+import { bodyPoint, localPoint } from "../engine/gadget-geometry.ts";
+
 export type Point = { x: number; y: number };
 export type RopeAttachment = { gadgetId: string; local: Point };
 export type ControlRope = { targetId: string; guides: string[]; source: RopeAttachment };
@@ -27,7 +29,7 @@ export function ropePorts(gadgets: readonly GadgetInstanceConfig[]): RopePort[] 
       const end = Number(gadget.physics?.width ?? 232.5) / 2 - 12;
       for (const side of [-1, 1]) ports.push({ local: { x: side * end, y: 0 }, kind: "source", label: side < 0 ? "LINKES ENDE" : "RECHTES ENDE" });
     } else if (["ball", "tennisBall", "weight", "balloon", "payloadBall"].includes(gadget.type)) ports.push({ local: { x: 0, y: gadget.type === "balloon" ? 27 : 0 }, kind: "source", label: "ZUGPUNKT" });
-    return ports.map(port => ({ ...port, gadgetId: gadget.id, ...attachmentPoint(gadget, gadget.rotation ?? 0, port.local) }));
+    return ports.map(port => ({ ...port, gadgetId: gadget.id, ...localPoint(gadget, port.local) }));
   });
 }
 
@@ -82,7 +84,7 @@ export class ControlRopeMechanism {
     if (!target || !source || !type) return null;
     const guides = definition.guides.map(id => this.machine.body(id));
     if (guides.some(body => !body)) return null;
-    return [attachmentPoint(target.position, target.angle, handleOffset(type)), ...guides.map(body => ({ ...body!.position })), attachmentPoint(source.position, source.angle, definition.source.local)];
+    return [bodyPoint(target, handleOffset(type)), ...guides.map(body => ({ ...body!.position })), bodyPoint(source, definition.source.local)];
   }
 
   step(trigger: (targetId: string) => void) {
@@ -92,10 +94,11 @@ export class ControlRopeMechanism {
       rope.points = points;
       if (rope.triggered) continue;
       rope.blocked = this.blocked(points);
-      if (rope.blocked) { rope.progress = 0; continue; }
+      if (rope.blocked) { rope.progress = 0; const state=this.machine.state(rope.definition.targetId);if(state)state.properties.handleProgress=0; continue; }
       const state = this.machine.state(rope.definition.targetId);
       if ((state?.type === "scissor" && state.state === "closed") || (state?.type === "snapGate" && state.state === "open")) { rope.triggered = true; continue; }
       rope.progress = Math.max(0, Math.min(1, (pathLength(points) - rope.restLength) / HANDLE_TRAVEL));
+      if (state) state.properties.handleProgress = rope.progress;
       if (rope.progress >= 1) {
         rope.triggered = true;
         trigger(rope.definition.targetId);

@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { GADGET_CATALOG } from "./gadget-catalog.ts";
+import { bodyTransform, bodyVector, inversePoint, gadgetSize } from "./gadget-geometry.ts";
 import { matchesGadget, type GadgetSelector } from "./interaction-rules.ts";
 import type { EffectEndpoint } from "./effect-handlers.ts";
 
@@ -47,16 +48,17 @@ export function createDefaultStepBehaviors(): StepBehaviorRegistry {
       if (!beltBody) return;
       const speed = Number(source.state.properties.speed ?? 3.4);
       const direction = Number(source.state.properties.direction ?? 1);
+      const transform=bodyTransform(beltBody),size=gadgetSize(source.config),tangent=bodyVector(beltBody,{x:1,y:0}),normal=bodyVector(beltBody,{x:0,y:1});
       for (const target of active) {
         const targetBody = target.body;
         if (target === source || !targetBody || targetBody.isStatic) continue;
-        const overlapsX = targetBody.bounds.max.x >= beltBody.bounds.min.x &&
-          targetBody.bounds.min.x <= beltBody.bounds.max.x;
-        const bottom = targetBody.bounds.max.y, top = beltBody.bounds.min.y;
-        if (overlapsX && bottom >= top - 9 && bottom <= top + 18 && targetBody.bounds.min.y < top) {
+        const vertices=targetBody.vertices.map(vertex=>inversePoint(transform,vertex)),bottom=Math.max(...vertices.map(vertex=>vertex.y)),top=-size.height/2;
+        const overlapsX=Math.max(...vertices.map(vertex=>vertex.x))>=-size.width/2 && Math.min(...vertices.map(vertex=>vertex.x))<=size.width/2;
+        if (overlapsX && bottom >= top - 9 && bottom <= top + 18 && Math.min(...vertices.map(vertex=>vertex.y)) < top) {
+          const normalSpeed=Math.min(.35,targetBody.velocity.x*normal.x+targetBody.velocity.y*normal.y);
           Matter.Body.setVelocity(targetBody, {
-            x: Math.cos(beltBody.angle) * speed * direction,
-            y: Math.min(targetBody.velocity.y, .35),
+            x: tangent.x*speed*direction+normal.x*normalSpeed,
+            y: tangent.y*speed*direction+normal.y*normalSpeed,
           });
         }
       }

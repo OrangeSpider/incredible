@@ -1,8 +1,8 @@
 import Matter from "matter-js";
 import { animalHasSupport, isAnimalFalling } from "./animals.ts";
 import { advanceCatAndMouse, CATAPULT_MOUSE_HOLE_X, CATAPULT_PLATFORM, catapultImpactMode, catapultLaunchVelocity, catapultReleasePosition } from "./catapult.ts";
-import { advanceCatTowardFish, catSeesFish, FISH_REVEAL_DELAY_MS, fishbowlBreaks } from "./fish.ts";
-import { nextRocketState } from "./rocket.ts";
+import { advanceCatTowardFish, catSeesFish } from "./fish.ts";
+import { bodyVector, bodyPoint, candleFlameLocal } from "../engine/gadget-geometry.ts";
 import { applySeesawImpact, limitSeesawRotation } from "./seesaw.ts";
 import { ropePullIsTaut, scissorClosesFromImpact } from "./scissors.ts";
 import { machinePlugin } from "../engine/body-factory.ts";
@@ -46,17 +46,10 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     },
     afterStep() {
       const cat = runtime.bodies.cat, state = runtime.state;
-      if (runtime.running && state.motor && cat) Matter.Body.setPosition(cat, { x: Math.min(850, 555 + (runtime.now - state.motorStartedAt) * .075), y: 365 });
+      if (runtime.running && state.motor && cat) { const direction=runtime.bodies.conveyor?bodyVector(runtime.bodies.conveyor,{x:1,y:0}):{x:1,y:0},travel=(runtime.now-state.motorStartedAt)*.075; Matter.Body.setPosition(cat, { x: Math.max(30,Math.min(850,555+travel*direction.x)), y: 365+travel*direction.y }); }
     },
   }),
-  fire: runtime => ({
-    onCollision(collision) {
-      if (!hasPair(collision, "candle", "levelBalloon") || runtime.state.candleExtinguished) return;
-      runtime.state.balloonPopped = true;
-      const id = runtime.bodies.balloon && machinePlugin(runtime.bodies.balloon)?.instanceId;
-      if (id) runtime.machine.setState(id, "popped");
-    },
-  }),
+  fire: runtime => ({ afterStep() { runtime.state.balloonPopped = !!runtime.bodies.balloon && runtime.machine.state(machinePlugin(runtime.bodies.balloon)!.instanceId)?.state === "popped"; } }),
   "sharp-objects": runtime => ({
     onCollision(collision) {
       if (!hasPair(collision, "needle", "levelBalloon")) return;
@@ -156,28 +149,13 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     },
   }),
   "breakable-container": runtime => ({
-    onCollision(collision) {
-      const bowl = runtime.bodies.fishBowl, fish = runtime.bodies.fish;
-      if (!bowl || !fish || runtime.state.fishBowlBrokenAt || !bodyWithLabel(collision, "fishbowl")) return;
-      const impact = collision.bodyA.label === "fishbowl" ? collision.bodyB : collision.bodyA;
-      if (fishbowlBreaks(impact.velocity.y, !impact.isStatic)) {
-        runtime.state.fishBowlBrokenAt = runtime.now || performance.now(); bowl.isSensor = true; runtime.machine.setState("fish-bowl", "breaking");
-      }
+    afterStep() {
+      const state = runtime.machine.state("fish-bowl")?.state;
+      if (["breaking", "broken"].includes(state ?? "") && !runtime.state.fishBowlBrokenAt) runtime.state.fishBowlBrokenAt = runtime.now || 1;
     },
   }),
   "fish-release": runtime => ({
-    afterStep() {
-      const state = runtime.state, bowl = runtime.bodies.fishBowl, fish = runtime.bodies.fish;
-      if (!runtime.running || !bowl || !fish) return;
-      if (state.fishBowlBrokenAt && !state.fishReleased && runtime.now - state.fishBowlBrokenAt >= FISH_REVEAL_DELAY_MS) {
-        state.fishReleased = true; runtime.machine.setState("fish-bowl", "broken"); runtime.machine.setState("mr-blue", "flopping");
-        Matter.Body.setPosition(fish, { x: bowl.position.x, y: bowl.position.y + 12 }); Matter.Body.setStatic(fish, false); fish.isSensor = false;
-        Matter.Body.setVelocity(fish, { x: 0, y: 1.5 });
-      }
-      if (state.fishReleased && fish.position.y > 455 && runtime.now - state.fishFlopAt > 520) {
-        state.fishFlopAt = runtime.now; Matter.Body.setVelocity(fish, { x: Math.sin(runtime.now * .011) * .38, y: -1.35 });
-      }
-    },
+    afterStep() { runtime.state.fishReleased = runtime.machine.state("mr-blue")?.state === "flopping"; },
   }),
   "cat-fish": runtime => ({
     afterStep() {
@@ -213,16 +191,17 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
   }),
   "bucket-water": runtime => {
     const buckets = [...new Set([...(runtime.bodies.bucket ? [runtime.bodies.bucket] : []), ...runtime.machine.bodiesByType("bucket")])].map(bucket => {
-      const startAngle = bucket.angle, start = bucket.position;
-      return { bucket, startAngle, pivot: { x: start.x + Math.cos(startAngle) * 34 - Math.sin(startAngle) * -23, y: start.y + Math.sin(startAngle) * 34 + Math.cos(startAngle) * -23 } };
+      const startAngle = bucket.angle;
+      return { bucket, startAngle, pivot: bodyPoint(bucket, {x:34,y:-23}) };
     });
     return { afterStep() {
       if (!runtime.running || !buckets.length) return;
       if (!runtime.state.bucketTipAt) runtime.state.bucketTipAt = runtime.now;
       const tip = Math.max(0, Math.min(1, (runtime.now - runtime.state.bucketTipAt) / 1900)), eased = tip * tip * (3 - 2 * tip);
       for (const { bucket, startAngle, pivot } of buckets) {
-        const angle = startAngle + eased * 2.1, rotatedX = Math.cos(angle) * 34 - Math.sin(angle) * -23, rotatedY = Math.sin(angle) * 34 + Math.cos(angle) * -23;
-        Matter.Body.setPosition(bucket, { x: pivot.x - rotatedX, y: pivot.y - rotatedY }); Matter.Body.setAngle(bucket, angle);
+        const plugin=machinePlugin(bucket),angle = startAngle + eased * 2.1 * (!!plugin?.flipX !== !!plugin?.flipY ? -1 : 1);
+        Matter.Body.setAngle(bucket, angle); const offset=bodyVector(bucket,{x:34,y:-23});
+        Matter.Body.setPosition(bucket, { x: pivot.x - offset.x, y: pivot.y - offset.y });
         const id = machinePlugin(bucket)?.instanceId; if (id) runtime.machine.setState(id, tip >= 1 ? "empty" : "pouring");
       }
     } };
@@ -265,13 +244,18 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     afterStep() {
       const state = runtime.state, network = runtime.options.fuseNetwork;
       if (!runtime.running || state.fuseExtinguishedAt) return;
-      state.fuseClock += runtime.dt; network.igniteNear({ x: 102, y: 366 }, 30, state.fuseClock); network.update(state.fuseClock);
+      state.fuseClock += runtime.dt; for (const candle of runtime.machine.bodiesByType("candle")) { const id=machinePlugin(candle)!.instanceId; if(runtime.machine.state(id)?.state==="burning") network.igniteNear(bodyPoint(candle,candleFlameLocal(runtime.machine.config(id)!)),30,state.fuseClock); } network.update(state.fuseClock);
       state.fuseIgnited = network.hasAnyBurned(state.fuseClock); state.fuseReady = network.burnTimeAt(runtime.options.cannonFuseId, 0) < Infinity;
       const cannon = runtime.bodies.cannon;
+      if (cannon && !state.cannonFired) {
+        const snapshot = network.snapshot(runtime.options.cannonFuseId, state.fuseClock), id = machinePlugin(cannon)!.instanceId;
+        if (snapshot.samples.some(sample => sample.burned)) runtime.machine.setState(id, "fuseBurning");
+        runtime.machine.state(id)!.properties.fuseProgress = snapshot.samples.filter(sample => sample.burned).length / snapshot.samples.length;
+      }
       if (!cannon || state.cannonFired || !network.hasBurnedEnd(runtime.options.cannonFuseId, state.fuseClock)) return;
       state.cannonFired = true; state.cannonFiredAt = runtime.now;
       const id = machinePlugin(cannon)?.instanceId; if (id) runtime.machine.setState(id, "firing");
-      const direction = { x: Math.cos(cannon.angle), y: Math.sin(cannon.angle) };
+      const direction = bodyVector(cannon, { x: 1, y: 0 });
       const shot = Matter.Bodies.circle(cannon.position.x + direction.x * 58, cannon.position.y + direction.y * 58, 11, { density: .0025, restitution: .3, label: "cannonball" });
       Matter.Body.setVelocity(shot, { x: direction.x * 14, y: direction.y * 14 }); Matter.Composite.add(runtime.matter.world, shot);
     },
@@ -370,14 +354,7 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       if (event.type !== "state" || event.state !== "burning" || !event.instanceId || runtime.rocketIgnitedAt.has(event.instanceId)) return;
       if (runtime.bodies.rockets.some(body => machinePlugin(body)?.instanceId === event.instanceId)) runtime.rocketIgnitedAt.set(event.instanceId, runtime.now || performance.now());
     },
-    afterStep() {
-      if (!runtime.running) return;
-      for (const rocket of runtime.bodies.rockets) {
-        const id = machinePlugin(rocket)?.instanceId; if (!id) continue;
-        const state = runtime.machine.state(id)?.state ?? "mounted", next = nextRocketState(state, runtime.rocketIgnitedAt.get(id), runtime.now);
-        if (next !== state) runtime.machine.setState(id, next);
-      }
-    },
+
   }),
 };
 

@@ -1,6 +1,8 @@
 import type { GadgetInstanceConfig, PlaceableGadgetType } from "@/engine/types";
 
 export type PlacedGadget = {
+  flipX?: boolean;
+  flipY?: boolean;
   id: number;
   configId?: string;
   collisionLabel?: string;

@@ -62,5 +62,22 @@ export const GADGET_CATALOG:Record<GadgetType,GadgetDefinition>={
   boxingGlove:{type:"boxingGlove",displayName:"Boxhandschuh",icon:"🥊",description:"Ein Stoß gegen die Rückseite löst genau einen Schlag nach vorn aus. Drehbar für andere Schlagrichtungen.",categories:["fixed","trigger","force-source"],tags:["solid-shape","impulse-source"],physics:{...fixed,width:72,height:44,massKg:5,impactReaction:"trigger"},appearance:{renderer:"boxing-glove"},defaultState:"ready",animations:{ready:{kind:"canvas",renderer:"boxing-glove"},spent:{kind:"canvas",renderer:"boxing-glove-punch",frames:8,frameDurationMs:50,loop:false}},rotatable:true,removable:true},
 };
 
+export const PALETTE_GROUPS = ["Kugeln / Gewichte", "Tiere / Behälter", "Flächen / Hindernisse", "Mechanik / Verbindungen", "Strom / Wind / Licht", "Feuer / Explosionen", "Ziele"];
+const paletteTypes: GadgetType[][] = [
+  ["ball","tennisBall","basketball","payloadBall","cannonball","weight","balloon"],
+  ["cat","mouse","fish","fishBowl","bucket","basket","hamsterWheel"],
+  ["ramp","steelBeam","woodWall","stoneWall","trampoline","needle","snapGate"],
+  ["rope","wire","belt","pulley","movingPulley","seesaw","gear","gearSource","gearTarget","conveyor","scissor","magnet","boxingGlove"],
+  ["fan","socketFan","switchFan","flashlight","socketFlashlight","lamp","socketLamp","magnifier","generator","windmill"],
+  ["candle","fuse","cannon","rocket","tnt","detonator","water"],
+  ["exit","targetRing","cannonTarget"],
+];
+for (const [index, types] of paletteTypes.entries()) for (const type of types) GADGET_CATALOG[type].paletteGroup = PALETTE_GROUPS[index];
+for (const type of ["ramp","steelBeam","woodWall","stoneWall"] as const) {
+  GADGET_CATALOG[type].resizeAxis = type === "ramp" || type === "steelBeam" ? "x" : "y";
+  GADGET_CATALOG[type].rotatable = true;
+}
+for (const type of ["cat","mouse","fish","candle","cannon","rocket","fan","socketFan","switchFan","flashlight","socketFlashlight","lamp","socketLamp","magnifier","generator","windmill","tnt","detonator","boxingGlove","bucket","needle","scissor","snapGate","seesaw","conveyor","exit","magnet"] as const) GADGET_CATALOG[type].flippable = true;
+
 export const getGadgetDefinition=(type:GadgetType)=>GADGET_CATALOG[type];
 export const gadgetsWithTag=(tag:string)=>Object.values(GADGET_CATALOG).filter(gadget=>gadget.tags.includes(tag));

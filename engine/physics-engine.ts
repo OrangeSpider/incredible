@@ -6,6 +6,7 @@ import {evaluateGoal} from "./goal-evaluator.ts";
 import {createDefaultEffectRegistry, type EffectRegistry} from "./effect-handlers.ts";
 import {createDefaultStepBehaviors, type StepBehaviorRegistry} from "./step-behaviors.ts";
 import {resolveGadgetAnimation} from "./animation.ts";
+import {localPoint} from "./gadget-geometry.ts";
 import {GadgetMechanics} from "./gadget-mechanics.ts";
 import {createBucketAssembly} from "../game/water.ts";
 import type {GadgetConnection,GadgetInstanceConfig,GadgetRuntimeState,GoalEvent,GoalSpec,LevelDefinition} from "./types.ts";
@@ -41,7 +42,11 @@ export class MachinePhysicsEngine{
     this.effects=effects;
     this.behaviors=behaviors;
     this.mechanics=new GadgetMechanics(this,level?.systems.includes("fuse-network"));
-    Matter.Events.on(this.matter,"collisionStart",event=>event.pairs.forEach(pair=>this.processCollision(pair.bodyA,pair.bodyB,pair.collision.normal)));
+    Matter.Events.on(this.matter,"collisionStart",event=>event.pairs.forEach(pair=>{
+      this.processCollision(pair.bodyA,pair.bodyB,pair.collision.normal);
+      // A container may break during collisionStart, before Matter solves this pair.
+      pair.isSensor = pair.bodyA.isSensor || pair.bodyB.isSensor;
+    }));
     if(level)this.loadLevel(level);
   }
 
@@ -54,13 +59,19 @@ export class MachinePhysicsEngine{
     if(this.entries.has(config.id))throw new Error(`Duplicate gadget id: ${config.id}`);
     if(config.type==="bucket"&&!providedBody){
       const assembly=createBucketAssembly(config.x,config.y,config.rotation??0);
+      if (config.flipX || config.flipY) {
+        Matter.Body.setAngle(assembly.bucket, 0);
+        Matter.Body.scale(assembly.bucket, config.flipX ? -1 : 1, config.flipY ? -1 : 1, {x:config.x,y:config.y});
+        Matter.Body.setAngle(assembly.bucket, config.rotation ?? 0);
+        for (const drop of assembly.water) { const dx=drop.position.x-config.x,dy=drop.position.y-config.y,a=-(config.rotation??0); const at={x:dx*Math.cos(a)-dy*Math.sin(a),y:dx*Math.sin(a)+dy*Math.cos(a)}; Matter.Body.setPosition(drop,localPoint(config,at)); }
+      }
       if(config.physics?.isStatic===false)Matter.Body.setStatic(assembly.bucket,false);
       const bucket=this.addGadget(config,assembly.bucket);
       assembly.water.forEach((drop,index)=>this.addGadget({id:`${config.id}:water:${index}`,type:"water",x:drop.position.x,y:drop.position.y},drop));
       return bucket;
     }
     const definition=getGadgetDefinition(config.type),body=providedBody??createGadgetBody(config),entry:RuntimeEntry={config,body,stateEnteredAtMs:this.elapsedMs,state:{id:config.id,type:config.type,state:config.state??definition.defaultState,role:config.role,properties:{...(config.properties??{})}}};
-    if(providedBody)providedBody.plugin={...providedBody.plugin,machine:{instanceId:config.id,type:config.type,state:entry.state.state,role:config.role,properties:entry.state.properties}};
+    if(providedBody)providedBody.plugin={...providedBody.plugin,machine:{instanceId:config.id,flipX:config.flipX,flipY:config.flipY,type:config.type,state:entry.state.state,role:config.role,properties:entry.state.properties}};
     this.entries.set(config.id,entry);
     if(body){
       this.bodyEntries.set(body.id,entry);
@@ -125,7 +136,7 @@ export class MachinePhysicsEngine{
     const a=this.bodyEntries.get(bodyA.id),b=this.bodyEntries.get(bodyB.id);if(!a||!b)return;
     this.recordEvent({name:"contact",sourceId:a.config.id,targetId:b.config.id});
     const relativeVelocity={x:bodyA.velocity.x-bodyB.velocity.x,y:bodyA.velocity.y-bodyB.velocity.y},impactSpeed=Math.max(bodyA.speed,bodyB.speed,Math.hypot(relativeVelocity.x,relativeVelocity.y));
-    for(const interaction of resolveInteractions(a.config.type,b.config.type,"collision",{impactSpeed,sourceX:bodyA.position.x,sourceY:bodyA.position.y,targetX:bodyB.position.x,targetY:bodyB.position.y,sourceState:a.state.state,targetState:b.state.state,relativeVelocity,collisionNormal:normal}))this.applyInteraction(interaction,a,b,bodyA,bodyB);
+    for(const interaction of resolveInteractions(a.config.type,b.config.type,"collision",{impactSpeed,sourceX:bodyA.position.x,sourceY:bodyA.position.y,targetX:bodyB.position.x,targetY:bodyB.position.y,sourceState:a.state.state,targetState:b.state.state,relativeVelocity,collisionNormal:normal})) { if (["fire-ignites-rocket", "fire-pops-balloon", "fire-ignites-fuse", "impact-breaks-glass"].includes(interaction.rule.id)) continue; this.applyInteraction(interaction,a,b,bodyA,bodyB); }
   }
 
   resolve(sourceId:string,targetId:string,trigger:"proximity"|"connection"|"tension"|"continuous"|"state-change",kinematics?:Partial<{impactSpeed:number;relativeVelocity:{x:number;y:number}}>) {

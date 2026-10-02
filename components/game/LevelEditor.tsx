@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { validateLevel } from "@/levels/catalog";
-import { GADGET_CATALOG } from "@/engine/gadget-catalog";
+import { GADGET_CATALOG, PALETTE_GROUPS } from "@/engine/gadget-catalog";
+import { resizeGadget, resizeHandles } from "@/engine/gadget-geometry";
+import GadgetSelection from "./GadgetSelection";
 import type { GadgetConnection, GadgetInstanceConfig, GadgetType, GoalSelector, LevelDefinition } from "@/engine/types";
 import { combineGoals, goalList, hitGadget, newLevel, rectangleGoal, redo, remember, removeGadget, STATE_LABELS, undo, updateGadget, type LevelHistory } from "@/levels/authoring";
 import { downloadLevel, pickLevelDirectory, readLevelDirectory, readLevelFiles, supportsLevelFolders, writeLevelFile, type LevelDirectory, type LevelFile } from "@/levels/file-storage";
@@ -18,7 +20,7 @@ const NO_WIN = () => {};
 
 function editableLevel(level: LevelDefinition, placed: PlacedGadget[], connections: GadgetConnection[]) {
   const initialPlacements: GadgetInstanceConfig[] = placed.map(gadget => ({
-    id: placedConfigId(gadget), type: gadget.type, x: gadget.x, y: gadget.y, rotation: gadget.rotation,
+    id: placedConfigId(gadget), type: gadget.type, x: gadget.x, y: gadget.y, rotation: gadget.rotation, flipX: gadget.flipX, flipY: gadget.flipY,
     collisionLabel: gadget.collisionLabel, physics: gadget.physics, properties: gadget.properties, role: gadget.role, tags: gadget.tags?.filter(tag => tag !== "player-part"), state: gadget.state,
   }));
   return structuredClone({ ...level, initialPlacements, connections });
@@ -44,7 +46,8 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
   const [showGoals, setShowGoals] = useState(false);
   const [areaSelector, setAreaSelector] = useState<GoalSelector | null>(null);
   const [areaDrag, setAreaDrag] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
-  const drag = useRef<{ id: string; dx: number; dy: number; before: LevelDefinition } | null>(null);
+  const drag = useRef<{ id: string; dx: number; dy: number; before: LevelDefinition; resize?: { config: GadgetInstanceConfig; end: 0 | 1 } } | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("Wähle ein Bauteil und klicke auf das Spielfeld. Die Zahl rechts legt das zusätzliche Spielerinventar fest.");
   const [directory, setDirectory] = useState<LevelDirectory | null>(null);
@@ -101,13 +104,17 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
   const pointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     const at = point(event);
+    if (selected && !tool && !showGoals) {
+      const end = resizeHandles(selected).findIndex(handle => Math.hypot(at.x - handle.x, at.y - handle.y) <= 14);
+      if (end >= 0) { event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: selected.id, dx: 0, dy: 0, before: draft, resize: { config: selected, end: end as 0 | 1 } }; return; }
+    }
     if (areaSelector) { event.currentTarget.setPointerCapture(event.pointerId); setAreaDrag({ start: at, end: at }); return; }
     if (tool === "rope") {
       const port = ropePorts(gadgets).find(port => Math.hypot(at.x - port.x, at.y - port.y) < 26);
       if (!port) { setMessage("Klicke einen Griff, optional Umlenkrollen und zuletzt einen Zugpunkt."); return; }
       const next = advanceRopeDraft(pendingRope, port, draft.controlRopes ?? [], Infinity);
       setPendingRope(next.pending);
-      if (next.connection) { change({ ...draft, systems: [...new Set([...draft.systems, "tension-rope"])], controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(next.connection.targetId); }
+      if (next.connection) { change({ ...draft, systems: [...new Set([...draft.systems, "tension-rope"])], controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(next.connection.targetId); if (!event.shiftKey) setTool(null); }
       return;
     }
     if (tool === "wire" || tool === "belt") {
@@ -116,7 +123,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
       if (!pendingConnection) setPendingConnection(port);
       else {
         const connection = connectPorts(pendingConnection, port, tool, draft.connections ?? [], `connection-${crypto.randomUUID()}`);
-        if (connection) { change({ ...draft, connections: [...(draft.connections ?? []), connection] }); setPendingConnection(null); setSelectedConnection(connection.id); }
+        if (connection) { change({ ...draft, connections: [...(draft.connections ?? []), connection] }); setPendingConnection(null); setSelectedConnection(connection.id); if (!event.shiftKey) setTool(null); }
         else { setPendingConnection(null); setMessage("Diese Anschlüsse können nicht verbunden werden."); }
       }
       return;
@@ -125,7 +132,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
       const definition = GADGET_CATALOG[tool], id = `${tool}-${crypto.randomUUID().slice(0, 8)}`;
       const gadget: GadgetInstanceConfig = { id, type: tool, ...at, rotation: definition.defaultRotation ?? 0,
         ...(["candle", "cat", "mouse", "fish", "fishBowl"].includes(tool) ? { properties: { standalone: true } } : {}), ...(tool === "fish" ? { state: "flopping" } : {}) };
-      change({ ...draft, [placement]: [...(draft[placement] ?? []), gadget] }); setSelectedId(id); setSelectedConnection(null); setSelectedRope(null); return;
+      change({ ...draft, [placement]: [...(draft[placement] ?? []), gadget] }); setSelectedId(id); setSelectedConnection(null); setSelectedRope(null); if (!event.shiftKey) setTool(null); return;
     }
     const gadget = hitGadget(gadgets, at);
     setSelectedId(gadget?.id ?? null); setSelectedConnection(null); setSelectedRope(null);
@@ -147,7 +154,8 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
     if (areaDrag) setAreaDrag({ ...areaDrag, end: at });
     if (drag.current) {
       const moving = drag.current;
-      setHistory(current => ({ ...current, present: updateGadget(current.present, moving.id, { x: Math.max(0, Math.min(900, at.x + moving.dx)), y: Math.max(0, Math.min(520, at.y + moving.dy)) }) }));
+      const update = moving.resize ? resizeGadget(moving.resize.config, moving.resize.end, at) : { x: Math.max(0, Math.min(900, at.x + moving.dx)), y: Math.max(0, Math.min(520, at.y + moving.dy)) };
+      setHistory(current => ({ ...current, present: updateGadget(current.present, moving.id, update) }));
     }
   };
   const pointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -216,14 +224,17 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
         <div className="board" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { if (drag.current) { const before = drag.current.before; setHistory(current => ({ ...current, present: before })); } drag.current = null; setAreaDrag(null); }}>
           <GameCanvas level={preview} placed={EMPTY} ropePath={EMPTY} scissorRopes={draft.controlRopes ?? EMPTY} pendingScissor={pendingRope} ropeMode={tool === "rope"} selectedTool={tool} selectedId={null} connections={draft.connections ?? EMPTY} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={false} attempt={0} onWin={NO_WIN} />
           <GoalOverlay goal={draft.goal} />
+          {selected && !showGoals && <GadgetSelection gadget={selected} />}
           <svg className="editor-overlay" viewBox="0 0 900 520" aria-hidden="true">
-            {selected && <g transform={`translate(${selected.x} ${selected.y}) rotate(${(selected.rotation ?? 0) * 180 / Math.PI})`}><rect className="selection" x={-(selected.physics?.width ?? GADGET_CATALOG[selected.type].physics.width ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) / 2 - 6} y={-(selected.physics?.height ?? GADGET_CATALOG[selected.type].physics.height ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) / 2 - 6} width={(selected.physics?.width ?? GADGET_CATALOG[selected.type].physics.width ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) + 12} height={(selected.physics?.height ?? GADGET_CATALOG[selected.type].physics.height ?? (GADGET_CATALOG[selected.type].physics.radius ?? 25) * 2) + 12} /></g>}
+
             {areaDrag && <rect className="area-draft" x={Math.min(areaDrag.start.x, areaDrag.end.x)} y={Math.min(areaDrag.start.y, areaDrag.end.y)} width={Math.abs(areaDrag.start.x - areaDrag.end.x)} height={Math.abs(areaDrag.start.y - areaDrag.end.y)} />}
           </svg>
         </div>
         <p className="editor-message" role="status">{message}</p>
         {selected && !showGoals && <div className="gadget-properties">
           <b>{GADGET_CATALOG[selected.type].displayName} · {selected.id}</b>
+          {GADGET_CATALOG[selected.type].rotatable && <><button aria-label="Links drehen" onClick={() => change(updateGadget(draft, selected.id, { rotation: (selected.rotation ?? 0) - Math.PI / 12 }))}>↶ Links drehen</button><button aria-label="Rechts drehen" onClick={() => change(updateGadget(draft, selected.id, { rotation: (selected.rotation ?? 0) + Math.PI / 12 }))}>↷ Rechts drehen</button></>}
+          {GADGET_CATALOG[selected.type].flippable && <><button aria-pressed={!!selected.flipX} onClick={() => change(updateGadget(draft, selected.id, { flipX: !selected.flipX }))}>↔ Horizontal spiegeln</button><button aria-pressed={!!selected.flipY} onClick={() => change(updateGadget(draft, selected.id, { flipY: !selected.flipY }))}>↕ Vertikal spiegeln</button></>}
           <label>Ablage<select value={draft.fixedGadgets.some(gadget => gadget.id === selected.id) ? "fixedGadgets" : "initialPlacements"} onChange={event => {
             const group = event.target.value as typeof placement;
             change({ ...draft, fixedGadgets: draft.fixedGadgets.filter(gadget => gadget.id !== selected.id), initialPlacements: (draft.initialPlacements ?? []).filter(gadget => gadget.id !== selected.id), [group]: [...(draft[group] ?? []).filter(gadget => gadget.id !== selected.id), selected] });
@@ -241,15 +252,15 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
       <aside className="editor-palette" aria-label="Bauteile und Spielerinventar"><h2>BAUTEILE</h2>
         {showGoals && <GoalEditor level={draft} selectedId={selectedId} onChange={change} drawing={areaSelector !== null} onDrawArea={selector => { setAreaSelector(selector); setTool(null); }} />}
         <label>Bauteil suchen<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Kugel, Katze, Steckdose…" /></label>
-        <p className="inventory-help">Bauteil anklicken: beliebig oft setzen. Anzahl: zusätzliche frei platzierbare Bauteile für den Spieler.</p>
-        <div className="editor-part-list">{catalog.map(gadget => <div className="editor-part-row" key={gadget.type}>
+        <p className="inventory-help">Bauteil anklicken: einmal setzen, dann bearbeiten. Shift: mehrfach setzen. Anzahl: zusätzliche frei platzierbare Bauteile für den Spieler.</p>
+        <div className="editor-categories">{PALETTE_GROUPS.map(group => { const entries = catalog.filter(gadget => gadget.paletteGroup === group); const open = !!search.trim() || !collapsed.has(group); return entries.length > 0 && <section className="palette-group" key={group}><button className="palette-category" aria-expanded={open} onClick={() => setCollapsed(current => { const next = new Set(current); if (next.has(group)) next.delete(group); else next.add(group); return next; })}>{open ? "▾" : "▸"} {group} <small>{entries.length}</small></button>{open && <div className="editor-part-list">{entries.map(gadget => <div className="editor-part-row" key={gadget.type}>
           <button className={tool === gadget.type ? "selected" : ""} title={gadget.description} aria-label={`${gadget.displayName} platzieren`} aria-pressed={tool === gadget.type} onClick={() => { setTool(gadget.type); setShowGoals(false); resetTools(); }}><span className={`part ${gadget.type}`}>{gadget.icon}</span><span>{gadget.displayName}</span></button>
           <input type="number" min="0" step="1" aria-label={`Spielerinventar ${gadget.displayName}`} title="Zusätzliche frei platzierbare Bauteile" value={draft.inventory.find(entry => entry.type === gadget.type)?.count ?? 0} onChange={event => {
             const count = Math.max(0, Math.trunc(Number(event.target.value)));
             const inventory = draft.inventory.filter(entry => entry.type !== gadget.type);
             change({ ...draft, inventory: count > 0 ? [...inventory, { type: gadget.type, count }] : inventory });
           }} />
-        </div>)}</div>
+        </div>)}</div>}</section>; })}{catalog.length === 0 && <p>Keine Bauteile gefunden.</p>}</div>
       </aside>
     </div>
     <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={event => { loadFile(event.target.files?.[0]); event.target.value = ""; }} />

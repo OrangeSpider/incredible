@@ -1,6 +1,8 @@
 import { GADGET_CATALOG } from "../engine/gadget-catalog.ts";
 import type { GadgetConnection, GadgetInstanceConfig } from "../engine/types.ts";
-import { attachmentPoint, type Point } from "./control-ropes.ts";
+import { type Point } from "./control-ropes.ts";
+
+import { localPoint } from "../engine/gadget-geometry.ts";
 
 export type GadgetPort = Point & { gadgetId: string; kind: "power" | "socket" | "drive"; label: string };
 
@@ -9,11 +11,11 @@ export function gadgetPorts(configs: readonly GadgetInstanceConfig[]): GadgetPor
     const definition = GADGET_CATALOG[config.type], supply = definition.electrical?.supply;
     const ports: GadgetPort[] = [];
     if (supply === "generator" || supply === "socket") ports.push({
-      ...attachmentPoint(config, config.rotation ?? 0, { x: 36, y: 20 }),
+      ...localPoint(config, { x: 36, y: 20 }),
       gadgetId: config.id, kind: supply === "generator" ? "power" : "socket", label: supply === "generator" ? "STROM" : "STECKDOSE",
     });
     if (definition.tags.includes("belt-port") || definition.tags.includes("gear")) ports.push({
-      ...attachmentPoint(config, config.rotation ?? 0, config.type === "conveyor" ? { x: -(config.physics?.width ?? 270) / 2 + 16, y: 0 } : { x: 0, y: 0 }),
+      ...localPoint(config, config.type === "conveyor" ? { x: -(config.physics?.width ?? 270) / 2 + 16, y: 0 } : { x: 0, y: 0 }),
       gadgetId: config.id, kind: "drive", label: "ANTRIEB",
     });
     return ports;

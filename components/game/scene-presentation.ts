@@ -104,7 +104,7 @@ const presentations = {
     hints: ({ status }: ScenePresentationFrame) => [hint(!status.beltConnected ? "Es fehlt die Verbindung zum Laufband" : status.motor ? "Riemen überträgt den Antrieb" : "Triff das Hamsterrad mit einer Kugel", 330, 260)],
   },
   "balloon-candle": {
-    decorate: ({ ctx, now, sprites }: ScenePresentationFrame) => { ctx.fillStyle = "#7b4c24"; ctx.fillRect(770, 135, 72, 10); ctx.fillStyle = "#f1cb62"; ctx.fillRect(793, 75, 24, 64); if (!sprites.fire(0, Math.floor(now / 105) % 6, 805, 51, 82, 90)) sprites.fallbackFlame(805, 58, now, 1.05); },
+    decorate: ({ ctx }: ScenePresentationFrame) => { ctx.fillStyle="#7b4c24";ctx.fillRect(770,135,72,10); },
     hints: ({ status }: ScenePresentationFrame) => status.balloonPopped ? [] : [hint("Lenke den Ballon mit den Planken zur Flamme", 275)],
   },
   tailwind: {
@@ -139,11 +139,11 @@ const presentations = {
     hints: ({ status }: ScenePresentationFrame) => [hint(status.gearsConnected ? "Die Zahnradkette greift vollständig ineinander" : "Zwischen den Zahnrädern sind noch Lücken", 285)],
   },
   "fire-cannon": {
-    decorate: ({ ctx, now, sprites }: ScenePresentationFrame) => { ctx.fillStyle = "#7b4c24"; ctx.fillRect(70, 440, 65, 10); ctx.fillStyle = "#f1cb62"; ctx.fillRect(91, 390, 22, 52); if (!sprites.fire(0, Math.floor(now / 105) % 6, 102, 366, 82, 90)) sprites.fallbackFlame(102, 374, now); ctx.strokeStyle = "#c73b2e"; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(825, 230, 48, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = "#6b391e"; ctx.font = "bold 13px system-ui"; ctx.fillText("ZIEL", 808, 300); },
+    decorate: ({ ctx }: ScenePresentationFrame) => { ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10); },
     hints: ({ status }: ScenePresentationFrame) => [hint(!status.fuseIgnited ? "Kein Luntenteil berührt die Flamme" : status.fuseExtinguished ? "Die nasse Lunte ist erloschen" : !status.fuseReady ? "Die Flammenfronten breiten sich räumlich aus …" : "Die Kanonenlunte brennt zur Kanone …", 270)],
   },
   "water-march": {
-    decorate: ({ ctx, now, sprites, status }: ScenePresentationFrame) => { ctx.fillStyle = "#7b4c24"; ctx.fillRect(770, 470, 70, 10); ctx.fillStyle = "#f1cb62"; ctx.fillRect(794, 390, 22, 80); if (!status.candleExtinguished) { if (!sprites.fire(0, Math.floor(now / 105) % 6, 805, 371, 82, 90)) sprites.fallbackFlame(805, 380, now); } else { ctx.fillStyle = "#8b9ba0"; for (let puff = 0; puff < 4; puff++) { ctx.globalAlpha = .55 - puff * .1; ctx.beginPath(); ctx.arc(802 + Math.sin(now * .004 + puff) * 8, 374 - puff * 9, 8 + puff * 2, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; sprites.water(1, 5, 805, 450, 76, 38); } ctx.fillStyle = "#6b391e"; ctx.font = "bold 12px system-ui"; ctx.fillText("KERZE", 785, 505); },
+    decorate: ({ ctx }: ScenePresentationFrame) => { ctx.fillStyle="#7b4c24";ctx.fillRect(770,470,70,10);ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText("KERZE",785,505); },
     hints: ({ status }: ScenePresentationFrame) => [hint(status.candleExtinguished ? "Die Kerze ist gelöscht!" : !status.bucketPlaced ? "Platziere den Wassereimer" : "Leite den Schwall um Stahl, Holz und Stein zur Kerze", 250)],
   },
   "lever-effect": {
@@ -168,14 +168,7 @@ const presentations = {
     },
   },
   "water-guard": {
-    decorate: ({ctx,now,sprites,status}:ScenePresentationFrame) => {
-      ctx.strokeStyle="#c73b2e";ctx.lineWidth=9;ctx.beginPath();ctx.arc(750,145,45,0,Math.PI*2);ctx.stroke();
-      ctx.strokeStyle="#f5ca64";ctx.lineWidth=3;ctx.beginPath();ctx.arc(750,145,45+Math.sin(now/250)*2,0,Math.PI*2);ctx.stroke();
-      ctx.fillStyle="#7b4c24";ctx.fillRect(773,470,65,9);ctx.fillStyle="#f1cb62";ctx.fillRect(793,390,24,80);
-      if(!status.candleExtinguished){if(!sprites.fire(0,Math.floor(now/105)%6,805,371,82,90))sprites.fallbackFlame(805,380,now)}
-      else{ctx.fillStyle="rgba(140,158,160,.55)";for(let puff=0;puff<3;puff++){ctx.beginPath();ctx.arc(801+Math.sin(now/300+puff)*7,370-puff*12,7+puff*3,0,Math.PI*2);ctx.fill()}}
-      ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText("ERST LÖSCHEN",747,515);ctx.fillText("DANN FLIEGEN",708,207);
-    },
+    decorate: ({ ctx }: ScenePresentationFrame) => { ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText("ERST LÖSCHEN",747,515);ctx.fillText("DANN FLIEGEN",708,207); },
     hints:({status}:ScenePresentationFrame)=>[hint(!status.bucketPlaced?"Setze Eimer und Planken für den Löschweg":!status.candleExtinguished?"Wasser zur Kerze, Luftstrom zum Ballon":"Flamme aus! Lenke den Ballon in den Ring",275)],
   },
   "air-mail": {
@@ -188,12 +181,7 @@ const presentations = {
     hints:({status}:ScenePresentationFrame)=>[hint(status.singleScissorClosed?"Schere geschlossen – der Ballon steigt zum Ring":"Drehe das Trampolin so, dass der Tennisball auf der Schere landet",240)],
   },
   "magnet-arc": {
-    decorate:({ctx,now,sprites}:ScenePresentationFrame)=>{
-      ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);ctx.fillStyle="#f1cb62";ctx.fillRect(91,390,22,52);
-      if(!sprites.fire(0,Math.floor(now/105)%6,102,366,82,90))sprites.fallbackFlame(102,374,now);
-      ctx.strokeStyle="#c73b2e";ctx.lineWidth=9;ctx.beginPath();ctx.arc(820,245,48,0,Math.PI*2);ctx.stroke();
-      ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText("MAGNETISCHER UMWEG",570,73);
-    },
+    decorate: ({ ctx }: ScenePresentationFrame) => { ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText("MAGNETISCHER UMWEG",570,73); },
     hints:({status}:ScenePresentationFrame)=>[hint(!status.fuseIgnited?"Verbinde Kerze und Kanone mit der Lunte":!status.cannonFired?"Die Lunte brennt – Magnet über die Mauer setzen":status.magnetRunning?"Das Magnetfeld krümmt die Flugbahn":"Der Schuss ist unterwegs",250)],
   },
   "two-balls-one-gate": {
@@ -206,12 +194,7 @@ const presentations = {
     hints:({status}:ScenePresentationFrame)=>[hint(!status.seesawPlaced?"Platziere die Wippe zwischen die beiden fallenden Kugeln":!status.gateOpen?"Schwere Kugel links, Tennisball rechts – triff das Tor":"Tor offen! Die Bowlingkugel fällt in den Korb",250)],
   },
   "mogli-breakout": {
-    decorate:({ctx,now,sprites,status}:ScenePresentationFrame)=>{
-      ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);ctx.fillStyle="#f1cb62";ctx.fillRect(91,390,22,52);
-      if(!sprites.fire(0,Math.floor(now/105)%6,102,366,82,90))sprites.fallbackFlame(102,374,now);
-      drawMouseHole(ctx,850,480,52,58);
-      ctx.fillStyle="#6b391e";ctx.font="bold 12px system-ui";ctx.fillText(status.gateOpen?"FLUCHTWEG OFFEN":"TOR VERSCHLOSSEN",690,255);
-    },
+    decorate: ({ ctx }: ScenePresentationFrame) => { ctx.fillStyle="#7b4c24";ctx.fillRect(70,440,65,10);drawMouseHole(ctx,850,480,52,58); },
     hints:({status}:ScenePresentationFrame)=>[hint(!status.fuseIgnited?"Zünde die Kanone mit einer durchgehenden Lunte":!status.gateOpen?"Lenke die Kugel mit dem Magneten über die Mauer zum Tor":"Das Tor ist offen – Mogli kann entkommen",245)],
   },
 } satisfies Record<string, ScenePresentation>;
