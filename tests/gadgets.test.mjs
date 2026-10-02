@@ -146,7 +146,7 @@ test("basketball mass and rebound differ from bowling and tennis balls", () => {
 
 test("connections have compatible rotated ports, reject duplicates and remain selectable", () => {
   const configs = [{id:"gen",type:"generator",x:100,y:100,rotation:Math.PI/2}, {id:"lamp",type:"socketLamp",x:300,y:100}, {id:"battery",type:"lamp",x:500,y:100}];
-  const ports = gadgetPorts(configs); assert.equal(ports.length,2);
+  const ports = gadgetPorts(configs).filter(port => port.kind !== "drive"); assert.equal(ports.length,2);
   assert.equal(ports[0].x,80); assert.equal(ports[0].y,136);
   const wire = connectPorts(ports[1],ports[0],"wire",[],"wire"); assert.equal(wire.sourceId,"gen");
   assert.equal(connectPorts(ports[0],ports[1],"wire",[wire],"duplicate"),null);

@@ -100,7 +100,7 @@ export type GadgetInstanceConfig={
 
 export type InventoryEntry={type:PlaceableGadgetType;count:number};
 
-export type GadgetConnection={id:string;kind:"wire"|"belt";sourceId:string;targetId:string};
+export type GadgetConnection={id:string;kind:"wire"|"belt";sourceId:string;targetId:string;sourcePortId?:string;targetPortId?:string};
 export type ControlRopeConfig={targetId:string;guides:string[];source:{gadgetId:string;local:{x:number;y:number}}};
 
 export type LegacyGoalSpec={

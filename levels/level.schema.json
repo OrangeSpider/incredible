@@ -20,7 +20,7 @@
     "initialPlacements":{"$ref":"#/$defs/gadgetInstances"},
     "floor":{"type":"boolean","default":true},
     "controlRopes":{"type":"array","items":{"type":"object","required":["targetId","guides","source"],"properties":{"targetId":{"type":"string","minLength":1},"guides":{"type":"array","items":{"type":"string"},"uniqueItems":true},"source":{"type":"object","required":["gadgetId","local"],"properties":{"gadgetId":{"type":"string","minLength":1},"local":{"type":"object","required":["x","y"],"properties":{"x":{"type":"number"},"y":{"type":"number"}},"additionalProperties":false}},"additionalProperties":false}},"additionalProperties":false}},
-    "connections":{"type":"array","items":{"type":"object","required":["id","kind","sourceId","targetId"],"properties":{"id":{"type":"string","minLength":1},"kind":{"enum":["wire","belt"]},"sourceId":{"type":"string","minLength":1},"targetId":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "connections":{"type":"array","items":{"type":"object","required":["id","kind","sourceId","targetId"],"properties":{"id":{"type":"string","minLength":1},"kind":{"enum":["wire","belt"]},"sourceId":{"type":"string","minLength":1},"targetId":{"type":"string","minLength":1},"sourcePortId":{"type":"string","minLength":1},"targetPortId":{"type":"string","minLength":1}},"additionalProperties":false}},
     "systems":{"type":"array","items":{"type":"string"},"uniqueItems":true},
     "goal":{"oneOf":[{"$ref":"#/$defs/legacyGoal"},{"$ref":"#/$defs/goal"}]}
   },

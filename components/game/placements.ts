@@ -11,8 +11,8 @@ export function initialConnections(level: LevelDefinition): GadgetConnection[] {
   return structuredClone(level.connections ?? []);
 }
 export function remainingInventory(entry: InventoryEntry, level: LevelDefinition, placed: PlacedGadget[], connections: GadgetConnection[], ropes: ControlRope[], hasPulleyRoute: boolean): number {
-  if (entry.type === "wire" || (entry.type === "belt" && !level.systems.includes("belt-drive")))
-    return Math.max(0, entry.count - connections.filter(connection => connection.kind === entry.type && !(level.connections ?? []).some(preset => preset.id === connection.id)).length);
+  if (entry.type === "wire" || entry.type === "belt")
+    return Math.max(0, entry.count - connections.filter(connection => connection.kind === entry.type && !(level.connections ?? []).some(preset => preset.id === connection.id)).length - placed.filter(part => part.type === entry.type && !part.configId).length);
   if (entry.type === "rope" && level.systems.includes("tension-rope"))
     return Math.max(0, entry.count - ropes.filter(rope => !(level.controlRopes ?? []).some(preset => preset.targetId === rope.targetId)).length);
   if (entry.type === "rope" && level.systems.includes("pulley-rope")) return hasPulleyRoute ? 0 : entry.count;

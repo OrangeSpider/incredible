@@ -41,6 +41,9 @@ export function drawFan(ctx: CanvasRenderingContext2D, angle: number, active: bo
     ctx.beginPath(); ctx.moveTo(Math.cos(a) * 7, Math.sin(a) * 7); ctx.lineTo(Math.cos(a) * 28, Math.sin(a) * 28); ctx.stroke();
   }
   hub(ctx, 6);
+  // The direction stays visible in the editor and while a switched/socket fan is off.
+  ctx.save(); ctx.strokeStyle = active ? "#27788e" : "#526e78"; ctx.lineWidth = 3; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(40, 0); ctx.lineTo(94, 0); ctx.moveTo(83, -8); ctx.lineTo(94, 0); ctx.lineTo(83, 8); ctx.stroke(); ctx.restore();
   if (!active) return;
   ctx.save(); ctx.strokeStyle = "rgba(62,147,173,.25)"; ctx.setLineDash([8, 10]); ctx.lineDashOffset = -clock / 35;
   ctx.beginPath(); ctx.moveTo(35, -28); ctx.lineTo(AIRFLOW_RANGE, -38 - AIRFLOW_RANGE * .19);

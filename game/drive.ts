@@ -9,6 +9,7 @@ export type DriveBeltGeometry = {
 };
 
 export const CONVEYOR_SPEED = 3.4;
+export const GENERATOR_DRIVE_CENTER = { x: -18, y: 7 };
 
 export function conveyorWheelCenters(centerX: number, centerY: number, width: number): [DrivePoint, DrivePoint] {
   const inset = Math.min(27, Math.max(18, width * .08));
@@ -37,7 +38,7 @@ export function driveBeltGeometry(source: DrivePoint, target: DrivePoint, source
   };
 }
 
-function drawWheel(ctx: CanvasRenderingContext2D, center: DrivePoint, radius: number, turn: number) {
+export function drawDriveWheel(ctx: CanvasRenderingContext2D, center: DrivePoint, radius: number, turn: number) {
   ctx.save();
   ctx.translate(center.x, center.y);
   ctx.rotate(turn);
@@ -89,8 +90,8 @@ export function drawConveyor(
   ctx.lineDashOffset = running ? -now * .09 * direction : 0;
   ctx.stroke();
   ctx.setLineDash([]);
-  drawWheel(ctx, leftWheel, wheelRadius, turn);
-  drawWheel(ctx, rightWheel, wheelRadius, turn);
+  drawDriveWheel(ctx, leftWheel, wheelRadius, turn);
+  drawDriveWheel(ctx, rightWheel, wheelRadius, turn);
   ctx.restore();
 
   return { leftWheel, rightWheel, wheelRadius };

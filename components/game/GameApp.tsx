@@ -7,7 +7,7 @@ import type { GadgetConnection, InventoryEntry, LevelDefinition, PlaceableGadget
 import { LEVELS } from "@/levels/catalog";
 import { analyzePulleyRoute, type PulleyRouteKind } from "@/game/pulley";
 import { advanceRopeDraft, ropePorts, ropeUsesGadget, handleOffset, type PendingControlRope } from "@/game/control-ropes";
-import { gadgetPorts, connectPorts, distanceToPath, type GadgetPort } from "@/game/gadget-connections";
+import { gadgetPorts, connectPorts, connectionPorts, gadgetPortKey, distanceToPath, type GadgetPort } from "@/game/gadget-connections";
 import { conveyorWheelCenters } from "@/game/drive";
 import GameCanvas, { routeKindForPart } from "./GameCanvas";
 import GameHeader from "./GameHeader";
@@ -141,12 +141,13 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     const point = boardPoint(event);
     const configs = [...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))];
     const selectRope = (id: string) => { setSelectedRope(id); setSelectedId(null); setSelectedConnection(null); setPendingScissor(null); setSelected(null); };
-    if (selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) {
+    if (selected === "wire" || selected === "belt") {
       const kind = selected, ports = gadgetPorts(configs).filter(port => kind === "wire" ? port.kind !== "drive" : port.kind === "drive");
       const port = ports.map(port => ({ port, distance: Math.hypot(point.x - port.x, point.y - port.y) })).sort((a, b) => a.distance - b.distance)[0];
       if (port && port.distance < 24) {
         const limit = (level.inventory.find(entry => entry.type === kind)?.count ?? 0) + (level.connections ?? []).filter(item => item.kind === kind).length;
-        if (!pendingConnection) { if (connections.filter(item => item.kind === kind).length < limit) setPendingConnection(port.port); }
+        const legacyBelts = kind === "belt" ? placed.filter(part => part.type === "belt" && !part.configId).length : 0;
+        if (!pendingConnection) { if (connections.filter(item => item.kind === kind).length + legacyBelts < limit) setPendingConnection(port.port); }
         else {
           const connection = connectPorts(pendingConnection, port.port, kind, connections, `connection-${Math.round(performance.now() * 1000)}`);
           if (connection) { setConnections(items => [...items, connection]); setSelectedConnection(connection.id); setSelectedId(null); setSelectedRope(null); setSelected(null); setPendingConnection(null); }
@@ -154,6 +155,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
         }
         return;
       }
+      if (pendingConnection) return;
     }
 
     if (selected === "rope" && level.systems.includes("tension-rope")) {
@@ -210,7 +212,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     const pulleyPoints = ropePath.flatMap(node => node.kind === "anchor" ? [ROPE_ANCHOR] : placed.filter(part => part.id === node.placedId));
     if (distanceToPath(point, pulleyPoints) < 13 || (pulleyPoints.length === 1 && Math.hypot(point.x - pulleyPoints[0].x, point.y - pulleyPoints[0].y) < 18)) { selectRope("pulley-rope"); return; }
     const ports = gadgetPorts(configs);
-    const connection = connections.map(item => ({ ...item, distance: distanceToPath(point, [ports.find(port => port.gadgetId === item.sourceId && (item.kind === "wire" ? port.kind === "power" : port.kind === "drive")), ports.find(port => port.gadgetId === item.targetId && (item.kind === "wire" ? port.kind === "socket" : port.kind === "drive"))].filter((port): port is GadgetPort => !!port)) })).sort((a, b) => a.distance - b.distance)[0];
+    const connection = connections.map(item => ({ ...item, distance: distanceToPath(point, connectionPorts(item, ports)) })).sort((a, b) => a.distance - b.distance)[0];
     if (connection && connection.distance < 13) { setSelectedConnection(connection.id); setSelectedId(null); setSelectedRope(null); setPendingConnection(null); setSelected(null); return; }
 
     const hit = hitGadget(placed.map(part => ({ ...part, id: placedConfigId(part) })), point);
@@ -223,7 +225,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
 
     const allowed = level.inventory.find((entry) => entry.type === selected);
     if (!selected || !allowed || selected === "rope" || selected === "wire" || (selected === "belt" && !level.systems.includes("belt-drive"))) return;
-    if (placed.filter((part) => part.type === selected && !part.configId).length >= allowed.count) return;
+    if (remainingInventory(allowed, level, placed, connections, scissorRopes, ropePath.length > 0) === 0) return;
     const id = Math.round(performance.now() * 1000);
     setSelectedId(id);
     setSelectedConnection(null); setSelectedRope(null);
@@ -272,9 +274,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     ? ropePath.length ? ropeAnalysis.tensioned ? "Festpunkt und Kugel bilden die beiden gespannten Enden. Weitere Punkte öffnen den Verlauf wieder." : "Klicke weitere Anschlüsse oder starte auch mit offenen Enden." : "Beginne an einem beliebigen grünen Anschluss – der Festpunkt ist optional."
     : selected === "rope" && level.systems.includes("tension-rope")
       ? pendingScissor === null ? "Griff oder Riegel anklicken, bei Bedarf über Rollen führen, dann am Zugpunkt befestigen. Zum Entfernen das Seil auswählen und ENTFERNEN drücken." : "Klicke weitere Rollen oder schließe am Wippenende, Ballon oder einer Kugel ab. Esc bricht ab."
-      : selected === "belt" && level.systems.includes("belt-drive")
-        ? placed.some((part) => part.type === "belt") ? "Der Riemen liegt geschlossen um Louis' Antriebsrad und das linke Laufbandrad." : "Klicke auf das Spielfeld: Der Riemen verbindet automatisch die beiden grün markierten Antriebsräder."
-        : selected === "wire" || selected === "belt" ? pendingConnection ? "Klicke den zweiten passenden Anschluss. Esc bricht ab." : selected === "wire" ? "Klicke STROM am Generator und dann STECKDOSE am Verbraucher." : "Verbinde zwei grüne ANTRIEB-Anschlüsse mit einem Riemen."
+      : selected === "wire" || selected === "belt" ? pendingConnection ? "Klicke den zweiten passenden Anschluss. Esc bricht ab." : selected === "wire" ? "Klicke STROM am Generator und dann STECKDOSE am Verbraucher." : "Verbinde zwei grüne ANTRIEB-Anschlüsse. Am Laufband kannst du beide Räder wählen."
         : selectedRope || selectedConnection ? "Verbindung ausgewählt. ENTFERNEN gibt sie ins Inventar zurück." : level.hint;
 
   const remaining = (entry: InventoryEntry) => {
@@ -314,15 +314,14 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
       <div className="workspace">
         <section className="board-wrap">
           <div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={() => { setDrag(null); transformDrag.current = null; }} onPointerCancel={() => { setDrag(null); if (transformDrag.current) { const before = transformDrag.current.before; setPlaced(items => items.map(item => item.id === before.id ? before : item)); transformDrag.current = null; } }}>
-            <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} connections={connections} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={running} attempt={attempt} onWin={win} />
+            <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} connections={connections} selectedConnection={selectedConnection} pendingConnection={pendingConnection ? gadgetPortKey(pendingConnection) : null} selectedRope={selectedRope} running={running} attempt={attempt} onWin={win} />
             <GoalOverlay goal={level.goal} />
             {selectedPlaced && !running && <GadgetSelection gadget={{ ...selectedPlaced, id: placedConfigId(selectedPlaced) }} />}
             {!running && placed.length === 0 && level.scene !== "rocket-parade" && <div className="board-tip">{level.buildTip}</div>}
-            {won && <div className="win"><span>★</span><h2>Es funktioniert!</h2><p>{level.successText}</p>{nextLevel ? <button onClick={() => changeLevel(nextLevel)}>Nächstes Level →</button> : <button onClick={reset}>Noch einmal bauen ↻</button>}</div>}
           </div>
           <div className="motto">ERFINDEN · VERBESSERN · VERSTEHEN</div>
         </section>
-        <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={type => { setSelected(type); setPendingScissor(null); setPendingConnection(null); }} />
+        {won ? <aside className="win" aria-label="Level geschafft"><span aria-hidden="true">★</span><h2>Es funktioniert!</h2><p role="status">{level.successText}</p>{nextLevel ? <button onClick={() => changeLevel(nextLevel)}>Nächstes Level →</button> : <button onClick={reset}>Noch einmal bauen ↻</button>}</aside> : <PartsPanel inventory={level.inventory} selected={selected} running={running} tip={tip} remaining={remaining} onSelect={type => { setSelected(type); setPendingScissor(null); setPendingConnection(null); }} />}
       </div>
       <GameToolbar attempt={attempt} running={running} canRemove={selectedId !== null || selectedRope !== null || selectedConnection !== null} canRotate={canRotate} canFlip={!!selectedPlaced && !!GADGET_CATALOG[selectedPlaced.type].flippable} onFlip={axis => setPlaced(items => items.map(part => part.id === selectedId ? { ...part, [axis]: !part[axis] } : part))} onReset={reset} onRemove={removeSelected} onRotateLeft={() => rotateSelected(-1)} onRotateRight={() => rotateSelected(1)} onToggleMachine={() => { if (!running) setAttempt((value) => value + 1); setWon(false); setRunning((value) => !value); }} onPhysics={() => setShowPhysics(true)} onEditor={() => { if (onExitTest) onExitTest(); else { setRunning(false); setShowEditor(true); } }} onLevels={() => setShowLevels(true)} levelNumber={level.number} levelCount={availableLevels.length} />
       {showScores && <ScoreDialog scores={scores} onClose={() => setShowScores(false)} />}

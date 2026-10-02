@@ -7,7 +7,7 @@ import GadgetSelection from "./GadgetSelection";
 import type { GadgetConnection, GadgetInstanceConfig, GadgetType, GoalSelector, LevelDefinition } from "@/engine/types";
 import { combineGoals, goalList, hitGadget, newLevel, rectangleGoal, redo, remember, removeGadget, STATE_LABELS, undo, updateGadget, type LevelHistory } from "@/levels/authoring";
 import { downloadLevel, pickLevelDirectory, readLevelDirectory, readLevelFiles, supportsLevelFolders, writeLevelFile, type LevelDirectory, type LevelFile } from "@/levels/file-storage";
-import { connectPorts, distanceToPath, gadgetPorts, type GadgetPort } from "@/game/gadget-connections";
+import { connectPorts, connectionPorts, gadgetPortKey, distanceToPath, gadgetPorts, type GadgetPort } from "@/game/gadget-connections";
 import { advanceRopeDraft, ropePorts, type PendingControlRope } from "@/game/control-ropes";
 import GameCanvas from "./GameCanvas";
 import GoalEditor from "./GoalEditor";
@@ -141,7 +141,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
       return;
     }
     const ports = gadgetPorts(gadgets);
-    const connection = (draft.connections ?? []).find(connection => distanceToPath(at, ports.filter(port => port.gadgetId === connection.sourceId || port.gadgetId === connection.targetId)) < 12);
+    const connection = (draft.connections ?? []).find(connection => distanceToPath(at, connectionPorts(connection, ports)) < 12);
     if (connection) setSelectedConnection(connection.id);
     const rope = (draft.controlRopes ?? []).find(rope => {
       const path = [rope.targetId, ...rope.guides, rope.source.gadgetId].flatMap(id => gadgets.filter(item => item.id === id));
@@ -222,7 +222,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
     <div className="workspace editor-workspace">
       <section className="board-wrap">
         <div className="board" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { if (drag.current) { const before = drag.current.before; setHistory(current => ({ ...current, present: before })); } drag.current = null; setAreaDrag(null); }}>
-          <GameCanvas level={preview} placed={EMPTY} ropePath={EMPTY} scissorRopes={draft.controlRopes ?? EMPTY} pendingScissor={pendingRope} ropeMode={tool === "rope"} selectedTool={tool} selectedId={null} connections={draft.connections ?? EMPTY} selectedConnection={selectedConnection} pendingConnection={pendingConnection?.gadgetId ?? null} selectedRope={selectedRope} running={false} attempt={0} onWin={NO_WIN} />
+          <GameCanvas level={preview} placed={EMPTY} ropePath={EMPTY} scissorRopes={draft.controlRopes ?? EMPTY} pendingScissor={pendingRope} ropeMode={tool === "rope"} selectedTool={tool} selectedId={null} connections={draft.connections ?? EMPTY} selectedConnection={selectedConnection} pendingConnection={pendingConnection ? gadgetPortKey(pendingConnection) : null} selectedRope={selectedRope} running={false} attempt={0} onWin={NO_WIN} />
           <GoalOverlay goal={draft.goal} />
           {selected && !showGoals && <GadgetSelection gadget={selected} resizable />}
           <svg className="editor-overlay" viewBox="0 0 900 520" aria-hidden="true">

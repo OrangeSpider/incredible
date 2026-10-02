@@ -4,8 +4,8 @@ import type Matter from "matter-js";
 import type { MachinePhysicsEngine } from "../../engine/physics-engine.ts";
 import { machinePlugin } from "../../engine/body-factory.ts";
 import { GADGET_CATALOG } from "../../engine/gadget-catalog.ts";
-import { gadgetPorts } from "../../game/gadget-connections.ts";
-import { drawConveyor, drawDriveBelt, driveBeltGeometry } from "../../game/drive.ts";
+import { gadgetPorts, gadgetPortKey } from "../../game/gadget-connections.ts";
+import { drawConveyor, drawDriveBelt, driveBeltGeometry, GENERATOR_DRIVE_CENTER } from "../../game/drive.ts";
 import { drawFan, drawWindmill, drawMagnifier } from "./gadget-motion-renderer.ts";
 
 export function drawMouseHole(ctx: CanvasRenderingContext2D, x: number, floorY: number, width = 52, height = 58) {
@@ -73,8 +73,8 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
     if (!running) { ctx.strokeStyle = "#d78837"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(90, 0); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(90, 0, 7, 0, Math.PI * 2); ctx.stroke(); ctx.font = "10px system-ui"; ctx.fillStyle = "#81542f"; ctx.fillText("BRENNPUNKT", 57, -14); }
   } else if (type === "generator") {
     ctx.fillStyle = "#58747e"; ctx.beginPath(); ctx.roundRect(-42, -29, 84, 58, 8); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#d7b766"; ctx.beginPath(); ctx.arc(-9, 0, 21, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.save(); ctx.translate(-9, 0); ctx.rotate(state === "running" && running ? now / 110 : 0); ctx.strokeStyle = "#785329"; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, -15); ctx.lineTo(0, 15); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = "#d7b766"; ctx.beginPath(); ctx.arc(GENERATOR_DRIVE_CENTER.x, GENERATOR_DRIVE_CENTER.y, 21, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.translate(GENERATOR_DRIVE_CENTER.x, GENERATOR_DRIVE_CENTER.y); ctx.rotate(state === "running" && running ? now / 110 : 0); ctx.strokeStyle = "#785329"; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, -15); ctx.lineTo(0, 15); ctx.stroke(); ctx.restore();
     ctx.fillStyle = state === "running" ? "#80cf73" : "#ba4c3b"; ctx.beginPath(); ctx.arc(28, -16, 5, 0, Math.PI * 2); ctx.fill();
     ctx.font = "bold 10px system-ui"; ctx.fillStyle = "#fff3c8"; ctx.fillText("GEN", -21, 25);
   } else if (type === "tnt") {
@@ -156,11 +156,14 @@ export function drawFields(ctx: CanvasRenderingContext2D, machine: MachinePhysic
   ctx.restore();
 }
 
-export function drawConnections(ctx: CanvasRenderingContext2D, machine: MachinePhysicsEngine, selected: string | null, pending: string | null, tool: string | null, now: number, running: boolean) {
+export function drawConnections(ctx: CanvasRenderingContext2D, machine: MachinePhysicsEngine, selected: string | null, now: number, running: boolean) {
   for (const connection of machine.connections) {
     const points = machine.mechanics.connectionPoints(connection.id); if (points.length !== 2) continue;
     const active = machine.state(connection.sourceId)?.state === "running";
-    if (connection.kind === "belt") drawDriveBelt(ctx, driveBeltGeometry(points[0], points[1], 12, 12), now, running && active);
+    if (connection.kind === "belt") {
+      const [source, target] = points;
+      drawDriveBelt(ctx, driveBeltGeometry(source, target, source.radius, target.radius), now, running && active);
+    }
     else {
       ctx.save(); ctx.strokeStyle = selected === connection.id ? "#e5392c" : "#3c4e59"; ctx.lineWidth = selected === connection.id ? 7 : 5;
       ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y); ctx.lineTo(points[1].x, points[1].y); ctx.stroke();
@@ -168,10 +171,13 @@ export function drawConnections(ctx: CanvasRenderingContext2D, machine: MachineP
     }
     if (selected === connection.id && connection.kind === "belt") { ctx.save(); ctx.strokeStyle = "#e5392c"; ctx.lineWidth = 3; ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y); ctx.lineTo(points[1].x, points[1].y); ctx.stroke(); ctx.restore(); }
   }
+}
+
+export function drawConnectionPorts(ctx: CanvasRenderingContext2D, machine: MachinePhysicsEngine, pending: string | null, tool: string | null, running: boolean) {
   if (running || (tool !== "wire" && tool !== "belt")) return;
   const configs = machine.entities().map(entity => ({ ...machine.config(entity.id)!, x: entity.x, y: entity.y, rotation: machine.body(entity.id)?.angle ?? 0 }));
   for (const port of gadgetPorts(configs).filter(port => tool === "wire" ? port.kind !== "drive" : port.kind === "drive")) {
-    ctx.save(); ctx.fillStyle = pending === port.gadgetId ? "#d39731" : "#359c73"; ctx.strokeStyle = "#fff5d3"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(port.x, port.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.fillStyle = pending === gadgetPortKey(port) ? "#d39731" : "#359c73"; ctx.strokeStyle = "#fff5d3"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(port.x, port.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#4d3728"; ctx.font = "bold 10px system-ui"; ctx.fillText(port.label, port.x + 13, port.y - 9); ctx.restore();
   }
 }

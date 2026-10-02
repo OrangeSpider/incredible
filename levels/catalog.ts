@@ -34,7 +34,7 @@ import level34 from "./level-34.json" with { type: "json" };
 import level35 from "./level-35.json" with { type: "json" };
 import {GADGET_CATALOG} from "../engine/gadget-catalog.ts";
 import {KNOWN_RUNTIME_SYSTEM_IDS} from "../game/runtime-system-ids.ts";
-import {gadgetPorts,connectPorts} from "../game/gadget-connections.ts";
+import {gadgetPorts,connectPorts,connectionPorts,sameConnection} from "../game/gadget-connections.ts";
 import {ropePorts} from "../game/control-ropes.ts";
 import type {ComposableGoalSpec,GoalSelector,LevelDefinition,PlaceableGadgetType} from "../engine/types.ts";
 
@@ -192,10 +192,10 @@ export function validateLevel(value:unknown):LevelDefinition{
   for(const connection of level.connections??[]){
     if(!nonempty(connection.id)||connectionIds.has(connection.id))throw new Error("Connection needs a unique id");
     if(connection.kind!=="wire"&&connection.kind!=="belt")throw new Error("Unknown connection kind");
-    const source=ports.find(port=>port.gadgetId===connection.sourceId&&(connection.kind==="wire"?port.kind==="power":port.kind==="drive"));
-    const target=ports.find(port=>port.gadgetId===connection.targetId&&(connection.kind==="wire"?port.kind==="socket":port.kind==="drive"));
+    if((connection.sourcePortId!==undefined&&!nonempty(connection.sourcePortId))||(connection.targetPortId!==undefined&&!nonempty(connection.targetPortId)))throw new Error(`Invalid connection port: ${connection.id}`);
+    const [source,target]=connectionPorts(connection,ports);
     if(!source||!target||!connectPorts(source,target,connection.kind,[],connection.id))throw new Error(`Invalid connection: ${connection.id}`);
-    if((level.connections??[]).some(other=>other!==connection&&other.kind===connection.kind&&((other.sourceId===connection.sourceId&&other.targetId===connection.targetId)||(other.targetId===connection.sourceId&&other.sourceId===connection.targetId))))throw new Error(`Duplicate connection: ${connection.id}`);
+    if((level.connections??[]).some(other=>other!==connection&&sameConnection(other,connection)))throw new Error(`Duplicate connection: ${connection.id}`);
     connectionIds.add(connection.id);
   }
   if(level.controlRopes!==undefined&&!Array.isArray(level.controlRopes))throw new Error("controlRopes must be an array");

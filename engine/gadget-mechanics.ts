@@ -3,7 +3,7 @@ import type { MachinePhysicsEngine } from "./physics-engine.ts";
 import { GADGET_CATALOG } from "./gadget-catalog.ts";
 import { machinePlugin } from "./body-factory.ts";
 import { type Point } from "../game/control-ropes.ts";
-import { gadgetPorts } from "../game/gadget-connections.ts";
+import { gadgetPorts, connectionPorts } from "../game/gadget-connections.ts";
 import { airflowAt, AIRFLOW_ACCELERATION } from "../game/airflow.ts";
 import { FuseNetwork } from "../game/fuse.ts";
 import { bodyPoint, bodyVector, bodyTransform, inversePoint, candleFlameLocal, rocketNozzleLocal } from "./gadget-geometry.ts";
@@ -31,6 +31,7 @@ export class GadgetMechanics {
   private readonly rocketStarted = new Map<string, number>();
   private readonly fishFlop = new Map<string, number>();
   private readonly cannonShots = new Set<string>();
+  private beltDriven = new Set<string>();
 
   private containers() {
     const machine = this.machine;
@@ -74,6 +75,7 @@ export class GadgetMechanics {
   private strike(body: Matter.Body, velocity: Point) {
     const id = machinePlugin(body)?.instanceId, type = machinePlugin(body)?.type;
     if (type === "generator" && id && Math.hypot(velocity.x, velocity.y) >= 1) {
+      this.machine.state(id)!.properties.switchedOn = true;
       this.machine.setState(id, "running"); this.machine.setSignal(`generator.started.${id}`);
     }
     if (!body.isStatic && !body.isSensor) Matter.Body.setVelocity(body, { x: body.velocity.x + velocity.x, y: body.velocity.y + velocity.y });
@@ -124,17 +126,19 @@ export class GadgetMechanics {
     }
   }
 
-  connectionPoints(id: string): Point[] {
+  connectionPoints(id: string) {
     const connection = this.machine.connections.find(item => item.id === id); if (!connection) return [];
     const configs = this.machine.entities().map(entity => ({ ...this.machine.config(entity.id)!, x: entity.x, y: entity.y, rotation: this.machine.body(entity.id)?.angle ?? 0 }));
-    const ports = gadgetPorts(configs).filter(port => connection.kind === "wire" ? port.kind !== "drive" : port.kind === "drive");
-    const source = ports.find(port => port.gadgetId === connection.sourceId), target = ports.find(port => port.gadgetId === connection.targetId);
-    return source && target ? [source, target] : [];
+    return connectionPorts(connection, gadgetPorts(configs));
   }
 
   beforeStep(dt: number) {
     this.containers();
     const machine = this.machine, entities = machine.entities(), obstacles = this.obstacles();
+    for (const entity of entities.filter(entity => entity.type === "generator")) {
+      const state = machine.state(entity.id)!;
+      if (state.state === "running" && !this.beltDriven.has(entity.id)) state.properties.switchedOn = true;
+    }
     for (const body of Matter.Composite.allBodies(machine.world)) this.velocities.set(body.id, { ...body.velocity });
     for (const entity of entities) {
       const supply = GADGET_CATALOG[entity.type].electrical?.supply;
@@ -159,21 +163,29 @@ export class GadgetMechanics {
         }
       }
     }
-    // A wind drive stops as soon as wind or its connecting belt disappears.
+    // Recompute the connected drive network so disconnected receivers cannot stay powered.
     const driven = new Set<string>(), queue = entities.filter(entity => GADGET_CATALOG[entity.type].tags.includes("rotational-source") && machine.state(entity.id)?.state === "running").map(entity => entity.id);
+    const visited = new Set(queue);
     while (queue.length) {
       const source = queue.shift()!;
       for (const connection of machine.connections.filter(item => item.kind === "belt")) {
         const target = connection.sourceId === source ? connection.targetId : connection.targetId === source ? connection.sourceId : null;
-        if (!target || driven.has(target) || target === source || !machine.state(target)) continue;
-        driven.add(target); queue.push(target); machine.setState(target, "running");
+        if (!target || visited.has(target) || !machine.state(target)) continue;
+        visited.add(target); driven.add(target); queue.push(target); machine.setState(target, "running");
         const targetBody=machine.body(target); if(targetBody)Matter.Body.setAngularVelocity(targetBody,machine.body(source)?.angularVelocity||.08);
         machine.setSignal(`drive.transferred.${target}`);
       }
     }
-    for (const connection of machine.connections.filter(item => item.kind === "belt")) for (const id of [connection.sourceId, connection.targetId]) {
+    const receivers = new Set([...this.beltDriven, ...machine.connections.filter(item => item.kind === "belt").flatMap(item => [item.sourceId, item.targetId])]);
+    for (const id of receivers) {
       const type = machine.state(id)?.type;
-      if (type && !GADGET_CATALOG[type].tags.includes("rotational-source") && !driven.has(id)) { machine.setState(id, "idle"); const body=machine.body(id);if(body)Matter.Body.setAngularVelocity(body,0); }
+      if (type && !GADGET_CATALOG[type].tags.includes("rotational-source") && !driven.has(id) && !(type === "generator" && machine.state(id)?.properties.switchedOn)) { machine.setState(id, "idle"); const body=machine.body(id);if(body)Matter.Body.setAngularVelocity(body,0); }
+    }
+    this.beltDriven = driven;
+    // Consumers see a belt-driven generator's updated power in this same step.
+    for (const entity of entities.filter(entity => GADGET_CATALOG[entity.type].electrical?.supply === "socket")) {
+      const powered = machine.connections.some(connection => connection.kind === "wire" && connection.targetId === entity.id && machine.state(connection.sourceId)?.type === "generator" && machine.state(connection.sourceId)?.state === "running");
+      machine.setState(entity.id, powered ? entity.type === "socketFan" ? "running" : "on" : "off");
     }
     for (const [id, hit] of this.punches) {
       const glove = machine.body(id)!, age = machine.stateAgeMs(id) ?? 0; if (age > 300) continue;
