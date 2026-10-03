@@ -10,6 +10,7 @@ import {resolveGadgetAnimation} from "./animation.ts";
 import {localPoint} from "./gadget-geometry.ts";
 import {GadgetMechanics} from "./gadget-mechanics.ts";
 import {createBucketAssembly} from "../game/water.ts";
+import {bodyHasSupport} from "../game/animals.ts";
 import type {GadgetConnection,GadgetInstanceConfig,GadgetRuntimeState,GoalEvent,GoalSpec,LevelDefinition} from "./types.ts";
 
 export type PhysicsEvent=
@@ -20,8 +21,11 @@ export type PhysicsEvent=
 
 type RuntimeEntry={config:GadgetInstanceConfig;body:Matter.Body|null;state:GadgetRuntimeState;stateEnteredAtMs:number};
 
+export const WORLD_GRAVITY_SCALE=.00105;
+export const ROLLING_AIR_FRICTION=.002;
+
 export class MachinePhysicsEngine{
-  readonly matter=Matter.Engine.create({gravity:{x:0,y:1,scale:.001}});
+  readonly matter=Matter.Engine.create({gravity:{x:0,y:1,scale:WORLD_GRAVITY_SCALE}});
   readonly world=this.matter.world;
   private entries=new Map<string,RuntimeEntry>();
   private bodyEntries=new Map<number,RuntimeEntry>();
@@ -204,8 +208,11 @@ export class MachinePhysicsEngine{
       for(const interaction of interactions)this.applyInteraction(interaction,source,target,sourceBody,targetBody);
     }
     this.behaviors.step(active,deltaMs);
+    const worldBodies=Matter.Composite.allBodies(this.world);
     for(const entry of this.entries.values()){
       const body=entry.body;if(!body||body.isStatic)continue;const definition=getGadgetDefinition(entry.config.type),properties={...definition.physics,...entry.config.physics};
+      const rollingOnSupport=definition.tags.includes("rolling")&&Math.abs(body.velocity.y)<1.5&&bodyHasSupport(body,worldBodies,5);
+      if(definition.tags.includes("rolling")&&entry.config.physics?.airFriction===undefined)body.frictionAir=rollingOnSupport?ROLLING_AIR_FRICTION:properties.airFriction;
       if(properties.gravityScale!==1){const gravity=this.world.gravity;Matter.Body.applyForce(body,body.position,{x:body.mass*gravity.x*gravity.scale*(properties.gravityScale-1),y:body.mass*gravity.y*gravity.scale*(properties.gravityScale-1)})}
       if(properties.buoyancyForce&&entry.state.state!=="tethered"&&entry.state.state!=="popped")Matter.Body.applyForce(body,body.position,{x:0,y:properties.buoyancyForce*body.mass/.2});
       if(properties.maxSpeed){const speed=Math.hypot(body.velocity.x,body.velocity.y);if(speed>properties.maxSpeed)Matter.Body.setVelocity(body,{x:body.velocity.x/speed*properties.maxSpeed,y:body.velocity.y/speed*properties.maxSpeed})}

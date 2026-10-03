@@ -1,6 +1,6 @@
 import { localPort } from "../../engine/gadget-ports.ts";
 import { bodyPoint } from "../../engine/gadget-geometry.ts";
-import { ropeConfigPoints, controlRopeKey, ropePorts, type PendingControlRope, type Point } from "../../game/control-ropes.ts";
+import { ropeDraftPoints, ropeDraftUsesPort, controlRopeKey, ropePorts, type PendingControlRope, type Point } from "../../game/control-ropes.ts";
 import type { MachineRuntime } from "../../game/machine-runtime.ts";
 import type { GadgetInstanceConfig } from "../../engine/types.ts";
 
@@ -63,12 +63,11 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
   }
   if (!ropeMode || running) return;
   if (pending) {
-    const target = machine.body(pending.targetId), type = machine.state(pending.targetId)?.type;
-    if (target && type) strokeRope(ctx, [...ropeConfigPoints({...pending,source:{gadgetId:pending.targetId,portId:pending.targetPortId}},configs).slice(0,-1)], 8);
+    strokeRope(ctx, ropeDraftPoints(pending,configs), 8);
   }
   for (const port of ropePorts(configs)) {
     const connected = runtime.controlRopes.ropes.some(rope => rope.definition.targetId === port.gadgetId && rope.definition.targetPortId === port.portId);
-    const active = (pending?.targetId === port.gadgetId && pending.targetPortId === port.portId) || pending?.guides.some(guide=>guide.gadgetId===port.gadgetId&&guide.portId===port.portId);
+    const active = ropeDraftUsesPort(pending,port);
     ctx.save(); ctx.fillStyle = active ? "#db9a25" : connected ? "#bd6241" : "#2f9b67";
     ctx.strokeStyle = "#fff6d7"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(port.x, port.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.font = "bold 10px system-ui"; ctx.fillStyle = "#4b2b17"; ctx.fillText(connected && port.kind === "target" ? "AUSWÄHLEN" : port.label, port.x + 13, port.y - 12); ctx.restore();

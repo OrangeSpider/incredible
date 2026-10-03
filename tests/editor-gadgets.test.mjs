@@ -1,18 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Matter from "matter-js";
-import { MachinePhysicsEngine } from "../engine/physics-engine.ts";
+import { MachinePhysicsEngine, ROLLING_AIR_FRICTION, WORLD_GRAVITY_SCALE } from "../engine/physics-engine.ts";
 import { GADGET_CATALOG, PALETTE_GROUPS } from "../engine/gadget-catalog.ts";
 import { localPoint, localVector, inversePoint, resizeGadget, resizeHandles, gadgetSize, candleFlameLocal, rocketNozzleLocal } from "../engine/gadget-geometry.ts";
 import { gadgetPorts } from "../game/gadget-connections.ts";
 import { airflowAt } from "../game/airflow.ts";
 import { validateLevel, LEVEL_BY_ID } from "../levels/catalog.ts";
-import { newLevel, updateGadget, remember, undo, redo, hitGadget } from "../levels/authoring.ts";
+import { gadgetPositionMode, newLevel, setGadgetPositionMode, updateGadget, remember, undo, redo, hitGadget } from "../levels/authoring.ts";
 import { initialPlacements } from "../components/game/placements.ts";
 import { createDefaultStepBehaviors } from "../engine/step-behaviors.ts";
 import { ropePorts } from "../game/control-ropes.ts";
 
 const advance = (machine, ms) => { for(let time=0;time<ms;time+=1000/60) machine.step(1000/60); };
+test("rolling balls retain momentum longer and use the stronger world gravity",()=>{
+  const machine=new MachinePhysicsEngine();
+  const floor=Matter.Bodies.rectangle(300,500,600,40,{isStatic:true}),rolling=machine.addGadget({id:"rolling",type:"ball",x:300,y:461}),airborne=machine.addGadget({id:"airborne",type:"ball",x:100,y:100});
+  Matter.Composite.add(machine.world,floor);machine.step(16);
+  assert.equal(rolling.frictionAir,ROLLING_AIR_FRICTION);
+  assert.equal(airborne.frictionAir,GADGET_CATALOG.ball.physics.airFriction);
+  assert.equal(machine.matter.gravity.scale,WORLD_GRAVITY_SCALE);
+  assert.ok(WORLD_GRAVITY_SCALE>.001);
+  machine.destroy();
+});
 test("a stationary candle ignites a stationary rocket only at its nozzle and completes the launch without level systems",()=>{
   for(const state of ["burning","unlit","extinguished"]){
     const m=new MachinePhysicsEngine();
@@ -73,6 +83,29 @@ test("transforms round trip through level validation, initial placements and und
   assert.deepEqual(undo(history).present,level);assert.deepEqual(redo(undo(history)).present,next);
   assert.throws(()=>validateLevel({...level,initialPlacements:[{...level.initialPlacements[0],flipX:"true"}]}),/flipX/);
   assert.throws(()=>validateLevel({...level,initialPlacements:[{...level.initialPlacements[0],physics:{width:-10}}]}),/dimension/);
+});
+test("editor position modes preserve gadget defaults and let a candle fall onto the floor",()=>{
+  for(const type of ["hamsterWheel","rocket","generator"])assert.equal(gadgetPositionMode({id:type,type,x:100,y:100}),"fixed");
+  for(const type of ["ball","tennisBall","basketball"])assert.equal(gadgetPositionMode({id:type,type,x:100,y:100}),"gravity");
+
+  const level=newLevel();level.fixedGadgets=[{id:"candle",type:"candle",x:300,y:100}];
+  const falling=setGadgetPositionMode(level,"candle","gravity"),candle=falling.fixedGadgets[0];
+  assert.equal(gadgetPositionMode(candle),"gravity");
+  assert.deepEqual({shape:candle.physics.shape,isSensor:candle.physics.isSensor,isStatic:candle.physics.isStatic,gravityScale:candle.physics.gravityScale},
+    {shape:"rectangle",isSensor:false,isStatic:false,gravityScale:1});
+  assert.deepEqual(validateLevel(JSON.parse(JSON.stringify(falling))),falling);
+
+  const machine=new MachinePhysicsEngine(falling),start=machine.body("candle").position.y;
+  Matter.Composite.add(machine.world,Matter.Bodies.rectangle(450,500,900,40,{isStatic:true,label:"floor"}));
+  advance(machine,4000);
+  assert.ok(machine.body("candle").position.y>start);
+  assert.ok(machine.body("candle").position.y<470);
+  machine.destroy();
+
+  const fixed=setGadgetPositionMode(falling,"candle","fixed").fixedGadgets[0];
+  assert.equal(gadgetPositionMode(fixed),"fixed");
+  assert.equal(fixed.physics.shape,"sensor");
+  assert.equal(fixed.physics.isSensor,true);
 });
 test("every gadget belongs to exactly one palette group and all shipped level sizes are preserved",()=>{
   for(const gadget of Object.values(GADGET_CATALOG))assert.ok(PALETTE_GROUPS.includes(gadget.paletteGroup),gadget.type);

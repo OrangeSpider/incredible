@@ -74,6 +74,37 @@ export function updateGadget(level: LevelDefinition, id: string, update: Partial
   return { ...level, fixedGadgets: edit(level.fixedGadgets), initialPlacements: edit(level.initialPlacements ?? []) };
 }
 
+export type GadgetPositionMode = "fixed" | "gravity";
+
+export function gadgetPositionMode(gadget: GadgetInstanceConfig): GadgetPositionMode {
+  const physics = { ...GADGET_CATALOG[gadget.type].physics, ...gadget.physics };
+  return !physics.isStatic && physics.gravityScale > 0 ? "gravity" : "fixed";
+}
+
+export function setGadgetPositionMode(level: LevelDefinition, id: string, mode: GadgetPositionMode): LevelDefinition {
+  const edit = (gadgets: GadgetInstanceConfig[]) => gadgets.map(gadget => {
+    if (gadget.id !== id) return gadget;
+    const defaults = GADGET_CATALOG[gadget.type].physics;
+    const effective = { ...defaults, ...gadget.physics };
+    const physics = {
+      ...gadget.physics,
+      isStatic: mode === "fixed",
+      gravityScale: mode === "fixed" ? 0 : defaults.gravityScale > 0 ? defaults.gravityScale : 1,
+    };
+    // Sensor bodies detect overlap but cannot land on surfaces. Give them their
+    // visible circular/rectangular footprint while gravity is enabled.
+    if (mode === "gravity" && effective.shape === "sensor") {
+      physics.shape = effective.radius !== undefined ? "circle" : "rectangle";
+      physics.isSensor = false;
+    } else if (mode === "fixed" && defaults.shape === "sensor") {
+      physics.shape = "sensor";
+      physics.isSensor = defaults.isSensor;
+    }
+    return { ...gadget, physics };
+  });
+  return { ...level, fixedGadgets: edit(level.fixedGadgets), initialPlacements: edit(level.initialPlacements ?? []) };
+}
+
 export function hitGadget(gadgets: GadgetInstanceConfig[], point: { x: number; y: number }): GadgetInstanceConfig | undefined {
   return [...gadgets].reverse().find(gadget => {
     const physics = { ...GADGET_CATALOG[gadget.type].physics, ...gadget.physics };

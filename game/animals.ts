@@ -2,7 +2,7 @@ import Matter from "matter-js";
 
 export const ANIMAL_FALL_SPEED=0.8;
 
-export function animalHasSupport(animal:Matter.Body,bodies:Matter.Body[],gap=7):boolean{
+export function bodyHasSupport(animal:Matter.Body,bodies:Matter.Body[],gap=7):boolean{
   const width=animal.bounds.max.x-animal.bounds.min.x;
   const supports=bodies.filter(body=>body.id!==animal.id&&!body.isSensor&&body.label!=="water");
   return[-.28,0,.28].some(offset=>{
@@ -11,6 +11,8 @@ export function animalHasSupport(animal:Matter.Body,bodies:Matter.Body[],gap=7):
     return Matter.Query.ray(supports,start,end,2).length>0;
   });
 }
+
+export const animalHasSupport=bodyHasSupport;
 
 export function isAnimalFalling(verticalVelocity:number,hasSupport=false):boolean{
   return !hasSupport&&verticalVelocity>ANIMAL_FALL_SPEED;

@@ -21,7 +21,6 @@ import PhysicsHandbook from "./PhysicsHandbook";
 import ScoreDialog, { type ScoreEntry } from "./ScoreDialog";
 import type { PlacedGadget, RopeNode, ScissorRope } from "./types";
 import { placedConfigId } from "./types";
-import GoalOverlay from "./GoalOverlay";
 import GadgetSelection from "./GadgetSelection";
 import { hitGadget } from "@/levels/authoring";
 import { initialPlacements, initialConnections, remainingInventory } from "./placements";
@@ -260,7 +259,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   const tip = selected === "rope" && !!level.loadRope
     ? ropePath.length ? ropeAnalysis.tensioned ? "Festpunkt und Kugel bilden die beiden gespannten Enden. Weitere Punkte öffnen den Verlauf wieder." : "Klicke weitere Anschlüsse oder starte auch mit offenen Enden." : "Beginne an einem beliebigen grünen Anschluss – der Festpunkt ist optional."
     : selected === "rope" && !level.loadRope
-      ? pendingScissor === null ? "Griff oder Riegel anklicken, bei Bedarf über Rollen führen, dann am Zugpunkt befestigen. Zum Entfernen das Seil auswählen und ENTFERNEN drücken." : "Klicke weitere Rollen oder schließe am Wippenende, Ballon oder einer Kugel ab. Esc bricht ab."
+      ? pendingScissor === null ? "Beginne am Griff oder an einem Zugpunkt wie Wippenende, Ballon oder Kugel. Bei Bedarf über Rollen führen. Zum Entfernen das Seil auswählen und ENTFERNEN drücken." : "Klicke weitere Rollen oder schließe das Seil am noch freien Ende ab. Esc bricht ab."
       : selected === "wire" || selected === "belt" ? pendingConnection ? "Klicke den zweiten passenden Anschluss. Esc bricht ab." : selected === "wire" ? "Klicke STROM am Generator und dann STECKDOSE am Verbraucher." : "Verbinde zwei grüne ANTRIEB-Anschlüsse. Am Laufband kannst du beide Räder wählen."
         : selectedRope || selectedConnection ? "Verbindung ausgewählt. ENTFERNEN gibt sie ins Inventar zurück." : level.hint;
 
@@ -302,7 +301,6 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
         <section className="board-wrap">
           <div className="board" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={() => { setDrag(null); transformDrag.current = null; }} onPointerCancel={() => { setDrag(null); if (transformDrag.current) { const before = transformDrag.current.before; setPlaced(items => items.map(item => item.id === before.id ? before : item)); transformDrag.current = null; } }}>
             <GameCanvas level={level} placed={placed} ropePath={ropePath} scissorRopes={scissorRopes} pendingScissor={pendingScissor} ropeMode={selected === "rope"} selectedTool={selected} selectedId={selectedId} connections={connections} selectedConnection={selectedConnection} pendingConnection={pendingConnection ? gadgetPortKey(pendingConnection) : null} selectedRope={selectedRope} running={running} attempt={attempt} onWin={win} />
-            <GoalOverlay goal={level.goal} />
             {selectedPlaced && !running && <GadgetSelection gadget={{ ...selectedPlaced, id: placedConfigId(selectedPlaced) }} />}
             {!running && placed.length === 0 && level.scene !== "rocket-parade" && <div className="board-tip">{level.buildTip}</div>}
           </div>

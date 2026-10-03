@@ -5,7 +5,7 @@ import { GADGET_CATALOG, PALETTE_GROUPS } from "@/engine/gadget-catalog";
 import { resizeGadget, resizeHandles } from "@/engine/gadget-geometry";
 import GadgetSelection from "./GadgetSelection";
 import type { GadgetConnection, GadgetInstanceConfig, GadgetType, GoalSelector, LevelDefinition } from "@/engine/types";
-import { combineGoals, goalList, hitGadget, newLevel, rectangleGoal, redo, remember, removeGadget, STATE_LABELS, undo, updateGadget, type LevelHistory } from "@/levels/authoring";
+import { combineGoals, gadgetPositionMode, goalList, hitGadget, newLevel, rectangleGoal, redo, remember, removeGadget, setGadgetPositionMode, STATE_LABELS, undo, updateGadget, type GadgetPositionMode, type LevelHistory } from "@/levels/authoring";
 import { downloadLevel, pickLevelDirectory, readLevelDirectory, readLevelFiles, supportsLevelFolders, writeLevelFile, type LevelDirectory, type LevelFile } from "@/levels/file-storage";
 import { connectPorts, connectionPorts, gadgetPortKey, distanceToPath, gadgetPorts, type GadgetPort } from "@/game/gadget-connections";
 import { ropeConfigPoints, controlRopeKey, advanceRopeDraft, ropePorts, type PendingControlRope } from "@/game/control-ropes";
@@ -114,7 +114,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
     if (areaSelector) { event.currentTarget.setPointerCapture(event.pointerId); setAreaDrag({ start: at, end: at }); return; }
     if (tool === "rope") {
       const port = ropePorts(gadgets).find(port => Math.hypot(at.x - port.x, at.y - port.y) < 26);
-      if (!port) { setMessage("Klicke einen Griff, optional Umlenkrollen und zuletzt einen Zugpunkt."); return; }
+      if (!port) { setMessage("Beginne an einem Griff oder Wippenende, führe das Seil optional über Rollen und schließe es am anderen Ende ab."); return; }
       const next = advanceRopeDraft(pendingRope, port, draft.controlRopes ?? [], Infinity);
       setPendingRope(next.pending);
       if (next.connection) { change({ ...draft, controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(controlRopeKey(next.connection)); if (!event.shiftKey) setTool(null); }
@@ -242,6 +242,9 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
             const group = event.target.value as typeof placement;
             change({ ...draft, fixedGadgets: draft.fixedGadgets.filter(gadget => gadget.id !== selected.id), initialPlacements: (draft.initialPlacements ?? []).filter(gadget => gadget.id !== selected.id), [group]: [...(draft[group] ?? []).filter(gadget => gadget.id !== selected.id), selected] });
           }}><option value="fixedGadgets">Fest vorgegeben</option><option value="initialPlacements">Verschiebbarer Startaufbau</option></select></label>
+          {GADGET_CATALOG[selected.type].physics.shape !== "none" && <label>Physik<select aria-label="Position und Gravitation" value={gadgetPositionMode(selected)} onChange={event => change(setGadgetPositionMode(draft, selected.id, event.target.value as GadgetPositionMode))}>
+            <option value="fixed">Position fixiert</option><option value="gravity">Gravitation wirkt</option>
+          </select></label>}
           <label>Startstatus<select value={selected.state ?? GADGET_CATALOG[selected.type].defaultState} onChange={event => change(updateGadget(draft, selected.id, { state: event.target.value }))}>{[...new Set([selected.state ?? GADGET_CATALOG[selected.type].defaultState, ...Object.keys(GADGET_CATALOG[selected.type].animations)])].map(state => <option key={state} value={state}>{STATE_LABELS[state] ?? state}</option>)}</select></label>
           {selected.type === "seesaw" && <label>Startneigung<select value={selected.rotation ?? 0} onChange={event => change(updateGadget(draft, selected.id, { rotation: Number(event.target.value) }))}>
             <option value={-SEESAW_MAX_ANGLE}>Links unten</option><option value={0}>Waagerecht</option><option value={SEESAW_MAX_ANGLE}>Rechts unten</option>

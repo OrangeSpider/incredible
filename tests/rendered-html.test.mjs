@@ -33,6 +33,15 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
+test("goal areas are rendered in the editor but not disclosed on the game board",async()=>{
+  const [editor,game]=await Promise.all([
+    readFile(new URL("../components/game/LevelEditor.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../components/game/GameApp.tsx",import.meta.url),"utf8"),
+  ]);
+  assert.match(editor,/<GoalOverlay goal=\{draft\.goal\}/);
+  assert.doesNotMatch(game,/<GoalOverlay/);
+});
+
 test("hamster wheel uses a six-frame generated cartoon sprite sheet",async()=>{
   const [source,sprite]=await Promise.all([
     readFile(new URL("../engine/gadget-catalog.ts",import.meta.url),"utf8"),

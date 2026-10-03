@@ -33,7 +33,16 @@ export function drawGadgetBody(ctx:CanvasRenderingContext2D,body:Matter.Body,mac
   // Effects on compound artwork are drawn locally rather than as a full-body sprite.
   const artwork=["candle","bucket"].includes(config.type);
   if (config.type==="fish" && machine.state(plugin.instanceId)?.state==="hidden") {ctx.restore();return;}
-  if(!fire(body,machine,now) && !(artwork && drawGadget(ctx,body,machine,now,running)) && !sprite(ctx,animation,config.type==="cat"?catSpriteOffsetX({state:animation?.state==="idle"?"idle":"running",row:animation?.row??0,frame:animation?.frame??0},animation?.definition.kind==="sprite"?animation.definition.width:90):0,0))drawGadget(ctx,body,machine,now,running);
+  let spriteDrawn=false;
+  if(config.type==="hamsterWheel"){
+    // Generated frames differ slightly at their outer edges. Keep the housing
+    // from frame zero fixed and animate only the circular wheel interior.
+    spriteDrawn=sprite(ctx,resolveGadgetAnimation("hamsterWheel","idle",0),0,0);
+    if(spriteDrawn&&animation?.state==="running"){
+      ctx.save();ctx.beginPath();ctx.arc(0,0,46,0,Math.PI*2);ctx.clip();sprite(ctx,animation,0,0);ctx.restore();
+    }
+  }
+  if(!fire(body,machine,now) && !(artwork && drawGadget(ctx,body,machine,now,running)) && !spriteDrawn && !sprite(ctx,animation,config.type==="cat"?catSpriteOffsetX({state:animation?.state==="idle"?"idle":"running",row:animation?.row??0,frame:animation?.frame??0},animation?.definition.kind==="sprite"?animation.definition.width:90):0,0))drawGadget(ctx,body,machine,now,running);
   if(config.type==="hamsterWheel") {const port=localPort(config,"drive","drive");if(port)drawDriveWheel(ctx,port.local,14,running&&machine.state(plugin.instanceId)?.state==="running"?now*.008:0);}
   ctx.restore();
 }

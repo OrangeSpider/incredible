@@ -47,6 +47,28 @@ test("named rope ends resolve resized, mirrored and rotating lever geometry", t 
   assert.deepEqual(rebuilt.runtime.controlRopes.points(rope("lever","right")).at(-1),localPoint(resized.fixedGadgets[1],{x:288,y:0}));
 });
 
+test("editor ropes can start at either seesaw end and finish at a handle", () => {
+  const gadgets=[
+    {id:"gate",type:"snapGate",x:100,y:100},
+    {id:"near",type:"pulley",x:220,y:140},
+    {id:"far",type:"pulley",x:340,y:180},
+    {id:"lever",type:"seesaw",x:500,y:220,rotation:.25},
+  ];
+  const ports=ropePorts(gadgets),at=(id,portId)=>ports.find(port=>port.gadgetId===id&&port.portId===portId);
+  let draft=advanceRopeDraft(null,at("lever","left"),[],Infinity).pending;
+  assert.deepEqual(draft.source,{gadgetId:"lever",portId:"left"});
+  draft=advanceRopeDraft(draft,at("far","guide"),[],Infinity).pending;
+  draft=advanceRopeDraft(draft,at("near","guide"),[],Infinity).pending;
+  const completed=advanceRopeDraft(draft,at("gate","handle"),[],Infinity);
+  assert.equal(completed.pending,null);
+  assert.deepEqual(completed.connection,{
+    targetId:"gate",targetPortId:"handle",
+    guides:[{gadgetId:"near",portId:"guide"},{gadgetId:"far",portId:"guide"}],
+    source:{gadgetId:"lever",portId:"left"},
+  });
+  assert.doesNotThrow(()=>validateLevel({...newLevel(),fixedGadgets:gadgets,controlRopes:[completed.connection]}));
+});
+
 test("all named drive ports stay distinct, including delimiter characters in identities", t => {
   const original=GADGET_CATALOG.windmill.ports;
   t.after(()=>{GADGET_CATALOG.windmill.ports=original});

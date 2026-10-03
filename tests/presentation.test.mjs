@@ -54,6 +54,15 @@ test('fire artwork uses instance type despite arbitrary collision labels and ind
  assert.equal(draw(machine.body('thread'),machine,10),true);assert.ok(ctx.calls.some(([key])=>key==='lineTo'));
 });
 
+test('active hamster wheel keeps a fixed housing around its clipped animation',t=>{
+ const {machine}=simulation(t,[{id:'wheel',type:'hamsterWheel',x:200,y:200,state:'running'}]);
+ const ctx=context(),states=[];
+ drawGadgetBody(ctx,machine.body('wheel'),machine,270,true,(_ctx,animation)=>{states.push(animation?.state);return true;},()=>false);
+ assert.deepEqual(states,['idle','running']);
+ assert.ok(ctx.calls.some(([key,x,y,r])=>key==='arc'&&x===0&&y===0&&r===46));
+ assert.ok(ctx.calls.some(([key])=>key==='clip'));
+});
+
 test('full body rendering keeps cannon artwork under the local fire effects',t=>{
  const {machine}=simulation(t,[{id:'gun',type:'cannon',x:100,y:100},{id:'wick',type:'fuse',x:300,y:100,state:'burning'}]);
  const previous=globalThis.Image;globalThis.Image=class{complete=true;naturalWidth=600;naturalHeight=400;};t.after(()=>globalThis.Image=previous);

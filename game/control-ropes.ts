@@ -7,7 +7,9 @@ import { bodyPoint } from "../engine/gadget-geometry.ts";
 export type Point = { x: number; y: number };
 export type RopeAttachment = PortReference;
 export type ControlRope = ControlRopeConfig;
-export type PendingControlRope = Omit<ControlRope,"source">;
+export type PendingControlRope =
+  | Omit<ControlRope,"source">
+  | { source: RopeAttachment; guides: RopeAttachment[]; targetId?: never; targetPortId?: never };
 export type RopePort = RopeAttachment & Point & { local: Point; kind: "target" | "guide" | "source"; label: string };
 export function controlRopeKey(rope:Pick<ControlRope,"targetId"|"targetPortId">):string { return portKey({gadgetId:rope.targetId,portId:rope.targetPortId}); }
 export const HANDLE_TRAVEL = 12;
@@ -28,13 +30,34 @@ export function ropeConfigPoints(rope:ControlRope, configs:readonly GadgetInstan
   return selected.every(port=>port)?selected.map(port=>({x:port!.x,y:port!.y})):[];
 }
 
+/** Points in click order while a rope is being assembled from either end. */
+export function ropeDraftPoints(pending:PendingControlRope, configs:readonly GadgetInstanceConfig[]):Point[] {
+  const ports=ropePorts(configs);
+  const refs="source" in pending
+    ? [pending.source,...pending.guides]
+    : [{gadgetId:pending.targetId,portId:pending.targetPortId},...pending.guides];
+  return refs.flatMap(ref=>{
+    const port=ports.find(candidate=>candidate.gadgetId===ref.gadgetId&&candidate.portId===ref.portId);
+    return port?[{x:port.x,y:port.y}]:[];
+  });
+}
+
+export function ropeDraftUsesPort(pending:PendingControlRope|null, port:RopeAttachment):boolean {
+  if(!pending)return false;
+  const endpoint="source" in pending?pending.source:{gadgetId:pending.targetId,portId:pending.targetPortId};
+  return (endpoint.gadgetId===port.gadgetId&&endpoint.portId===port.portId)
+    ||pending.guides.some(guide=>guide.gadgetId===port.gadgetId&&guide.portId===port.portId);
+}
+
 export function advanceRopeDraft(pending: PendingControlRope | null, port: RopePort, ropes: readonly ControlRope[], limit: number): { pending: PendingControlRope | null; connection?: ControlRope } {
   if (port.kind === "target") {
     if (ropes.length >= limit || ropes.some(rope => rope.targetId === port.gadgetId && rope.targetPortId === port.portId)) return { pending };
+    if(pending&&"source" in pending)return {pending:null,connection:{targetId:port.gadgetId,targetPortId:port.portId,guides:[...pending.guides].reverse(),source:pending.source}};
     return { pending: { targetId: port.gadgetId, targetPortId:port.portId, guides: [] } };
   }
-  if (!pending) return { pending };
+  if (!pending) return port.kind==="source"?{pending:{source:{gadgetId:port.gadgetId,portId:port.portId},guides:[]}}:{ pending };
   if (port.kind === "guide") return { pending: pending.guides.some(guide=>guide.gadgetId===port.gadgetId&&guide.portId===port.portId) ? pending : { ...pending, guides: [...pending.guides, {gadgetId:port.gadgetId,portId:port.portId}] } };
+  if("source" in pending)return {pending:{source:{gadgetId:port.gadgetId,portId:port.portId},guides:pending.guides}};
   return { pending: null, connection: { ...pending, source: { gadgetId: port.gadgetId, portId:port.portId } } };
 }
 

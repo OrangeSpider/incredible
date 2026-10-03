@@ -42,7 +42,7 @@ export function createAnimalFlows(runtime: MachineRuntime): RuntimeSystem[] {
       const cat=machine.body(flow.catId),seesaw=machine.body(flow.seesawId),platform=machine.body(flow.platformId);
       if (!cat || !seesaw || !platform) return;
       const impact=bodyA===seesaw?bodyB:bodyB===seesaw?bodyA:null;
-      if (!started && impact && !impact.isStatic && !impact.isSensor && machine.entities().find(entity=>entity.id===machinePlugin(impact)?.instanceId)?.tags.includes("falling-body")) {
+      if (!started && impact && impact!==cat && !impact.isStatic && !impact.isSensor && machine.entities().find(entity=>entity.id===machinePlugin(impact)?.instanceId)?.tags.includes("falling-body")) {
         started=true;
         const mode=catapultImpactMode(impact.position.x,seesaw.position.x);
         machine.setState(flow.catId,"startled");
