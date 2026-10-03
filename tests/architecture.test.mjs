@@ -25,7 +25,8 @@ test("page.tsx is only the route entry point", async () => {
 
 test("canvas delegates simulation and collision handling to the machine runtime", async () => {
   const source = await readFile(new URL("../components/game/GameCanvas.tsx", import.meta.url), "utf8");
-  assert.match(source, /new MachineRuntime\(/);
+  assert.match(source, /createSimulation\(/);
+  assert.doesNotMatch(source, /new MachinePhysicsEngine|new MachineRuntime|addGadget|new FuseNetwork/);
   assert.doesNotMatch(source, /Matter\.Events\.on|machine\.step\(|machine\.setState\(|onWin\(/);
   assert.doesNotMatch(source, /(?:level\.)?scene\s*===/);
 });
