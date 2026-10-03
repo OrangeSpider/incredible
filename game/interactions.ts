@@ -56,5 +56,5 @@ export const INTERACTIONS: Interaction[] = [
   { source: "Wasser", target: "Holz / Kork / Boot", trigger: "Eintauchen", effect: "Auftrieb entsprechend verdrängtem Volumen", status: "geplant" },
   { source: "Lava", target: "Holz / Lunte", trigger: "Kontakt", effect: "Entzündet brennbares Material", status: "geplant" },
   { source: "Wasser", target: "Lava", trigger: "Kontakt beider Fluide", effect: "Wasser verdampft, Lava erstarrt zu einem Körper", status: "geplant" },
-  { source: "TNT-Explosion", target: "Bewegliche Körper / Goldfischglas", trigger: "Lunte abgebrannt und Ziel im ungeschützten Wirkungsbereich", effect: "Radialer Impuls mit abnehmender Stärke; Goldfischgläser zerbrechen und geben ihren Fisch frei", status: "aktiv" },
+  { source: "TNT-Explosion", target: "Bewegliche Körper / Goldfischglas / Katze", trigger: "Lunte abgebrannt und Ziel im ungeschützten Wirkungsbereich", effect: "Radialer Impuls mit abnehmender Stärke; Goldfischgläser zerbrechen und geben ihren Fisch frei; Katzen erschrecken und laufen von der Explosion weg", status: "aktiv" },
 ];

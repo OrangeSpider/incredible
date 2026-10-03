@@ -47,8 +47,22 @@ test('fire artwork uses instance type despite arbitrary collision labels and ind
  const previous=globalThis.Image;globalThis.Image=class{complete=true;naturalWidth=600;naturalHeight=300;};t.after(()=>globalThis.Image=previous);
  const ctx=context(),draw=createFireGadgetRenderer(ctx);machine.setState('lit','firing');
  assert.equal(draw(machine.body('lit'),machine,10),true);const flashes=ctx.calls.filter(([key])=>key==='drawImage').length;assert.ok(flashes>0);
- ctx.calls.length=0;assert.equal(draw(machine.body('quiet'),machine,10),true);assert.equal(ctx.calls.filter(([key])=>key==='drawImage').length,0);
+ const shot=ctx.calls.find(([key,img])=>key==='drawImage'&&img.src==='/assets/gadget-cartoon-atlas.png');assert.equal(shot[2],200);
+ ctx.calls.length=0;assert.equal(draw(machine.body('quiet'),machine,10),true);
+ const idle=ctx.calls.filter(([key,img])=>key==='drawImage'&&img.src==='/assets/gadget-cartoon-atlas.png');assert.equal(idle.length,1);assert.equal(idle[0][2],0);
+ assert.equal(ctx.calls.filter(([key,img])=>key==='drawImage'&&img.src==='/assets/fire-animation-sprites.png').length,0);
  assert.equal(draw(machine.body('thread'),machine,10),true);assert.ok(ctx.calls.some(([key])=>key==='lineTo'));
+});
+
+test('full body rendering keeps cannon artwork under the local fire effects',t=>{
+ const {machine}=simulation(t,[{id:'gun',type:'cannon',x:100,y:100},{id:'wick',type:'fuse',x:300,y:100,state:'burning'}]);
+ const previous=globalThis.Image;globalThis.Image=class{complete=true;naturalWidth=600;naturalHeight=400;};t.after(()=>globalThis.Image=previous);
+ const ctx=context(),fire=createFireGadgetRenderer(ctx),sprite=()=>assert.fail('a flame sprite must not replace a fire gadget body');
+ drawGadgetBody(ctx,machine.body('gun'),machine,0,false,sprite,fire);
+ assert.ok(ctx.calls.some(([key,img])=>key==='drawImage'&&img.src==='/assets/gadget-cartoon-atlas.png'));
+ ctx.calls.length=0;machine.step(16);drawGadgetBody(ctx,machine.body('wick'),machine,16,true,sprite,fire);
+ assert.ok(ctx.calls.some(([key,img])=>key==='drawImage'&&img.src==='/assets/fire-animation-sprites.png'));
+ assert.ok(ctx.calls.filter(([key])=>key==='stroke').length>40,'braided cord remains visible around the flame fronts');
 });
 
 test('gear drawing follows current instance rotor angle and stops after detachment',t=>{

@@ -24,6 +24,7 @@ Die bisherigen Ventilatoren besitzen ihren eigenen Antrieb. Ein gemeinsames Luft
 
 - Basketball (`basketball`): 0,62 kg gegenüber 7,2 kg bei der Bowlingkugel; stärkerer Rückprall.
 - TNT (`tnt`): direktes Feuer an der kurzen Lunte, 650 ms Abbrand, einmalige Explosion mit abnehmendem Impuls bis 180 Pixel. Goldfischgläser im ungeschützten Wirkungsbereich zerbrechen und geben nach ihrer Bruchanimation jeweils einen Fisch frei. Wände schirmen den Stoß ab; leichtere Körper reagieren stärker. Wasser löscht die Lunte vor der Explosion.
+- Katzen im ungeschützten TNT-Wirkungsbereich zeigen ihre drei Schreckbilder (660 ms) und laufen danach für 2,6 Sekunden von der Explosion weg. Die Fluchtrichtung bestimmt auch ihre Blickrichtung. Eine weitere Explosion startet die Schreckreaktion erneut; eine Maus- oder Fischjagd hat während der Flucht keinen Vorrang.
 - Sprengzünder (`detonator`): ein Treffer von oben drückt den Griff. Rechts unten erscheint ein Funke für 160 ms. Er kann eine unmittelbar angrenzende Lunte entzünden.
 - Windrad (`windmill`): dreht im Luftstrom. Ein Antriebsriemen zwischen seinen ANTRIEB-Anschlüssen und Zahnrad oder Laufband überträgt Drehung. Ohne Wind stoppt der Antrieb.
 - Boxhandschuh (`boxingGlove`): ein Treffer an der Rückseite löst genau einen Schlag nach vorne aus. Die Schlagrichtung lässt sich durch Drehen ändern. Zurücksetzen der Maschine macht ihn erneut bereit.
@@ -32,6 +33,7 @@ Die bisherigen Ventilatoren besitzen ihren eigenen Antrieb. Ein gemeinsames Luft
 
 - Mäuselöcher sind dunkle Rundbogenöffnungen am Boden.
 - Trampoline zeigen Sprungfläche, Rahmen, Federn und Beine.
+- Kanonen behalten ihre Cartoon-Zeichnung beim Zünden und zeigen Rückstoß, Mündungsfeuer und Rauch. Geflochtene Lunten zeigen den räumlichen Abbrand, Asche und animierte Flammenfronten. Lampen, Taschenlampen und Sprengzünder besitzen detaillierte Cartoon-Konturen; Knöpfe, Steckdosen, Lichtaustritt und Zündfunke folgen weiterhin der gemeinsamen Anschlussgeometrie.
 - Ventilatoren zeigen rotierende Flügel und wandernde Luftstromlinien; ausgeschaltete Varianten stehen still. Windräder drehen entsprechend der Windstärke und behalten beim Stoppen ihre Flügelstellung. Bei beleuchteten Lupen bewegen sich Lichtpunkte zum pulsierenden Brennpunkt, während die Linse schimmert.
 - Größenänderungen an Holzplanken, Stahlträgern, Holzwänden und Steinmauern sind dem Level-Editor vorbehalten. Im Spielaufbau behalten diese Flächen ihre vorgegebene Länge beziehungsweise Höhe.
 - Level 21 und 22 enthalten die überflüssige Steinwand nicht mehr. Ihre Seilaufgaben und bisherigen Lösungen bleiben erhalten.

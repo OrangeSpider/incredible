@@ -7,6 +7,7 @@ import { GADGET_CATALOG } from "../../engine/gadget-catalog.ts";
 import { gadgetPorts, gadgetPortKey } from "../../game/gadget-connections.ts";
 import { drawConveyor, drawDriveBelt, driveBeltGeometry, GENERATOR_DRIVE_CENTER } from "../../game/drive.ts";
 import { drawFan, drawWindmill, drawMagnifier } from "./gadget-motion-renderer.ts";
+import { drawCartoonFlashlight, drawCartoonLamp, drawCartoonDetonator } from "./cartoon-device-renderer.ts";
 
 export function drawMouseHole(ctx: CanvasRenderingContext2D, x: number, floorY: number, width = 52, height = 58) {
   ctx.save(); ctx.translate(x, floorY); ctx.lineWidth = 5; ctx.strokeStyle = "#aa7950";
@@ -55,14 +56,10 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
     ctx.strokeStyle = "#714525"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-19, 0); ctx.lineTo(19, 0); ctx.moveTo(0, -19); ctx.lineTo(0, 19); ctx.stroke();
     for (const side of [-1, 1]) { ctx.beginPath(); ctx.ellipse(side * 18, 0, 14, 19, 0, Math.PI / 2, Math.PI * 1.5, side === 1); ctx.stroke(); }
   } else if (type === "flashlight" || type === "socketFlashlight") {
-    ctx.fillStyle = material(ctx, "#ed9171", "#973c31"); ctx.beginPath(); ctx.roundRect(-38, -14, 63, 28, 6); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#dfb651"; ctx.beginPath(); ctx.moveTo(20, -15); ctx.lineTo(38, -22); ctx.lineTo(38, 22); ctx.lineTo(20, 15); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = state === "on" ? "#fff1a7" : "#bcc8c4"; ctx.fillRect(33, -17, 6, 34);
+    drawCartoonFlashlight(ctx,state==="on",machine.timeMs);
     if (type === "flashlight") drawButton(ctx, 0, -18, state === "on");
   } else if (type === "lamp" || type === "socketLamp") {
-    ctx.fillStyle = material(ctx, "#94b4b9", "#344e5c"); ctx.beginPath(); ctx.roundRect(-28, 23, 56, 9, 4); ctx.fill(); ctx.stroke(); ctx.fillRect(-4, -9, 8, 33);
-    ctx.fillStyle = state === "on" ? "#ffe481" : "#c4cecb"; ctx.beginPath(); ctx.arc(0, -20, 20, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = "#817044"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-6, -7); ctx.lineTo(-9, -22); ctx.lineTo(9, -22); ctx.lineTo(6, -7); ctx.stroke();
+    drawCartoonLamp(ctx,state==="on",machine.timeMs);
     if (type === "lamp") drawButton(ctx, -24, -32, state === "on");
   } else if (type === "fan" || type === "socketFan" || type === "switchFan") {
     const active = state === "running";
@@ -90,11 +87,7 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
       ctx.font = "bold 12px system-ui"; ctx.fillStyle = "#fff1c1"; ctx.fillText("TNT", -13, 5);
     }
   } else if (type === "detonator") {
-    const pressed = state === "spent";
-    ctx.fillStyle = material(ctx, "#e1a16b", "#823b25"); ctx.beginPath(); ctx.roundRect(-23, -5, 46, 41, 5); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = "#526e78"; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(0, pressed ? -13 : -33); ctx.moveTo(-23, pressed ? -13 : -33); ctx.lineTo(23, pressed ? -13 : -33); ctx.stroke();
-    ctx.strokeStyle = "#b4944f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(23, 20); ctx.lineTo(40, 20); ctx.stroke();
-    if (pressed && age < 160) drawSpark(ctx, 40, 20, now);
+    drawCartoonDetonator(ctx,state==="spent",age);
   } else if (type === "windmill") {
     drawWindmill(ctx, Number(machine.state(id)?.properties.rotorAngle ?? 0), state === "running");
   } else if (type === "boxingGlove") {

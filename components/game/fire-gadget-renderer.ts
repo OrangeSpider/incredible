@@ -2,6 +2,21 @@ import type Matter from "matter-js";
 import type { MachinePhysicsEngine } from "../../engine/physics-engine.ts";
 import { machinePlugin } from "../../engine/body-factory.ts";
 import { rocketVisual } from "../../game/rocket.ts";
+import { drawCartoonArtwork } from "./cartoon-artwork.ts";
+import type { FuseSample } from "../../game/fuse.ts";
+
+/** Braided rope, ash and damp fibers all follow the same sampled burn front. */
+function drawFuseCord(ctx:CanvasRenderingContext2D,samples:FuseSample[],point:(t:number)=>{x:number;y:number},wet:boolean,width:number) {
+  ctx.lineCap="round";
+  for(let index=0;index<samples.length-1;index++){
+    const from=point(samples[index].t),to=point(samples[index+1].t),burned=samples[index].burned;
+    ctx.strokeStyle=burned?"#6d6860":"#493725";ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke();
+    ctx.strokeStyle=burned?"#b1a798":wet?"#75a0a5":"#d5aa68";ctx.lineWidth=width-2.5;ctx.stroke();
+    const dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy)||1,nx=-dy/length,ny=dx/length;
+    ctx.strokeStyle=burned?"#817970":wet?"#456f7d":"#86572c";ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(from.x+nx*(width/2-1),from.y+ny*(width/2-1));ctx.lineTo(to.x-nx*(width/2-1),to.y-ny*(width/2-1));ctx.stroke();
+  }
+}
 
 /** Local effects resolve only the current body's instance, never a scene summary. */
 export function createFireGadgetRenderer(ctx: CanvasRenderingContext2D) {
@@ -22,8 +37,31 @@ export function createFireGadgetRenderer(ctx: CanvasRenderingContext2D) {
     const gadgetId = machinePlugin(b)?.instanceId;
     const gadgetConfig = gadgetId ? machine.config(gadgetId) : null;
     if (!gadgetConfig || !["cannon", "fuse", "rocket"].includes(gadgetConfig.type)) return false;
-if(gadgetConfig.type==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42);const fuse=machine.mechanics.fuseSnapshot(`${gadgetId}:fuse`),samples=fuse?.samples ?? [],point=(t:number)=>({x:-18+(-26+18)*t,y:-42+(-17+42)*t});ctx.lineWidth=5;ctx.lineCap="round";for(let index=0;index<samples.length-1;index++){const from=point(samples[index].t),to=point(samples[index+1].t);ctx.strokeStyle=samples[index].burned?"#a29a8d":"#49382a";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}for(const t of fuse?.flames ?? []){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y,34,34))drawFallbackFlame(flame.x,flame.y,now,.55)}if(gadgetId && machine.state(gadgetId)?.state==="firing" && (machine.stateAgeMs(gadgetId)??Infinity)<520){const flashFrame=Math.min(5,Math.floor((machine.stateAgeMs(gadgetId)??0)/87));if(!drawFireSprite(2,flashFrame,70,0,105,78))drawFallbackFlame(67,0,now,1.5)}}
-if(gadgetConfig.type==="fuse"){const fuse=machine.mechanics.fuseSnapshot(gadgetId!),samples=fuse?.samples ?? [],point=(t:number)=>({x:-55+110*t,y:16*t*(1-t)});ctx.lineWidth=7;ctx.lineCap="round";for(let index=0;index<samples.length-1;index++){const from=point(samples[index].t),to=point(samples[index+1].t);ctx.strokeStyle=samples[index].burned?"#a29a8d":"#4f3d2b";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}for(const t of fuse?.flames ?? []){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y-3,34,34))drawFallbackFlame(flame.x,flame.y-3,now,.55)}if(gadgetId && machine.state(gadgetId)?.state==="extinguished"){ctx.strokeStyle="#2ca7d8";ctx.lineWidth=3;ctx.setLineDash([3,7]);ctx.beginPath();ctx.moveTo(-50,-4);ctx.lineTo(50,4);ctx.stroke();ctx.setLineDash([])}}
+    if(gadgetConfig.type==="cannon" || gadgetConfig.type==="fuse"){
+      const cannon=gadgetConfig.type==="cannon",state=machine.state(gadgetId!)?.state,age=machine.stateAgeMs(gadgetId!)??0;
+      if(cannon)drawCartoonArtwork(ctx,b,machine,now,true);
+      const fuse=machine.mechanics.fuseSnapshot(cannon?`${gadgetId}:fuse`:gadgetId!);
+      const point=cannon?(t:number)=>({x:-18-8*t,y:-42+25*t}):(t:number)=>({x:-55+110*t,y:0});
+      drawFuseCord(ctx,fuse.samples,point,state==="extinguished",cannon?5:7);
+      for(const t of fuse.flames){
+        const flame=point(t),clock=machine.timeMs;
+        if(!drawFireSprite(1,Math.floor(clock/80)%6,flame.x,flame.y,34,34))drawFallbackFlame(flame.x,flame.y,clock,.55);
+        ctx.strokeStyle="#f4b943";ctx.lineWidth=1.3;
+        for(let spark=0;spark<5;spark++){
+          const angle=spark*Math.PI*2/5+clock*.014,radius=7+(clock/22+spark*3)%9;
+          ctx.beginPath();ctx.moveTo(flame.x+Math.cos(angle)*radius,flame.y+Math.sin(angle)*radius);ctx.lineTo(flame.x+Math.cos(angle)*(radius+3),flame.y+Math.sin(angle)*(radius+3));ctx.stroke();
+        }
+      }
+      if(cannon && state==="firing" && age<300){
+        // The atlas carries the flash; this also supplies it while the atlas is loading.
+        const frame=Math.min(5,Math.floor(age/50));
+        if(!drawFireSprite(2,frame,70,0,86,62))drawFallbackFlame(67,0,machine.timeMs,1.3);
+      }
+      if(state==="extinguished"){
+        ctx.fillStyle="rgba(93,165,193,.65)";
+        for(const t of [.2,.55,.85]){const drop=point(t);ctx.beginPath();ctx.ellipse(drop.x,drop.y+4,1.6,2.5,0,0,Math.PI*2);ctx.fill();}
+      }
+    }
 if(gadgetConfig?.type==="rocket"){const id=machinePlugin(b)?.instanceId,state=id?(machine.state(id)?.state??"mounted"):"mounted",age=id?(machine.stateAgeMs(id)??0):0,started=state==="burning"?now-age:state==="launching"?now-age-520:state==="launched"?now-age-1780:undefined,visual=rocketVisual(state,started,now);if(visual.visible&&!drawRocketSprite(visual.row,visual.frame,0,visual.offsetY,visual.size)){ctx.fillStyle="#d94d32";ctx.beginPath();ctx.moveTo(0,-55+visual.offsetY);ctx.lineTo(-24,18+visual.offsetY);ctx.lineTo(24,18+visual.offsetY);ctx.closePath();ctx.fill()}if(visual.smokeOpacity>0){ctx.save();ctx.globalAlpha=visual.smokeOpacity;ctx.fillStyle="#d8d2c7";for(let puff=0;puff<7;puff++){const angle=puff/7*Math.PI*2,radius=9+(puff%3)*3;ctx.beginPath();ctx.arc(Math.cos(angle+now*.001)*22,55+Math.sin(angle)*10,radius,0,Math.PI*2);ctx.fill()}ctx.restore()}}
     return true;
   };

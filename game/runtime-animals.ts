@@ -14,9 +14,11 @@ export function createAnimalFlows(runtime: MachineRuntime): RuntimeSystem[] {
     return { afterStep() {
       const cat=machine.body(catId),mouse=machine.body(mouseId),exit=machine.body(exitId),gate=gateId?machine.body(gateId):null;
       if (!runtime.running || !enabled() || !cat || !mouse || !exit) return;
+      if(typeof machine.state(catId)?.properties.blastStartledAt==="number")return;
       if (Math.abs(mouse.position.y-cat.position.y)<35 && mouse.position.x>cat.position.x) fleeing=true;
       if (!fleeing) return;
       machine.setState(mouseId,"running"); machine.setState(catId,"running");
+      if(typeof machine.state(catId)?.properties.facingDirection==="number")machine.state(catId)!.properties.facingDirection=1;
       const destination=exit.position.x-18;
       const closed=gate && !gate.isSensor;
       const mouseLimit=closed?Math.min(destination,gate.position.x-gadgetSize(machine.config(mouseId)!).width/2-12):destination;
@@ -56,7 +58,9 @@ export function createAnimalFlows(runtime: MachineRuntime): RuntimeSystem[] {
   for (const flow of runtime.level.fishChases??[]) systems.push({afterStep(){
     const cat=machine.body(flow.catId),fish=machine.body(flow.fishId);
     if (!runtime.running || !cat || !fish || !catSeesFish({catX:cat.position.x,catY:cat.position.y,fishX:fish.position.x,fishY:fish.position.y,fishVisible:machine.state(flow.fishId)?.state==="flopping"})) return;
+    if(typeof machine.state(flow.catId)?.properties.blastStartledAt==="number")return;
     machine.setState(flow.catId,"running");
+    if(typeof machine.state(flow.catId)?.properties.facingDirection==="number")machine.state(flow.catId)!.properties.facingDirection=Math.sign(fish.position.x-cat.position.x)||1;
     Matter.Body.setPosition(cat,{x:advanceCatTowardFish(cat.position.x,fish.position.x,runtime.dt),y:cat.position.y});
     Matter.Body.setVelocity(cat,{x:0,y:cat.velocity.y});
     if (Math.abs(fish.position.x-cat.position.x)<=52) {machine.setSignal(`cat.reached.fish.${flow.catId}`);machine.setSignal("cat.reached.fish");}

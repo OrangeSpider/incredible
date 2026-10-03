@@ -97,8 +97,9 @@ export function createDefaultEffectRegistry(): EffectRegistry {
 
   registry.register("chase", ({ source, target }) => {
     const sourceBody = source.body, targetBody = target.body;
-    if (!sourceBody || !targetBody || targetBody.isStatic) return;
+    if (!sourceBody || !targetBody || targetBody.isStatic || typeof target.state.properties.blastStartledAt==="number") return;
     const direction = Math.sign(sourceBody.position.x - targetBody.position.x) || 1;
+    if(typeof target.state.properties.facingDirection==="number")target.state.properties.facingDirection=direction;
     Matter.Body.setVelocity(targetBody, { x: direction * 2.2, y: targetBody.velocity.y });
   });
 

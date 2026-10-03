@@ -95,12 +95,20 @@ export function drawCartoonArtwork(ctx:CanvasRenderingContext2D,body:Matter.Body
     plate(ctx,28,12,16,16,"#f6e8ad","#c49d52",4);ctx.fillStyle="#273e48";for(const x of [33,39]){ctx.beginPath();ctx.arc(x,20,2,0,Math.PI*2);ctx.fill();}return true;
   }
   if(type==="cannon") {
-    const frame=state==="firing"&&age<520?Math.min(5,1+Math.floor(age/104)):0;
+    const frame=state==="firing"&&age<520?Math.min(5,2+Math.floor(age/130)):0;
     const recoil=state==="firing"&&age<300?Math.sin(age/300*Math.PI)*8:0;
-    if(!sprite(ctx,2,frame,-62-recoil,-57,124,114))return false;
-    const fuse=machine.mechanics.fuseSnapshot(`${id}:fuse`),progress=fuse?(fuse.samples.filter(sample=>sample.burned).length/fuse.samples.length):Number(machine.state(id)?.properties.fuseProgress??0);
-    ctx.strokeStyle="#54422c";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18-8*progress,-42+25*progress);ctx.lineTo(-26,-17);ctx.stroke();
-    if(state==="fuseBurning"){ctx.fillStyle="#ffbb3a";ctx.beginPath();ctx.arc(-18-8*progress,-42+25*progress,4,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#ec8f24";ctx.lineWidth=1.5;for(let i=0;i<5;i++){const a=i*Math.PI*2/5+clock*.02;ctx.beginPath();ctx.moveTo(-18-8*progress+Math.cos(a)*5,-42+25*progress+Math.sin(a)*5);ctx.lineTo(-18-8*progress+Math.cos(a)*10,-42+25*progress+Math.sin(a)*10);ctx.stroke();}}
+    if(!sprite(ctx,2,frame,-62-recoil,-57,124,114)){
+      // Keep the carriage anchored while the barrel recoils, even before the atlas loads.
+      plate(ctx,-48,14,78,14,"#d59b53","#80512c",4);
+      ctx.save();ctx.translate(-recoil,0);
+      plate(ctx,-39,-16,80,32,"#7398a3","#233e50",12);
+      for(const x of [-27,9])plate(ctx,x,-18,7,36,"#ffe098","#b88230",3);
+      plate(ctx,33,-21,15,42,"#ffe098","#b88230",5);
+      ctx.fillStyle="#1c303a";ctx.strokeStyle="#6d552d";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(45,0,5,15,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+      ctx.fillStyle=gradient(ctx,6,40,"#dfad68","#8b552a");ctx.strokeStyle="#493725";ctx.lineWidth=3;ctx.beginPath();ctx.arc(-18,26,20,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.strokeStyle="#714725";ctx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(-18,26);ctx.lineTo(-18+Math.cos(a)*16,26+Math.sin(a)*16);ctx.stroke();}rivet(ctx,-18,26);
+    }
+    // The fire renderer adds the sampled fuse and its flames at their physical positions.
     if(state==="firing")smoke(ctx,52,-10,age);return true;
   }
   if(type==="fishBowl" && state==="broken") {ctx.fillStyle="rgba(133,195,205,.55)";ctx.strokeStyle="#678f9c";ctx.lineWidth=1;for(let i=0;i<9;i++){const x=Math.sin(i*2.3)*50,y=40+(i%3)*4;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+6,y-9);ctx.lineTo(x+12,y+1);ctx.closePath();ctx.fill();ctx.stroke();}return true;}

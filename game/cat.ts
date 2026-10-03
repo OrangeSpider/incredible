@@ -2,6 +2,8 @@ export type CatAnimationState="idle"|"running"|"startled";
 
 export const CAT_STARTLE_FRAME_MS=220;
 export const CAT_STARTLE_DURATION_MS=CAT_STARTLE_FRAME_MS*3;
+export const CAT_BLAST_RUN_SPEED=3.4;
+export const CAT_BLAST_FLEE_DURATION_MS=2600;
 export const CAT_IDLE_FRAME_MS=350;
 const CAT_IDLE_SEQUENCE=[0,0,0,1,2,0,0,0] as const;
 const CAT_IDLE_SOURCE_OFFSETS_X=[0,15,34] as const;

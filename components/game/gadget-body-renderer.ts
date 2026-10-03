@@ -3,7 +3,7 @@ import type { MachinePhysicsEngine } from "../../engine/physics-engine.ts";
 import type { ResolvedAnimation } from "../../engine/animation.ts";
 import { resolveGadgetAnimation } from "../../engine/animation.ts";
 import { machinePlugin } from "../../engine/body-factory.ts";
-import { catSpritePose, catSpriteOffsetX } from "../../game/cat.ts";
+import { catSpritePose, catSpriteOffsetX, CAT_STARTLE_DURATION_MS } from "../../game/cat.ts";
 import { localPort } from "../../engine/gadget-ports.ts";
 import { drawDriveWheel } from "../../game/drive.ts";
 import { drawGadget } from "./gadget-renderer.ts";
@@ -11,8 +11,10 @@ import { drawGadget } from "./gadget-renderer.ts";
 type SpriteDrawer = (ctx:CanvasRenderingContext2D, animation:ResolvedAnimation|null, x:number, y:number)=>boolean;
 export function bodyAnimation(machine:MachinePhysicsEngine,id:string,now:number,running:boolean) {
   const state=machine.state(id)!;
-  const visualState=state.type==="cat" && Number(state.properties.fallStartedAt)>0 ? "falling" : state.state;
-  const age=!running ? now : visualState!==state.state ? now-Number(state.properties.fallStartedAt) : machine.stateAgeMs(id)??0;
+  const blastAge=state.type==="cat"&&typeof state.properties.blastStartledAt==="number"?machine.timeMs-state.properties.blastStartledAt:null;
+  const blastStartle=blastAge!==null&&blastAge<CAT_STARTLE_DURATION_MS;
+  const visualState=blastStartle?"startled":state.type==="cat" && Number(state.properties.fallStartedAt)>0 ? "falling" : state.state;
+  const age=blastStartle?blastAge!:!running ? now : visualState!==state.state ? now-Number(state.properties.fallStartedAt) : machine.stateAgeMs(id)??0;
   const animation=resolveGadgetAnimation(state.type,visualState,age);
   if (state.type==="cat") {
     const pose=catSpritePose(age,{running:visualState==="running",startledAt:["startled","falling"].includes(visualState)?0:null,holdStartled:true});
@@ -25,7 +27,9 @@ export function drawGadgetBody(ctx:CanvasRenderingContext2D,body:Matter.Body,mac
   const plugin=machinePlugin(body);if(!plugin || plugin.type==="water")return;
   const config=machine.config(plugin.instanceId)!;
   const animation=bodyAnimation(machine,plugin.instanceId,now,running);
-  ctx.save();ctx.translate(body.position.x,body.position.y);ctx.rotate(body.angle);ctx.scale(plugin.flipX?-1:1,plugin.flipY?-1:1);
+  const facing=machine.state(plugin.instanceId)?.properties.facingDirection;
+  const flipX=config.type==="cat"&&typeof facing==="number"?facing<0:plugin.flipX;
+  ctx.save();ctx.translate(body.position.x,body.position.y);ctx.rotate(body.angle);ctx.scale(flipX?-1:1,plugin.flipY?-1:1);
   // Effects on compound artwork are drawn locally rather than as a full-body sprite.
   const artwork=["candle","bucket"].includes(config.type);
   if (config.type==="fish" && machine.state(plugin.instanceId)?.state==="hidden") {ctx.restore();return;}

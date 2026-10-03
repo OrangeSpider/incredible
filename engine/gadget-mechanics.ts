@@ -10,6 +10,7 @@ import { FuseNetwork } from "../game/fuse.ts";
 import { bodyPoint, bodyVector, bodyTransform, inversePoint, candleFlameLocal, rocketNozzleLocal } from "./gadget-geometry.ts";
 import { FISH_REVEAL_DELAY_MS } from "../game/fish.ts";
 import { rocketVisual, ROCKET_IGNITION_MS, ROCKET_TOTAL_LAUNCH_MS } from "../game/rocket.ts";
+import { CAT_STARTLE_DURATION_MS, CAT_BLAST_RUN_SPEED, CAT_BLAST_FLEE_DURATION_MS } from "../game/cat.ts";
 
 export type LightField = Point & { id: string; radius: number; angle?: number; intensity: number };
 export type Focus = { lensId: string; lens: Point; point: Point; intensity: number };
@@ -217,6 +218,26 @@ export class GadgetMechanics {
     }
     this.optics(dt, obstacles);
     this.fire(dt);
+    this.scaredCats();
+  }
+
+  private scaredCats() {
+    const machine=this.machine;
+    for(const body of machine.bodiesByType("cat")){
+      const id=machinePlugin(body)!.instanceId,state=machine.state(id)!,at=state.properties.blastStartledAt;
+      if(typeof at!=="number")continue;
+      const age=machine.timeMs-at;
+      if(age>=CAT_STARTLE_DURATION_MS+CAT_BLAST_FLEE_DURATION_MS){
+        delete state.properties.blastStartledAt;delete state.properties.blastFleeDirection;
+        machine.setState(id,"idle");
+        Matter.Body.setVelocity(body,{x:0,y:body.velocity.y});
+      }else if(age<CAT_STARTLE_DURATION_MS)machine.setState(id,"startled");
+      else{
+        if(body.isStatic)machine.release(id);
+        machine.setState(id,"running");
+        Matter.Body.setVelocity(body,{x:Number(state.properties.blastFleeDirection)*CAT_BLAST_RUN_SPEED,y:body.velocity.y});
+      }
+    }
   }
 
   private optics(dt: number, obstacles: Matter.Body[]) {
@@ -361,6 +382,16 @@ export class GadgetMechanics {
       if (body === source || body.isSensor) continue;
       const dx = body.position.x - source.position.x, dy = body.position.y - source.position.y, dist = Math.hypot(dx, dy);
       if (dist > 180 || Matter.Query.ray(obstacles.filter(wall => wall !== body), source.position, body.position).length) continue;
+      const plugin=machinePlugin(body);
+      if(plugin?.type==="cat" && dist<180){
+        const state=machine.state(plugin.instanceId)!,direction=Math.sign(dx)||1;
+        state.properties.blastStartledAt=machine.timeMs;
+        state.properties.blastFleeDirection=direction;
+        state.properties.facingDirection=direction;
+        machine.release(plugin.instanceId);
+        machine.setState(plugin.instanceId,"startled");
+        machine.setSignal(`cat.startled.${plugin.instanceId}`);
+      }
       const strength = 14 * (1 - dist / 180) / Math.max(1, Math.sqrt(Number(machinePlugin(body) ? GADGET_CATALOG[machinePlugin(body)!.type].physics.massKg : body.mass)));
       if (machinePlugin(body)?.type === "fishBowl" && dist < 180) this.breakBowl(body);
       this.strike(body, { x: dx / (dist || 1) * strength, y: dy / (dist || 1) * strength });
