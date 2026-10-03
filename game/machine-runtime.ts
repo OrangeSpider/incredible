@@ -1,20 +1,18 @@
 import Matter from "matter-js";
+import { localPort } from "../engine/gadget-ports.ts";
 import type { RopePoint } from "./pulley.ts";
-import { machinePlugin } from "../engine/body-factory.ts";
 import type { LevelDefinition } from "../engine/types.ts";
 import type { MachinePhysicsEngine, PhysicsEvent } from "../engine/physics-engine.ts";
 import { createRuntimeSystems, type RuntimeSystem } from "./runtime-systems.ts";
 import { ControlRopeMechanism, type ControlRope } from "./control-ropes.ts";
 
 export type RuntimeCollision = { bodyA: Matter.Body; bodyB: Matter.Body; normal: { x: number; y: number } };
-export type ScissorConnection = { scissorIndex: number; pullBody: Matter.Body; anchor: { x: number; y: number }; restLength: number };
 
 export type MachineRuntimeOptions = {
   level: LevelDefinition;
   machine: MachinePhysicsEngine;
   running: boolean;
   onWin: () => void;
-  beltConnected: boolean;
   bodies: {
     cat: Matter.Body | null;
     balloon: Matter.Body | null;
@@ -33,9 +31,7 @@ export type MachineRuntimeOptions = {
     scissorBalloons: readonly Matter.Body[];
     rockets: readonly Matter.Body[];
   };
-  scissorConnections: readonly ScissorConnection[];
   controlRopes?: readonly ControlRope[];
-  tetheredBalloonIds: readonly string[];
   gearsConnected: boolean;
   rope: {
     fixed: readonly Matter.Body[];
@@ -76,19 +72,18 @@ export type RuntimeState = {
   won: boolean;
 };
 
-/** Owns gameplay state, active capability hooks, collision delivery and goal checks. */
+/** Owns gameplay state, intrinsic gadget hooks, collision delivery and goal checks. */
 export class MachineRuntime {
   readonly state: RuntimeState;
   readonly waterSplashAt = new Map<number, number>();
   readonly wetFuseIds = new Set<number>();
-  readonly scissorClosedAt = [0, 0, 0];
+  readonly scissorClosedById = new Map<string,number>();
+  get scissorClosedAt(){return this.level.fixedGadgets.filter(gadget=>gadget.type==="scissor").map(gadget=>this.scissorClosedById.get(gadget.id)??0)}
   readonly rocketIgnitedAt = new Map<string, number>();
   readonly ballVelocity = { x: 0, y: 0 };
   readonly blockVelocity = { x: 0, y: 0 };
   readonly systems: readonly RuntimeSystem[];
   readonly controlRopes: ControlRopeMechanism;
-  readonly wheelInstanceId: string | undefined;
-  readonly conveyorInstanceId: string | undefined;
   now = 0;
   dt = 0;
   private readonly unsubscribe: () => void;
@@ -107,9 +102,7 @@ export class MachineRuntime {
       bucketTipAt: 0, seesawHitAt: 0, blockPosition: { ...options.rope.initialBlockPosition },
       pulleyTurn: 0, won: false,
     };
-    this.wheelInstanceId = options.bodies.hamsterWheel ? machinePlugin(options.bodies.hamsterWheel)?.instanceId : undefined;
-    this.conveyorInstanceId = options.bodies.conveyor ? machinePlugin(options.bodies.conveyor)?.instanceId : undefined;
-    this.systems = createRuntimeSystems(options.level.systems, this);
+    this.systems = createRuntimeSystems(this);
     this.unsubscribe = options.machine.subscribe(event => this.onEngineEvent(event));
   }
 
@@ -132,25 +125,18 @@ export class MachineRuntime {
     for (const system of this.systems) system.onCollision?.(collision);
   }
 
-  closeScissor(index: number) {
-    const config = this.level.fixedGadgets.filter(gadget => gadget.type === "scissor")[index];
-    if (!config) return;
-    this.closeScissorById(config.id);
-  }
-
   closeScissorById(id: string) {
-    const scissors = this.level.fixedGadgets.filter(gadget => gadget.type === "scissor");
-    const index = scissors.findIndex(gadget => gadget.id === id);
-    const config = scissors[index];
-    if (!config) return;
-    const balloonId = String(config.properties?.balloon ?? "");
+    const config = this.machine.config(id);
+    if (config?.type !== "scissor" || this.scissorClosedById.has(id)) return;
+    this.scissorClosedById.set(id,this.now || 1);
+    this.machine.setState(id,"closed");
+    const balloonId = config.properties?.balloon;
+    if (typeof balloonId !== "string") return;
     const released = this.machine.body(balloonId);
-    if (this.scissorClosedAt[index] || !released) return;
-    this.scissorClosedAt[index] = this.now || performance.now();
-    this.machine.setState(id, "closed");
-    if (balloonId) this.machine.setState(balloonId, "free");
-    Matter.Body.setStatic(released, false);
-    Matter.Body.setVelocity(released, { x: 0, y: -1.2 });
+    if (!released || this.machine.state(balloonId)?.type !== "balloon") throw new Error(`Invalid scissor balloon: ${id}`);
+    this.machine.setState(balloonId,"free");
+    Matter.Body.setStatic(released,false);
+    Matter.Body.setVelocity(released,{x:0,y:-1.2});
   }
 
   tick(now: number, dt: number) {
@@ -158,10 +144,11 @@ export class MachineRuntime {
     for (const system of this.systems) system.beforeStep?.();
     if (this.running) this.machine.step(dt);
     for (const system of this.systems) system.afterStep?.();
-    if (this.running) this.controlRopes.step(targetId => {
-      const type = this.machine.state(targetId)?.type;
-      if (type === "scissor") this.closeScissorById(targetId);
-      else if (type === "snapGate") this.machine.setState(targetId, "open");
+    if (this.running) this.controlRopes.step((targetId,targetPortId) => {
+      const config=this.machine.config(targetId)!;
+      const action=localPort(config,targetPortId,"target")?.action;
+      if (action === "close") this.closeScissorById(targetId);
+      else if (action === "open") this.machine.setState(targetId, "open");
     });
     if (this.running && this.machine.goalReached(this.level.goal)) this.complete();
   }

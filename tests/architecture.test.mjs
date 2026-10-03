@@ -49,8 +49,8 @@ test("gadget definitions contain body, reaction and state-animation data", () =>
     assert.ok(gadget.categories.length > 0, `${gadget.type} needs a category`);
     assert.ok(gadget.physics.shape, `${gadget.type} needs a collision shape`);
     assert.ok(gadget.physics.massKg >= 0, `${gadget.type} needs a mass`);
-    assert.ok(gadget.physics.waterReaction, `${gadget.type} needs a water reaction`);
-    assert.ok(gadget.physics.fireReaction, `${gadget.type} needs a fire reaction`);
+    assert.ok(gadget.reactions.water, `${gadget.type} needs a water reaction`);
+    assert.ok(gadget.reactions.fire, `${gadget.type} needs a fire reaction`);
     assert.ok(gadget.animations[gadget.defaultState], `${gadget.type} needs an animation for its default state`);
   }
   assert.deepEqual(Object.keys(GADGET_CATALOG.cat.animations), ["idle", "running", "startled", "falling"]);

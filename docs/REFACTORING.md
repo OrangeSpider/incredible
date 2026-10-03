@@ -41,7 +41,7 @@ Status: abgeschlossen.
 
 ## 4. Gadget-Aktivierung und Instanzzuordnungen bereinigen
 
-Status: bereit; Schritt 3 abgeschlossen.
+Status: abgeschlossen.
 
 - Automatisch benötigte Mechaniken aus Gadget-Definitionen beziehen. Explizite Abläufe bleiben ausdrücklich in Leveldaten konfiguriert.
 - Feste IDs, erste Instanz eines Typs und Szenenkoordinaten aus wiederverwendbaren Runtime-Systemen entfernen.
@@ -52,7 +52,7 @@ Status: bereit; Schritt 3 abgeschlossen.
 
 ## 5. Darstellung, Datenformat und Abschlussprüfung
 
-Status: wartet auf Schritt 4.
+Status: bereit; Schritt 4 abgeschlossen.
 
 - Verbleibende Gadget-Sonderfälle im Canvas in kleine Renderer verlagern; den gemeinsamen Simulationsaufbau ausschließlich für Simulation verwenden.
 - Doppelte `standalone`-Listen und Sonderbehandlungen im Spielaufbau und Editor bereinigen.
@@ -137,3 +137,36 @@ Die neuen Anschlussidentitäten sind verbindlich; keine fehlenden IDs normalisie
 Feste Szenen-IDs, erste Hamsterrad-/Laufband-/Wippeninstanzen, Scheren-Ballon-Zuordnungen und Szenenabläufe wurden nicht allgemein bereinigt. Insbesondere bleibt `runtime.options.beltConnected` ein Aufbau-Snapshot für den bestehenden Hamster-Szenenablauf; die fachliche Riemen-/Strommechanik berechnet ihre Verbindungen laufend neu. Schritt 4 soll diese Instanzzuordnungen und Aktivierung samt Antriebsverlust/Zahnradtrennung vereinheitlichen. Der vorhandene Lastseilrouten-Sonderablauf (`pulley-rope`, einschließlich Szenenanker und Instanzwahl) bleibt ebenfalls für die Szenenbereinigung; diese Stufe betrifft die benannten Gadget-Anschlüsse und Steuerseile. Die übrige Renderer-/Formatbereinigung und Build-/Browserabschlussprüfung bleiben Schritt 5.
 
 Nachprüfung zu Schritt 3: Die neuen Imports in `GameCanvas.tsx` standen versehentlich vor der Client-Direktive. `"use client"` steht nun wieder am Dateianfang. `node node_modules/next/dist/bin/next build` (Next.js 16.2.6, Turbopack) ist vollständig erfolgreich, einschließlich TypeScript und statischer Seitenerzeugung. Die separate TypeScript-Prüfung besteht ebenfalls. Der npm-Aufruf war lokal durch einen EPERM-Fehler beim Zugriff auf den Benutzerpfad blockiert; der direkte Next-Aufruf funktionierte. Keine manuelle Browserprüfung durchgeführt.
+
+
+### Schritt 4 – Aktivierung und Instanzbeziehungen bereinigt (3. Oktober 2026)
+
+- `GadgetDefinition.mechanics` liefert die intrinsischen Runtime-Hooks über die vorhandene Factory-Registry. Der gemeinsame Aufbau aktiviert sie aus allen tatsächlich aufgebauten Instanzen. Neue Editorlevels benötigen keine Systemliste; die Magnet-Reparatur im Validator und das automatische Ergänzen von `tension-rope` im Editor sind entfernt. `systems` bleibt bis Schritt 5 für vorhandene Präsentationshinweise akzeptiert und aktiviert keine Physik.
+- Der feste Hamster-Szenenablauf samt `runtime.options.beltConnected`, Einzelrad-/Einzellaufbandzuordnung und positionsgesetztem Katzentransport ist entfernt. Hamsterräder starten über die vorhandene Aufprallregel, explizite Portverbindungen treiben Laufbänder an, und der vorhandene Kontaktmechanismus transportiert aufliegende Körper. Riemen und räumliche Zahnradkontakte werden in einem laufenden Antriebsgraphen berechnet. Auch abgetrennte Zahnradinseln und selbst nur fremdangetriebene Hamsterräder stoppen; Eigenaktivierung sowie Wiederverbindung funktionieren. Der frühere zweite deklarative Zahnradpfad ist als `spatial` beschrieben und führt keine weitere Übertragung aus.
+- `runtime-animals.ts` besitzt kleine explizite Tier-/Katapult-/Wippenauslöseabläufe. `animalChases`, `catapults`, `fishChases` und `seesawLaunches` speichern konkrete Beziehungen; jede Folge besitzt eigene Fortschrittszustände. Ziele, Torgrenzen und Plattformgeometrie werden aus den referenzierten Körpern berechnet. Keine fest benannten Tiere, Tore oder Trigger und keine Wahl der ersten Instanz in diesen Abläufen. `seesawLaunches.velocity` ist ein ausdrücklich im Level gespeicherter Weltimpuls des erhaltenen Spezialablaufs.
+- Scheren werden über Engine-Konfigurationen aller Instanzen aufgelöst, einschließlich frei platzierter und verschobener Gadgets. `properties.balloon` bezeichnet ausdrücklich ihren Ballon; Schließzeiten und einmalige Freigabe liegen in einer ID-Map. Gläser verwenden `properties.fishId` oder erzeugen ihren eigenen deterministisch benannten Fisch; Namens- und Näherungszuordnungen sind entfernt. `level-relations.ts` prüft Referenzarten, Parameter und doppelte Fischzuordnungen. Editor-Löschung entfernt betroffene Beziehungen.
+- Steuerseilcallbacks tragen Ziel-ID und Port-ID. Portdefinitionen geben `action` (`close`/`open`) vor; Zugfortschritt und Zugereignisse verwenden die vollständige Anschlussidentität. Mehrere Zugports haben unabhängige Fortschritte; wenn sie dieselbe Geräteschließung betätigen, bleibt der fachliche Gerätezustand gemeinsam. Der bestehende Scherengriff-Renderer liest gezielt `handleProgress:handle`.
+- `light` enthält lokale Emission, Reichweite, Intensität, Richtungslicht und aktiven Zustand. `electrical.activeState` beschreibt den Betriebszustand. Renderernamen sind aus der Lichtphysik entfernt. Reaktionsangaben stehen als ausdrücklich beschreibende `reactions` außerhalb von `physics`; alte Reaktions-Overrides werden zurückgewiesen. Vorhandene Regeln/Tags/Mechanikmodule bleiben für Wirkungen zuständig. Physische Overrides wirken auf konkrete Körperparameter, Scheren-/Hamsterstoßschwellen, Glasbruch und Generatorstart; vorgefertigte Eimerkörper übernehmen Masse, Material-/Statik-/Sensor-/Trägheitsparameter und Größenänderung. Explizite Dichte bestimmt die Masse nur ohne explizites `massKg`, das Vorrang hat.
+- Der Lastseil-Spezialablauf benötigt `loadRope` mit `weightId` und `anchor`. Er verwendet die tatsächliche Gewichtshöhe, Körpermassen, bewegliche Routenpunkte und vorhandenen Boden. Mehrere Gewichtsgadgets stören seine Zuordnung nicht; mehr als ein Zugkörper in einer Route wird abgewiesen. Der Szenenanker und die erste Ball-/Gewichtsinstanz sind entfernt. Singuläre Körper und der anfängliche Zahnradabstandsgraph im Aufbau sind ausschließlich Darstellungszusammenfassungen; bei mehreren Exemplaren wird kein erster Körper gewählt.
+
+Direkte Level- und Formatänderungen:
+
+- Levels 7, 12, 13, 19 und 20 speichern die expliziten Tier-, Katapult-, Fisch- bzw. Triggerbeziehungen; Level 13 speichert zusätzlich die Glas-/Fischreferenz. `level.schema.json` und `docs/GADGETS.md` beschreiben diese Felder.
+- Level 7 verwendet Mogli jetzt als verschiebbaren `initialPlacements`-Startaufbau mit stabiler ID statt als anonymes Inventargadget. Dies ist nötig, weil das Spiel neue Inventargadgets mit zeitbasierten IDs erzeugt. Neue geprüfte Lösung: Mogli von `(400,130)` nach `(400,370)` verschieben; Joanne und Ausgang bleiben unverändert. Der Test verwendet absichtlich eine andere numerische Platzierungs-ID und die stabile `configId`. Keine Auswahl der ersten Maus und kein ID-Fallback.
+- Level 19 behält seine vorhandene Wippenlösung bei `(355,420)` und speichert den bisherigen Sonderimpuls `(8,-11)` ausdrücklich im Ablauf. Level 15 entfernt eine redundant zur expliziten Masse angegebene Dichte; sein Verhalten bleibt erhalten. Die anderen bisherigen gemeinsamen Szenariolösungen bleiben erhalten, einschließlich Level 20 mit Magnet `(600,180)` aus Schritt 2.
+- Gezielte notwendige Darstellungsänderungen betreffen Anker aus Leveldaten, Steuerseilmodus ohne Aktivierungslabel, Anschlussfortschritt und die Kennzeichnung beschreibender Wasserangaben. Keine allgemeine Renderer-Auslagerung dieser Stufe.
+
+Tatsächlich ausgeführte Abschlussprüfungen:
+
+- Vierzehn neue Tests in `tests/gadget-activation.test.mjs` verwenden `createSimulation` bzw. den gemeinsamen Szenariohelfer: umbenannte IDs, unabhängige Hamsterrad-/Riemenpaare, gemischte Riemen-/Zahnradnetze, getrennte Inseln und Wiederverbindung, fremdangetriebene Hamsterräder, frei platzierte/verschobene Scheren, unabhängige benannte Zugports und ihre Zielwirkungen, Renderer-/Artwork-unabhängigkeit, fachliche aktive Zustände, wirksame Stoß-/Bewegungs-/Eimer-/Dichte-Overrides, unabhängige Tierpaare und Fischzuordnungen, übersetzte Katapultszene, explizites Lastseilgewicht/Anker sowie Editor-Löschung und Datenfehler. Die Scheren-/Kontakt-/Anstoßprüfungen speisen ausgewählte Kontakte gezielt ein; sie sind keine manuelle Spielbedienung.
+- Bestehende Tests wurden direkt auf den neuen Vertrag umgestellt (keine Magnet-Migration, explizite Fischreferenz, eindeutige Darstellungssummaries und Lastseildaten). Der Level-1-Test speist jetzt einen tatsächlich schnellen Anstoß ein; danach prüft er reale Laufbandübertragung und Zielerfüllung.
+- `node --experimental-strip-types --test tests/*.test.mjs`: 212 bestanden, 0 fehlgeschlagen. Ausgabe: `outputs/step-4-tests.log`.
+- `node node_modules/typescript/bin/tsc -p tsconfig.next.json --noEmit --incremental false`: erfolgreich. Ausgabe: `outputs/step-4-typescript.log` (ohne Diagnostik).
+- `node node_modules/next/dist/bin/next build`: erfolgreich, einschließlich TypeScript und statischer Seitenerzeugung. Ausgabe: `outputs/step-4-build.log`.
+- `git diff --check`: keine Fehler. Keine manuelle Browserprüfung. Kein Commit oder Push.
+
+Konkrete Übergabe und Grenzen für Schritt 5:
+
+Die Runtime-Physik hängt nicht mehr an Szenenlabels, festen Tier-/Scheren-/Tor-IDs oder eingefrorenem Riemenstatus. Die verbleibenden `systems`-Hinweise, feste Render-IDs/-Labels, alten Szenenpräsentationszustände und Anfangs-Zahnradabstände betreffen weiterhin Darstellung. Schritt 5 soll die Renderer mit den vorhandenen Instanzzuständen verbinden, die verbleibenden `standalone`-Listen und Format-/Importthemen bereinigen, Handbuch und Dokumentation vollständig abgleichen und die Spiel-/Editorbedienung im Browser prüfen. Insbesondere Level 7 mit verschiebbarem Mogli, Mehrinstanzanimationen, Steuerseilgriffe, Datenanker der Lastseilroute und die erhaltenen Puzzlelösungen visuell prüfen. Die alte Kerzenanpassung im Validator bleibt planmäßig noch für die abschließende Formatbereinigung; die für Stufe 4 notwendige Magnetanpassung ist bereits entfernt.
+
+Der Lastseilablauf bleibt bewusst eine ausdrücklich konfigurierte einzelne Route mit einem Lastverbund und einem Zugkörper; er ist keine beliebige Seilnetz-Engine. Die neuen Beziehungen können in Level-JSON konfiguriert werden; diese Stufe ergänzt keine allgemeine Ablauf-UI. Intrinsische Runtime-Hooks werden bei `createSimulation` aus dem vollständigen Bauzustand vorbereitet; dynamisches Hinzufügen neuer Gadget-Arten während einer laufenden Simulation ist kein geprüfter Editorablauf. Reaktionshinweise sind keine Wirkungsversprechen für sämtliche Materialkombinationen. Kein Browser- oder vollständiger Handbuchabgleich ist als bereits ausgeführt zu verstehen.

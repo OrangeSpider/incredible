@@ -39,11 +39,9 @@ export class GadgetMechanics {
       const id = machinePlugin(bowl)!.instanceId;
       if (!this.bowlFish.has(id)) {
         const config = machine.config(id)!;
-        const specified = String(config.properties?.fishId ?? (id === "fish-bowl" ? "mr-blue" : ""));
-        const existing = machine.bodiesByType("fish").find(fish => {
-          const fishId = machinePlugin(fish)!.instanceId;
-          return ![...this.bowlFish.values()].includes(fishId) && (fishId === specified || (machine.state(fishId)?.state === "hidden" && distance(fish.position, bowl.position) < 70));
-        });
+        const specified = config.properties?.fishId;
+        const existing = typeof specified === "string" ? machine.body(specified) : null;
+        if (specified && (!existing || machine.state(String(specified))?.type !== "fish" || [...this.bowlFish.values()].includes(String(specified)))) throw new Error(`Invalid fish relation: ${id}`);
         const fishId = existing ? machinePlugin(existing)!.instanceId : `${id}:fish`;
         const fish = existing ?? machine.addGadget({ id: fishId, type: "fish", ...bowl.position, state: "hidden", properties: { bowlId: id } })!;
         if (machine.state(fishId)?.state === "hidden") { Matter.Body.setStatic(fish, true); fish.isSensor = true; fish.collisionFilter.mask = 0; }
@@ -74,7 +72,7 @@ export class GadgetMechanics {
 
   private strike(body: Matter.Body, velocity: Point) {
     const id = machinePlugin(body)?.instanceId, type = machinePlugin(body)?.type;
-    if (type === "generator" && id && Math.hypot(velocity.x, velocity.y) >= 1) {
+    if (type === "generator" && id && Math.hypot(velocity.x, velocity.y) >= (this.machine.physical(id)?.impactThreshold ?? 1)) {
       this.machine.state(id)!.properties.switchedOn = true;
       this.machine.setState(id, "running"); this.machine.setSignal(`generator.started.${id}`);
     }
@@ -97,18 +95,18 @@ export class GadgetMechanics {
       const movement = this.velocities.get(impact.id) ?? impact.velocity;
       if (plugin.type === "seesaw" && GADGET_CATALOG[machinePlugin(impact)?.type ?? "water"].tags.includes("falling-body") && Math.hypot(movement.x, movement.y) >= 1) applySeesawImpact(this.machine.matter, device, impact);
       const speed = Math.max(impact.speed, Math.hypot(movement.x, movement.y));
-      if (plugin.type === "fishBowl" && state.state === "intact" && impact.position.y < device.position.y && movement.y >= 4.5) {
+      if (plugin.type === "fishBowl" && state.state === "intact" && impact.position.y < device.position.y && movement.y >= Number(this.machine.config(plugin.instanceId)?.physics?.impactThreshold ?? GADGET_CATALOG[plugin.type].physics.impactThreshold ?? 4.5)) {
         this.breakBowl(device);
       }
-      if (speed < .8) continue;
       if (plugin.type === "generator") this.strike(device, { x: speed, y: 0 });
+      if (speed < .8) continue;
       const button = GADGET_CATALOG[plugin.type].electrical?.switch;
       if (button && state.state === "off") {
         const point = local(device, button), normal = bodyVector(device, { x: 0, y: 1 });
         const offset = { x: impact.position.x - point.x, y: impact.position.y - point.y };
         const radius = Math.max(impact.circleRadius || 0, (impact.bounds.max.x - impact.bounds.min.x) / 2);
         if (offset.x * normal.x + offset.y * normal.y < 0 && Math.abs(offset.x * normal.y - offset.y * normal.x) < radius + 9) {
-          this.machine.setState(plugin.instanceId, plugin.type === "switchFan" ? "running" : "on"); this.machine.setSignal(`switch.pressed.${plugin.instanceId}`);
+          this.machine.setState(plugin.instanceId, GADGET_CATALOG[plugin.type].electrical!.activeState); this.machine.setSignal(`switch.pressed.${plugin.instanceId}`);
         }
       }
       if (plugin.type === "detonator" && state.state === "ready") {
@@ -147,16 +145,16 @@ export class GadgetMechanics {
       const supply = GADGET_CATALOG[entity.type].electrical?.supply;
       if (supply !== "socket") continue;
       const powered = machine.connections.some(connection => connection.kind === "wire" && connection.targetId === entity.id && machine.state(connection.sourceId)?.type === "generator" && machine.state(connection.sourceId)?.state === "running");
-      machine.setState(entity.id, powered ? entity.type === "socketFan" ? "running" : "on" : "off");
+      machine.setState(entity.id, powered ? GADGET_CATALOG[entity.type].electrical!.activeState : "off");
     }
-    const fans = entities.filter(entity => GADGET_CATALOG[entity.type].tags.includes("air-source") && machine.state(entity.id)?.state === "running");
+    const fans = entities.filter(entity => GADGET_CATALOG[entity.type].tags.includes("air-source") && machine.state(entity.id)?.state === GADGET_CATALOG[entity.type].electrical?.activeState);
     for (const entity of entities) {
       const body = machine.body(entity.id); if (!body) continue;
       const wind = fans.reduce((sum, fan) => sum + airflowAt(machine.body(fan.id)!, body.position, obstacles), 0);
-      if (entity.type === "windmill") { machine.setState(entity.id, wind > .03 ? "running" : "idle"); Matter.Body.setAngularVelocity(body,wind*.12); machine.setSignal(`windmill.rotation.${entity.id}`, wind * .12); }
+      if (entity.type === "windmill") { machine.state(entity.id)!.properties.selfDriven=wind>.03;machine.setState(entity.id, wind > .03 ? "running" : "idle"); Matter.Body.setAngularVelocity(body,wind*.12); machine.setSignal(`windmill.rotation.${entity.id}`, wind * .12); }
       if (entity.type === "windmill" || GADGET_CATALOG[entity.type].tags.includes("air-source")) {
         const state = machine.state(entity.id)!;
-        const speed = state.state === "running" ? entity.type === "windmill" ? wind * .0072 : .018 : 0;
+        const speed = state.state === (GADGET_CATALOG[entity.type].electrical?.activeState ?? "running") ? entity.type === "windmill" ? wind * .0072 : .018 : 0;
         state.properties.rotorAngle = (Number(state.properties.rotorAngle ?? 0) + speed * dt) % (Math.PI * 2);
       }
       if (!body.isStatic && !body.isSensor && GADGET_CATALOG[entity.type].tags.some(tag => tag === "buoyant" || tag === "lightweight")) {
@@ -167,28 +165,40 @@ export class GadgetMechanics {
       }
     }
     // Recompute the connected drive network so disconnected receivers cannot stay powered.
-    const driven = new Set<string>(), queue = entities.filter(entity => GADGET_CATALOG[entity.type].tags.includes("rotational-source") && machine.state(entity.id)?.state === "running").map(entity => entity.id);
+    const driven = new Set<string>(), queue = entities.filter(entity => GADGET_CATALOG[entity.type].tags.includes("rotational-source") && machine.state(entity.id)?.state === "running" && (!this.beltDriven.has(entity.id) || machine.state(entity.id)?.properties.selfDriven===true)).map(entity => entity.id);
+    const roots = new Set(queue);
     const visited = new Set(queue);
+    const gears = entities.filter(entity => GADGET_CATALOG[entity.type].tags.includes("gear"));
     while (queue.length) {
       const source = queue.shift()!;
-      for (const connection of machine.connections.filter(item => item.kind === "belt")) {
+      const edges = machine.connections.filter(item => item.kind === "belt").flatMap(connection => {
         const target = connection.sourceId === source ? connection.targetId : connection.targetId === source ? connection.sourceId : null;
-        if (!target || visited.has(target) || !machine.state(target)) continue;
-        visited.add(target); driven.add(target); queue.push(target); machine.setState(target, "running");
-        const targetBody=machine.body(target); if(targetBody)Matter.Body.setAngularVelocity(targetBody,machine.body(source)?.angularVelocity||.08);
+        return target ? [{target, mesh:false}] : [];
+      });
+      if (gears.some(gear => gear.id === source)) for (const gear of gears) {
+        const distance = Math.hypot(machine.body(source)!.position.x - machine.body(gear.id)!.position.x, machine.body(source)!.position.y - machine.body(gear.id)!.position.y);
+        if (gear.id !== source && distance >= 70 && distance <= 98) edges.push({target:gear.id,mesh:true});
+      }
+      for (const {target,mesh} of edges) {
+        if (visited.has(target) || !machine.state(target)) continue;
+        visited.add(target); driven.add(target); queue.push(target); machine.setState(target,"running");
+        const targetBody = machine.body(target); if (targetBody) Matter.Body.setAngularVelocity(targetBody,(mesh ? -1 : 1)*(machine.body(source)?.angularVelocity || .08));
         machine.setSignal(`drive.transferred.${target}`);
+        if (mesh) machine.setSignal("gear.connected");
       }
     }
-    const receivers = new Set([...this.beltDriven, ...machine.connections.filter(item => item.kind === "belt").flatMap(item => [item.sourceId, item.targetId])]);
+    const receivers = new Set([...this.beltDriven, ...gears.map(gear=>gear.id), ...machine.connections.filter(item=>item.kind==="belt").flatMap(item=>[item.sourceId,item.targetId])]);
     for (const id of receivers) {
       const type = machine.state(id)?.type;
-      if (type && !GADGET_CATALOG[type].tags.includes("rotational-source") && !driven.has(id) && !(type === "generator" && machine.state(id)?.properties.switchedOn)) { machine.setState(id, "idle"); const body=machine.body(id);if(body)Matter.Body.setAngularVelocity(body,0); }
+      if (type && !roots.has(id) && !driven.has(id) && !(type === "generator" && machine.state(id)?.properties.switchedOn)) {
+        machine.setState(id,"idle"); const body = machine.body(id); if (body) Matter.Body.setAngularVelocity(body,0);
+      }
     }
     this.beltDriven = driven;
     // Consumers see a belt-driven generator's updated power in this same step.
     for (const entity of entities.filter(entity => GADGET_CATALOG[entity.type].electrical?.supply === "socket")) {
       const powered = machine.connections.some(connection => connection.kind === "wire" && connection.targetId === entity.id && machine.state(connection.sourceId)?.type === "generator" && machine.state(connection.sourceId)?.state === "running");
-      machine.setState(entity.id, powered ? entity.type === "socketFan" ? "running" : "on" : "off");
+      machine.setState(entity.id, powered ? GADGET_CATALOG[entity.type].electrical!.activeState : "off");
     }
     for (const [id, hit] of this.punches) {
       const glove = machine.body(id)!, age = machine.stateAgeMs(id) ?? 0; if (age > 300) continue;
@@ -209,9 +219,10 @@ export class GadgetMechanics {
     const machine = this.machine;
     this.lights = machine.entities().flatMap(entity => {
       const body = machine.body(entity.id); if (!body) return [];
-      if (GADGET_CATALOG[entity.type].tags.includes("light-source") && entity.state === "on") return [{
-        ...local(body, GADGET_CATALOG[entity.type].appearance.renderer === "flashlight" ? { x: 38, y: 0 } : { x: 0, y: -20 }), id: entity.id,
-        radius: GADGET_CATALOG[entity.type].appearance.renderer === "flashlight" ? 360 : 260, intensity: 1, angle: GADGET_CATALOG[entity.type].appearance.renderer === "flashlight" ? Math.atan2(bodyVector(body, {x:1,y:0}).y,bodyVector(body, {x:1,y:0}).x) : undefined,
+      const light = GADGET_CATALOG[entity.type].light;
+      if (light && entity.state === light.activeState) return [{
+        ...local(body, light.local), id: entity.id, radius: light.radius, intensity: light.intensity,
+        angle: light.directional ? Math.atan2(bodyVector(body,{x:1,y:0}).y,bodyVector(body,{x:1,y:0}).x) : undefined,
       }];
       if (entity.type === "candle" && entity.state === "burning") return [{ ...local(body, candleFlameLocal(machine.config(entity.id)!)), id: entity.id, radius: 110, intensity: .45 }];
       return [];

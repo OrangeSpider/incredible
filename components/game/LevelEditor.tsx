@@ -114,7 +114,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
       if (!port) { setMessage("Klicke einen Griff, optional Umlenkrollen und zuletzt einen Zugpunkt."); return; }
       const next = advanceRopeDraft(pendingRope, port, draft.controlRopes ?? [], Infinity);
       setPendingRope(next.pending);
-      if (next.connection) { change({ ...draft, systems: [...new Set([...draft.systems, "tension-rope"])], controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(controlRopeKey(next.connection)); if (!event.shiftKey) setTool(null); }
+      if (next.connection) { change({ ...draft, controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(controlRopeKey(next.connection)); if (!event.shiftKey) setTool(null); }
       return;
     }
     if (tool === "wire" || tool === "belt") {

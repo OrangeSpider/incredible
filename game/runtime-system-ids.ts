@@ -1,4 +1,4 @@
-/** Stable capability names accepted by level JSON. Some run in the engine, others in the game runtime. */
+/** Accepted presentation labels in existing level JSON. Gadget activation comes from definitions; scene relationships are explicit data. */
 export const RUNTIME_SYSTEM_IDS = [
   "hamster-drive", "conveyor", "animal-support", "buoyancy", "fire", "fan-airflow",
   "trampoline", "pulley-rope", "rope-rendering", "sharp-objects", "cat-mouse",

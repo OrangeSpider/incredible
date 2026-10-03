@@ -75,12 +75,33 @@ export class MachinePhysicsEngine{
         Matter.Body.setAngle(assembly.bucket, config.rotation ?? 0);
         for (const drop of assembly.water) { const dx=drop.position.x-config.x,dy=drop.position.y-config.y,a=-(config.rotation??0); const at={x:dx*Math.cos(a)-dy*Math.sin(a),y:dx*Math.sin(a)+dy*Math.cos(a)}; Matter.Body.setPosition(drop,localPoint(config,at)); }
       }
+      if (config.physics?.width!==undefined || config.physics?.height!==undefined) {
+        const sx=(config.physics.width??76)/76,sy=(config.physics.height??64)/64;
+        Matter.Body.setAngle(assembly.bucket,0);Matter.Body.scale(assembly.bucket,sx,sy,{x:config.x,y:config.y});Matter.Body.setAngle(assembly.bucket,config.rotation??0);
+        const a=-(config.rotation??0);
+        for(const drop of assembly.water){const dx=drop.position.x-config.x,dy=drop.position.y-config.y,x=(dx*Math.cos(a)-dy*Math.sin(a))*sx,y=(dx*Math.sin(a)+dy*Math.cos(a))*sy;const r=config.rotation??0;Matter.Body.setPosition(drop,{x:config.x+x*Math.cos(r)-y*Math.sin(r),y:config.y+x*Math.sin(r)+y*Math.cos(r)});}
+      }
       if(config.physics?.isStatic===false)Matter.Body.setStatic(assembly.bucket,false);
       const bucket=this.addGadget(config,assembly.bucket);
       assembly.water.forEach((drop,index)=>this.addGadget({id:`${config.id}:water:${index}`,type:"water",x:drop.position.x,y:drop.position.y},drop));
       return bucket;
     }
     const definition=getGadgetDefinition(config.type),body=providedBody??createGadgetBody(config),entry:RuntimeEntry={config,body,stateEnteredAtMs:this.elapsedMs,state:{id:config.id,type:config.type,state:config.state??definition.defaultState,role:config.role,properties:{...(config.properties??{})}}};
+    if (providedBody && config.physics) {
+      const p=config.physics, wasStatic=providedBody.isStatic;
+      Matter.Body.setStatic(providedBody,false);
+      for (const part of providedBody.parts) {
+        if(p.friction!==undefined)part.friction=p.friction;
+        if(p.staticFriction!==undefined)part.frictionStatic=p.staticFriction;
+        if(p.airFriction!==undefined)part.frictionAir=p.airFriction;
+        if(p.restitution!==undefined)part.restitution=p.restitution;
+        if(p.isSensor!==undefined)part.isSensor=p.isSensor;
+      }
+      if (p.massKg!==undefined) Matter.Body.setMass(providedBody,p.massKg);
+      else if(p.density!==undefined) Matter.Body.setDensity(providedBody,p.density);
+      if (p.inertiaLocked!==undefined) Matter.Body.setInertia(providedBody,p.inertiaLocked?Infinity:providedBody.inertia);
+      Matter.Body.setStatic(providedBody,p.isStatic??wasStatic);
+    }
     if(providedBody)providedBody.plugin={...providedBody.plugin,machine:{instanceId:config.id,flipX:config.flipX,flipY:config.flipY,type:config.type,state:entry.state.state,role:config.role,properties:entry.state.properties}};
     this.entries.set(config.id,entry);
     if(body){
@@ -102,6 +123,7 @@ export class MachinePhysicsEngine{
   bodiesByType(type:GadgetInstanceConfig["type"]){return [...this.entries.values()].filter(entry=>entry.config.type===type).flatMap(entry=>entry.body?[entry.body]:[])}
   state(id:string){return this.entries.get(id)?.state??null}
   stateAgeMs(id:string){const entry=this.entries.get(id);return entry?this.elapsedMs-entry.stateEnteredAtMs:null}
+  physical(id:string){const config=this.config(id);return config?{...getGadgetDefinition(config.type).physics,...config.physics,...(config.physics?.density!==undefined&&config.physics.massKg===undefined?{massKg:config.physics.density*(this.body(id)?.area??0)}:{})}:null}
   animation(id:string){const entry=this.entries.get(id);return entry?resolveGadgetAnimation(entry.config.type,entry.state.state,this.elapsedMs-entry.stateEnteredAtMs):null}
   allStates(){return [...this.entries.values()].map(entry=>({...entry.state,properties:{...entry.state.properties}}))}
   entities(){return [...this.entries.values()].map(entry=>({
@@ -146,7 +168,7 @@ export class MachinePhysicsEngine{
     const a=this.bodyEntries.get(bodyA.id),b=this.bodyEntries.get(bodyB.id);if(!a||!b)return;
     this.recordEvent({name:"contact",sourceId:a.config.id,targetId:b.config.id});
     const relativeVelocity={x:bodyA.velocity.x-bodyB.velocity.x,y:bodyA.velocity.y-bodyB.velocity.y},impactSpeed=Math.max(bodyA.speed,bodyB.speed,Math.hypot(relativeVelocity.x,relativeVelocity.y));
-    for(const interaction of resolveInteractions(a.config.type,b.config.type,"collision",{impactSpeed,sourceX:bodyA.position.x,sourceY:bodyA.position.y,targetX:bodyB.position.x,targetY:bodyB.position.y,sourceState:a.state.state,targetState:b.state.state,relativeVelocity,collisionNormal:normal})) { if (interaction.rule.execution !== undefined) continue; this.applyInteraction(interaction,a,b,bodyA,bodyB); }
+    for(const interaction of resolveInteractions(a.config.type,b.config.type,"collision",{impactSpeed,sourceImpactThreshold:this.physical(a.config.id)?.impactThreshold,targetImpactThreshold:this.physical(b.config.id)?.impactThreshold,sourceX:bodyA.position.x,sourceY:bodyA.position.y,targetX:bodyB.position.x,targetY:bodyB.position.y,sourceState:a.state.state,targetState:b.state.state,relativeVelocity,collisionNormal:normal})) { if (interaction.rule.execution !== undefined) continue; this.applyInteraction(interaction,a,b,bodyA,bodyB); }
   }
 
   resolve(sourceId:string,targetId:string,trigger:"proximity"|"connection"|"tension"|"continuous"|"state-change",kinematics?:Partial<{impactSpeed:number;relativeVelocity:{x:number;y:number}}>) {

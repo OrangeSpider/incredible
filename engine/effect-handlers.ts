@@ -49,7 +49,7 @@ export function createDefaultEffectRegistry(): EffectRegistry {
     registry.register(effect, () => {});
   }
 
-  registry.register("start", setTargetState("running"));
+  registry.register("start", context => { if (context.source.body && !context.source.body.isStatic) { context.target.state.properties.selfDriven=true;setTargetState("running")(context); } });
   registry.register("pop", setTargetState("popped"));
   registry.register("close", context => { if (!context.source.body?.isStatic) setTargetState("closed")(context); });
   registry.register("break", setTargetState("broken"));

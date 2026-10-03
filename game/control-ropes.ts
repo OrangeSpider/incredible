@@ -101,21 +101,21 @@ export class ControlRopeMechanism {
     return points.every(point=>point)?points as Point[]:null;
   }
 
-  step(trigger: (targetId: string) => void) {
+  step(trigger: (targetId: string, targetPortId: string) => void) {
     for (const rope of this.ropes) {
       const points = this.points(rope.definition);
       if (!points) continue;
       rope.points = points;
       if (rope.triggered) continue;
       rope.blocked = this.blocked(points);
-      if (rope.blocked) { rope.progress = 0; const state=this.machine.state(rope.definition.targetId);if(state)state.properties.handleProgress=0; continue; }
+      if (rope.blocked) { rope.progress = 0; const state=this.machine.state(rope.definition.targetId);if(state)state.properties[`handleProgress:${rope.definition.targetPortId}`]=0; continue; }
       const state = this.machine.state(rope.definition.targetId);
-      if ((state?.type === "scissor" && state.state === "closed") || (state?.type === "snapGate" && state.state === "open")) { rope.triggered = true; continue; }
       rope.progress = Math.max(0, Math.min(1, (pathLength(points) - rope.restLength) / HANDLE_TRAVEL));
-      if (state) state.properties.handleProgress = rope.progress;
+      if (state) state.properties[`handleProgress:${rope.definition.targetPortId}`] = rope.progress;
       if (rope.progress >= 1) {
         rope.triggered = true;
-        trigger(rope.definition.targetId);
+        trigger(rope.definition.targetId, rope.definition.targetPortId);
+        this.machine.setSignal(`rope.pulled.${controlRopeKey(rope.definition)}`);
         this.machine.setSignal(`rope.pulled.${rope.definition.targetId}`);
       }
     }

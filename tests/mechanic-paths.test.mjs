@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import Matter from 'matter-js';
 import {createScenario,loadLevel} from './helpers/machine-scenario.mjs';
-const level = gadgets => ({...loadLevel(20),floor:false,systems:['scissors','seesaw','catapult','seesaw-launch','trampoline'],fixedGadgets:gadgets,goal:{kind:'signal',name:'never'}});
+const level = gadgets => ({...loadLevel(20),floor:false,animalChases:[],systems:['scissors','seesaw','catapult','seesaw-launch','trampoline'],fixedGadgets:gadgets,goal:{kind:'signal',name:'never'}});
 const contact=(machine,a,b)=>Matter.Events.trigger(machine.matter,'collisionStart',{pairs:[{bodyA:machine.body(a),bodyB:machine.body(b),collision:{normal:{x:0,y:1}}}]});
 
 test('independent cannon ignition registers each projectile for type, tag and id selectors',()=>{

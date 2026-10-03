@@ -26,7 +26,7 @@ import GadgetSelection from "./GadgetSelection";
 import { hitGadget } from "@/levels/authoring";
 import { initialPlacements, initialConnections, remainingInventory } from "./placements";
 
-const ROPE_ANCHOR = { x: 92, y: 64 };
+
 
 function readScores(): ScoreEntry[] {
   try { return JSON.parse(localStorage.getItem("machine-scores") || "[]") as ScoreEntry[]; }
@@ -41,6 +41,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   const [name, setName] = useState(onExitTest ? "Level-Test" : "");
   const [draft, setDraft] = useState("");
   const [level, setLevel] = useState<LevelDefinition>(initialLevel);
+  const ROPE_ANCHOR = level.loadRope?.anchor ?? {x:0,y:0};
   const [folderLevels, setFolderLevels] = useState<LevelDefinition[] | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [customLevel, setCustomLevel] = useState<LevelDefinition | null>(null);
@@ -146,7 +147,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
       if (pendingConnection) return;
     }
 
-    if (selected === "rope" && level.systems.includes("tension-rope")) {
+    if (selected === "rope" && !level.loadRope) {
       const limit = (level.inventory.find(entry => entry.type === "rope")?.count ?? 0) + (level.controlRopes ?? []).length;
       const ports = ropePorts([...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))]);
       const port = ports.map(port => ({ port, distance: Math.hypot(port.x - point.x, port.y - point.y) }))
@@ -171,7 +172,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
       // An ordinary click outside a port can still select and move a part.
     }
 
-    if (selected === "rope" && level.systems.includes("pulley-rope")) {
+    if (selected === "rope" && !!level.loadRope) {
       const candidates: Array<[number, RopeNode]> = [];
       if (!ropePath.some((node) => node.kind === "anchor")) candidates.push([Math.hypot(point.x - ROPE_ANCHOR.x, point.y - ROPE_ANCHOR.y), { kind: "anchor" }]);
       for (const part of placed) {
@@ -256,9 +257,9 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
   const rotateSelected = (direction: -1 | 1) => setPlaced((items) => items.map((part) => part.id === selectedId ? { ...part, rotation: part.rotation + direction * Math.PI / 12 } : part));
 
   const ropeAnalysis = analyzePulleyRoute(ropePath.map((node) => node.kind === "anchor" ? "anchor" : routeKindForPart(placed.find((part) => part.id === node.placedId)?.type ?? "rope")).filter((kind): kind is PulleyRouteKind => kind !== null));
-  const tip = selected === "rope" && level.systems.includes("pulley-rope")
+  const tip = selected === "rope" && !!level.loadRope
     ? ropePath.length ? ropeAnalysis.tensioned ? "Festpunkt und Kugel bilden die beiden gespannten Enden. Weitere Punkte öffnen den Verlauf wieder." : "Klicke weitere Anschlüsse oder starte auch mit offenen Enden." : "Beginne an einem beliebigen grünen Anschluss – der Festpunkt ist optional."
-    : selected === "rope" && level.systems.includes("tension-rope")
+    : selected === "rope" && !level.loadRope
       ? pendingScissor === null ? "Griff oder Riegel anklicken, bei Bedarf über Rollen führen, dann am Zugpunkt befestigen. Zum Entfernen das Seil auswählen und ENTFERNEN drücken." : "Klicke weitere Rollen oder schließe am Wippenende, Ballon oder einer Kugel ab. Esc bricht ab."
       : selected === "wire" || selected === "belt" ? pendingConnection ? "Klicke den zweiten passenden Anschluss. Esc bricht ab." : selected === "wire" ? "Klicke STROM am Generator und dann STECKDOSE am Verbraucher." : "Verbinde zwei grüne ANTRIEB-Anschlüsse. Am Laufband kannst du beide Räder wählen."
         : selectedRope || selectedConnection ? "Verbindung ausgewählt. ENTFERNEN gibt sie ins Inventar zurück." : level.hint;

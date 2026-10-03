@@ -96,7 +96,7 @@ test("missing or wrong attachment IDs are rejected by import and shared simulati
 test("multiple named handles and guides retain their identities on disconnect and reconnect", t => {
   const originalGate=GADGET_CATALOG.snapGate.ports, originalPulley=GADGET_CATALOG.pulley.ports;
   t.after(()=>{GADGET_CATALOG.snapGate.ports=originalGate;GADGET_CATALOG.pulley.ports=originalPulley});
-  GADGET_CATALOG.snapGate.ports=()=>["upper","lower"].map((id,i)=>({id,kind:"target",local:{x:16,y:i*30},label:id}));
+  GADGET_CATALOG.snapGate.ports=()=>["upper","lower"].map((id,i)=>({id,kind:"target",action:"open",local:{x:16,y:i*30},label:id}));
   GADGET_CATALOG.pulley.ports=()=>["front","back"].map((id,i)=>({id,kind:"guide",local:{x:0,y:i*20},label:id}));
   const level={...newLevel(),fixedGadgets:[{id:"gate",type:"snapGate",x:100,y:100},
     {id:"guide",type:"pulley",x:200,y:120,rotation:.5,flipY:true}, {id:"ball",type:"basketball",x:300,y:200}]};
@@ -129,6 +129,7 @@ test("level 1 drive connection is explicit and remains solvable without a placed
     const validated=validateLevel(JSON.parse(JSON.stringify({...level,connections:[connection]})));
     const {machine,runtime}=setup(t,validated);
     machine.addGadget({id:"impact",type:"ball",x:100,y:100});
+    Matter.Body.setVelocity(machine.body("impact"),{x:3,y:0});
     machine.processCollision(machine.body("impact"),machine.body("louis-wheel"),{x:1,y:0});
     for(let i=0;i<300;i++)runtime.tick((i+1)*1000/60,1000/60);
     assert.equal(machine.state("conveyor").state,"running");

@@ -22,10 +22,10 @@ export function createGadgetBody(instance:GadgetInstanceConfig):Matter.Body|null
     inertia:properties.inertiaLocked?Infinity:undefined,
     label:instance.collisionLabel??instance.type,
   };
-  const body=properties.shape==="circle"||("radius" in properties&&properties.radius!==undefined)
+  const body=properties.shape==="circle"||(properties.shape==="sensor"&&properties.radius!==undefined)
     ?Matter.Bodies.circle(instance.x,instance.y,properties.radius??25,options)
     :Matter.Bodies.rectangle(instance.x,instance.y,properties.width??50,properties.height??50,properties.shape==="compound"?{...options,chamfer:{radius:4}}:options);
-  Matter.Body.setMass(body,Math.max(.0001,properties.massKg));
+  Matter.Body.setMass(body,Math.max(.0001,instance.physics?.density !== undefined && instance.physics.massKg === undefined ? instance.physics.density*body.area : properties.massKg));
   body.plugin={...body.plugin,machine:{instanceId:instance.id,flipX:instance.flipX,flipY:instance.flipY,type:instance.type,state:instance.state??definition.defaultState,role:instance.role,properties:{...(instance.properties??{})}}};
   // Bodies are deliberately created dynamic first. Matter can then restore their
   // original mass when a level later releases a tethered/static gadget.

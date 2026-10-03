@@ -25,7 +25,6 @@
         "width": 26,
         "height": 68,
         "massKg": 0.85,
-        "density": 0.002,
         "friction": 0,
         "staticFriction": 0,
         "airFriction": 0.012,

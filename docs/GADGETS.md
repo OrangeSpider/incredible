@@ -80,3 +80,29 @@ Steuerseile speichern ebenfalls Anschlussidentitäten statt lokaler Koordinaten:
 ```
 
 `engine/gadget-ports.ts` löst die im Gadget-Katalog beschriebenen lokalen Punkte bei jeder Verwendung auf. `rope-end` stellt automatisch `pull` bereit; besondere Geometrien und mehrere benannte Anschlüsse werden über `ports` in der Gadget-Definition angegeben. Fehlende Anschluss-IDs werden abgewiesen. Riemen verbinden zwei `drive`-Ports, Stromleitungen führen von `power` nach `socket`, Steuerseile führen von `handle` über Rollen zum Zugpunkt. Rotation, Spiegelung und Größenänderung erhalten die gespeicherte Anschlussidentität.
+
+## Aktivierung und Instanzbeziehungen (Stufe 4)
+
+Gadget-Definitionen liefern über `mechanics` die benötigten Runtime-Hooks. Die räumlichen Engine-Mechaniken und deklarativen Regeln arbeiten ohnehin für alle registrierten Instanzen. `level.systems` schaltet keine Physik ein; die vorhandenen Labels dienen bis zur Darstellungsbereinigung noch der Szenenpräsentation. Neue Editorlevels starten mit einer leeren Liste. Der Validator ergänzt keine Magnet-Systemlabels.
+
+Explizite Szenenabläufe speichern ihre Beziehungen direkt:
+
+```json
+"animalChases": [{"catId":"cat","mouseId":"mouse","exitId":"hole","gateId":"gate"}],
+"catapults": [{"catId":"cat","mouseId":"mouse","seesawId":"lever","platformId":"platform","exitId":"hole"}],
+"fishChases": [{"catId":"cat","fishId":"fish"}],
+"seesawLaunches": [{"impactId":"impact","triggerId":"trigger","velocity":{"x":8,"y":-11}}],
+"loadRope": {"weightId":"load","anchor":{"x":92,"y":64}}
+```
+
+Die Felder sind optional; `gateId` ist ebenfalls optional. Die Start-/Zielgeometrie kommt aus den zugeordneten Körpern. `seesawLaunches.velocity` ist ein ausdrücklich konfigurierter Weltimpuls des Spezialablaufs. Jede Tierpaarung bzw. Katapult-/Auslösefolge besitzt eigenen Fortschritt. Verweise müssen die richtige Gadget-Art adressieren; ein verschiebbarer Startaufbau in `initialPlacements` behält seine ID. Es gibt keine automatische Wahl des ersten Tiers oder ein stilles Erraten einer Zuordnung.
+
+Eine Schere speichert `properties.balloon` als explizite Ballon-ID und funktioniert auch ohne Ballonzuordnung als Schere. Ein Glas kann über `properties.fishId` einen vorhandenen Fisch zuordnen; ohne Angabe erzeugt es seinen eigenen Fisch mit der ID `<glas-id>:fish`. Ein vorhandener Fisch wird nicht anhand seiner Nähe oder seines Namens zugeordnet. Ein Fisch darf nur einem Glas gehören. Der Editor entfernt Beziehungen zu gelöschten Instanzen.
+
+Steuerseil-Zielports definieren ihre Wirkung mit `action: "close" | "open"`. Der Zugcallback erhält die vollständige Zielanschlussidentität. Fortschritt liegt unter `handleProgress:<portId>`, Zugereignisse unter `rope.pulled.<portKey>`; die Seilzustände bleiben voneinander unabhängig. Die bisherigen Geräte besitzen jeweils einen gemeinsamen Schließ-/Öffnungszustand. Mehrere Ports können dieselbe Gerätelatch betätigen, ohne ihre Zugfortschritte zusammenzulegen.
+
+`light` beschreibt lokale Emission, Reichweite, Intensität, Richtungslicht und aktiven Zustand. `electrical.activeState` beschreibt den Betriebszustand eines Verbrauchers. Renderernamen und Artwork beeinflussen diese Physik nicht. `reactions` sind ausdrücklich beschreibende Kataloghinweise, keine konfigurierbaren Wirkungen. Reaktionen werden durch vorhandene Regeln, Tags und fachliche Mechanikmodule umgesetzt. Alte `waterReaction`, `fireReaction` oder `impactReaction` in `physics` werden abgewiesen.
+
+`physics` enthält Körperparameter und tatsächlich verwendete Stoßschwellen. `impactThreshold` wirkt auf Scheren-/Hamsterradkontaktregeln sowie Glasbruch und Generatorstart. Masse, Reibung, Restitution, Sensor-/Statikzustand und Trägheit werden auch bei vorgefertigten Körpern angewendet; Eimer bleiben offene zusammengesetzte Körper und unterstützen Breiten-/Höhenskalierung. Eine ausdrücklich angegebene `density` berechnet die Masse aus der Fläche, sofern kein ausdrückliches `massKg` vorliegt; `massKg` hat Vorrang. Schwerkraftfaktor, Auftrieb und Geschwindigkeitsgrenze bleiben die vorhandenen Engine-Parameter. Der Levelvalidator prüft Feldnamen und Werte; eine zusätzliche Reaktionssprache gibt es nicht.
+
+Riemen und Zahnradkontakt bilden einen bei jedem Schritt neu berechneten Antriebsgraphen. Nur aktive Eigenantriebe speisen ihn. Getrennte Empfänger und ganze abgetrennte Zahnradinseln werden inaktiv; Wiederverbindung stellt die Übertragung wieder her. Stromleitungen werden weiterhin separat aus den Generatorzuständen ausgewertet. Lastseilrouten behalten ihr eigenes Modell mit einem ausdrücklich ausgewählten Gewicht und genau einem Zugkörper; Anker, Ausgangshöhe und Massen kommen aus den Daten bzw. registrierten Körpern.

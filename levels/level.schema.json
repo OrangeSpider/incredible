@@ -21,6 +21,11 @@
     "floor":{"type":"boolean","default":true},
     "controlRopes":{"type":"array","items":{"type":"object","required":["targetId","guides","source","targetPortId"],"properties":{"targetId":{"type":"string","minLength":1},"guides":{"type":"array","items":{"type":"object","required":["gadgetId","portId"],"properties":{"gadgetId":{"type":"string","minLength":1},"portId":{"type":"string","minLength":1}},"additionalProperties":false},"uniqueItems":true},"source":{"type":"object","required":["gadgetId","portId"],"properties":{"gadgetId":{"type":"string","minLength":1},"portId":{"type":"string","minLength":1}},"additionalProperties":false},"targetPortId":{"type":"string","minLength":1}},"additionalProperties":false}},
     "connections":{"type":"array","items":{"type":"object","required":["id","kind","sourceId","targetId","sourcePortId","targetPortId"],"properties":{"id":{"type":"string","minLength":1},"kind":{"enum":["wire","belt"]},"sourceId":{"type":"string","minLength":1},"targetId":{"type":"string","minLength":1},"sourcePortId":{"type":"string","minLength":1},"targetPortId":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "animalChases":{"type":"array","items":{"type":"object","required":["catId","mouseId","exitId"],"properties":{"catId":{"type":"string","minLength":1},"mouseId":{"type":"string","minLength":1},"exitId":{"type":"string","minLength":1},"gateId":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "catapults":{"type":"array","items":{"type":"object","required":["catId","mouseId","seesawId","platformId","exitId"],"properties":{"catId":{"type":"string","minLength":1},"mouseId":{"type":"string","minLength":1},"seesawId":{"type":"string","minLength":1},"platformId":{"type":"string","minLength":1},"exitId":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "fishChases":{"type":"array","items":{"type":"object","required":["catId","fishId"],"properties":{"catId":{"type":"string","minLength":1},"fishId":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "seesawLaunches":{"type":"array","items":{"type":"object","required":["impactId","triggerId","velocity"],"properties":{"impactId":{"type":"string","minLength":1},"triggerId":{"type":"string","minLength":1},"velocity":{"$ref":"#/$defs/point"}},"additionalProperties":false}},
+    "loadRope":{"type":"object","required":["weightId","anchor"],"properties":{"weightId":{"type":"string","minLength":1},"anchor":{"$ref":"#/$defs/point"}},"additionalProperties":false},
     "systems":{"type":"array","items":{"type":"string"},"uniqueItems":true},
     "goal":{"oneOf":[{"$ref":"#/$defs/legacyGoal"},{"$ref":"#/$defs/goal"}]}
   },
@@ -29,6 +34,7 @@
     {"if":{"properties":{"schemaVersion":{"const":2}}},"then":{"properties":{"goal":{"$ref":"#/$defs/goal"}}}}
   ],
   "$defs":{
+    "point":{"type":"object","required":["x","y"],"properties":{"x":{"type":"number"},"y":{"type":"number"}},"additionalProperties":false},
     "gadgetInstances":{"type":"array","items":{"type":"object","required":["id","type","x","y"],"properties":{"id":{"type":"string"},"type":{"type":"string"},"x":{"type":"number"},"y":{"type":"number"},"rotation":{"type":"number"},"flipX":{"type":"boolean","default":false},"flipY":{"type":"boolean","default":false},"state":{"type":"string"},"role":{"type":"string"},"tags":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"collisionLabel":{"type":"string"},"physics":{"type":"object"},"properties":{"type":"object"}},"additionalProperties":false}},
     "selector":{"type":"object","minProperties":1,"properties":{"id":{"type":"string","minLength":1},"type":{"type":"string","minLength":1},"tag":{"type":"string","minLength":1},"role":{"type":"string","minLength":1}},"additionalProperties":false},
     "comparison":{"enum":["equals","above","below","atLeast","atMost"]},

@@ -46,7 +46,7 @@ test("multiple editor fishbowls release one fish each and their invisible bodies
   advance(m,500);assert.equal(m.bodiesByType("fish").length,2);m.destroy();
 });
 test("existing level fish is reused and slow or upward impacts do not break a bowl",()=>{
-  const m=new MachinePhysicsEngine();m.addGadget({id:"fish-bowl",type:"fishBowl",x:300,y:300});m.addGadget({id:"mr-blue",type:"fish",x:300,y:300});
+  const m=new MachinePhysicsEngine();m.addGadget({id:"fish-bowl",type:"fishBowl",x:300,y:300,properties:{fishId:"mr-blue"}});m.addGadget({id:"mr-blue",type:"fish",x:300,y:300});
   m.addGadget({id:"ball",type:"ball",x:300,y:228});m.step(16);assert.equal(m.state("fish-bowl").state,"intact");assert.equal(m.bodiesByType("fish").length,1);
   Matter.Body.setPosition(m.body("ball"),{x:300,y:240});Matter.Body.setVelocity(m.body("ball"),{x:0,y:-7});m.step(16);assert.equal(m.state("fish-bowl").state,"intact");m.destroy();
 });

@@ -30,6 +30,8 @@ export type InteractionRule={
 
 export type InteractionKinematics={
   impactSpeed:number;
+  sourceImpactThreshold?:number;
+  targetImpactThreshold?:number;
   sourceX:number;
   sourceY:number;
   targetX:number;
@@ -52,7 +54,7 @@ export const INTERACTION_RULES:InteractionRule[]=[
   {id:"fire-pops-balloon",execution:"spatial",source:{tags:["fire-source"]},target:{tags:["balloon"]},trigger:"collision",effect:"pop",description:"Direkter Flammenkontakt zerstört die Ballonhülle.",sourceStates:["burning"],signal:"balloon.popped"},
   {id:"cat-mouse",source:{tags:["cat"]},target:{tags:["prey"]},trigger:"proximity",effect:"flee",description:"Mogli flieht, wenn Joanne ungefähr auf gleicher Höhe ist.",maxVerticalDistance:35,maxDistance:700,direction:"opposite-target",signal:"mouse.fleeing"},
   {id:"fish-attracts-cat",source:{tags:["cat-attractor"]},target:{tags:["cat"]},trigger:"proximity",effect:"chase",description:"Joanne läuft zu einem sichtbaren, zappelnden Mr. Blue.",sourceStates:["flopping"],maxVerticalDistance:70,maxDistance:700,direction:"opposite-target",signal:"cat.chasing"},
-  {id:"gear-mesh",source:{tags:["gear"]},target:{tags:["gear"]},trigger:"proximity",effect:"transfer-rotation",description:"Zahnräder im passenden Achsabstand drehen sich entgegengesetzt.",sourceStates:["running"],minDistance:70,maxDistance:98,direction:"clockwise-inverted",signal:"gear.connected"},
+  {id:"gear-mesh",execution:"spatial",source:{tags:["gear"]},target:{tags:["gear"]},trigger:"proximity",effect:"transfer-rotation",description:"Zahnräder im passenden Achsabstand drehen sich entgegengesetzt.",sourceStates:["running"],minDistance:70,maxDistance:98,direction:"clockwise-inverted",signal:"gear.connected"},
   {id:"rope-fixed-pulley",source:{tags:["tension-only"]},target:{tags:["fixed-pulley"]},trigger:"connection",effect:"transfer-tension",description:"Eine Festrolle lenkt Zugkraft um, ohne ihre Achse zu bewegen."},
   {id:"rope-moving-pulley",source:{tags:["tension-only"]},target:{tags:["moving-pulley"]},trigger:"tension",effect:"transfer-tension",description:"Tragende Seilabschnitte teilen Zugkraft und bewegen die lose Rolle."},
   {id:"trampoline-bounce",source:{tags:["falling-body"]},target:{tags:["bounce-surface"]},trigger:"collision",effect:"bounce",description:"Der Impuls wird an der gedrehten Trampolinnormalen nach oben umgelenkt.",minImpactSpeed:1,requiresSourceAbove:true,direction:"contact-normal",impulseScale:1.5},
@@ -77,7 +79,7 @@ export const matchesGadget=(definition:GadgetDefinition,selector:GadgetSelector)
 const conditionMatches=(rule:InteractionRule,kinematics:InteractionKinematics)=>
   (rule.sourceStates===undefined||kinematics.sourceState===undefined||rule.sourceStates.includes(kinematics.sourceState))&&
   (rule.targetStates===undefined||kinematics.targetState===undefined||rule.targetStates.includes(kinematics.targetState))&&
-  (rule.minImpactSpeed===undefined||kinematics.impactSpeed>=rule.minImpactSpeed)&&
+  (rule.minImpactSpeed===undefined||kinematics.impactSpeed>=(kinematics.targetImpactThreshold??rule.minImpactSpeed))&&
   (!rule.requiresSourceAbove||kinematics.sourceY<kinematics.targetY)&&
   (rule.maxVerticalDistance===undefined||Math.abs(kinematics.sourceY-kinematics.targetY)<=rule.maxVerticalDistance)&&
   (rule.minDistance===undefined||Math.hypot(kinematics.sourceX-kinematics.targetX,kinematics.sourceY-kinematics.targetY)>=rule.minDistance)&&
@@ -88,7 +90,7 @@ export function resolveInteractions(sourceType:GadgetType,targetType:GadgetType,
   for(const rule of INTERACTION_RULES){
     if(rule.trigger!==trigger)continue;
     if(matchesGadget(source,rule.source)&&matchesGadget(target,rule.target)&&conditionMatches(rule,kinematics))resolved.push({rule,source,target,reversed:false});
-    else if(matchesGadget(target,rule.source)&&matchesGadget(source,rule.target)&&conditionMatches(rule,{...kinematics,sourceX:kinematics.targetX,sourceY:kinematics.targetY,targetX:kinematics.sourceX,targetY:kinematics.sourceY,sourceState:kinematics.targetState,targetState:kinematics.sourceState,relativeVelocity:{x:-kinematics.relativeVelocity.x,y:-kinematics.relativeVelocity.y}}))resolved.push({rule,source:target,target:source,reversed:true});
+    else if(matchesGadget(target,rule.source)&&matchesGadget(source,rule.target)&&conditionMatches(rule,{...kinematics,sourceX:kinematics.targetX,sourceY:kinematics.targetY,targetX:kinematics.sourceX,targetY:kinematics.sourceY,sourceState:kinematics.targetState,targetState:kinematics.sourceState,sourceImpactThreshold:kinematics.targetImpactThreshold,targetImpactThreshold:kinematics.sourceImpactThreshold,relativeVelocity:{x:-kinematics.relativeVelocity.x,y:-kinematics.relativeVelocity.y}}))resolved.push({rule,source:target,target:source,reversed:true});
   }
   return resolved;
 }

@@ -30,9 +30,7 @@ export type PhysicalProperties={
   maxSpeed?:number;
   buoyancyForce?:number;
   impactThreshold?:number;
-  waterReaction:WaterReaction;
-  fireReaction:FireReaction;
-  impactReaction:ImpactReaction;
+
 };
 
 export type SpriteAnimation={
@@ -60,9 +58,13 @@ export type CanvasAnimation={
 export type GadgetAnimation=SpriteAnimation|CanvasAnimation;
 
 export type PortReference={gadgetId:string;portId:string};
-export type PortDefinition={id:string;kind:"power"|"socket"|"drive"|"target"|"guide"|"source";local:{x:number;y:number};label:string;radius?:number};
+export type PortDefinition={id:string;kind:"power"|"socket"|"drive"|"target"|"guide"|"source";local:{x:number;y:number};label:string;radius?:number;action?:"close"|"open"};
 
 export type GadgetDefinition={
+  /** Presentation-independent automatic runtime hooks. */
+  mechanics?:string[];
+  light?:{local:{x:number;y:number};radius:number;intensity:number;directional:boolean;activeState:string};
+  reactions?:{water:WaterReaction;fire:FireReaction;impact:ImpactReaction};
   ports?:(config:GadgetInstanceConfig)=>PortDefinition[];
   paletteGroup?:string;
   resizeAxis?:"x"|"y";
@@ -75,7 +77,7 @@ export type GadgetDefinition={
   tags:string[];
   physics:PhysicalProperties;
   appearance:{renderer:string;color?:string;outline?:string};
-  electrical?:{supply:"battery"|"socket"|"generator";switch?:{x:number;y:number}};
+  electrical?:{activeState:string;supply:"battery"|"socket"|"generator";switch?:{x:number;y:number}};
   joint?:{kind:"pivot";localX:number;localY:number;stiffness:number;damping:number};
   defaultState:string;
   animations:Record<string,GadgetAnimation>;
@@ -152,6 +154,11 @@ export type LevelDefinition={
   controlRopes?:ControlRopeConfig[];
   floor?:boolean;
   systems:string[];
+  animalChases?:Array<{catId:string;mouseId:string;exitId:string;gateId?:string}>;
+  catapults?:Array<{catId:string;mouseId:string;seesawId:string;platformId:string;exitId:string}>;
+  fishChases?:Array<{catId:string;fishId:string}>;
+  seesawLaunches?:Array<{impactId:string;triggerId:string;velocity:{x:number;y:number}}>;
+  loadRope?:{weightId:string;anchor:{x:number;y:number}};
   goal:GoalSpec;
 };
 

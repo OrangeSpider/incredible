@@ -8,14 +8,92 @@
   "hint": "Die schwere Kugel muss eine Seite der Wippe treffen, während der Tennisball auf der anderen liegt.",
   "buildTip": "Stelle die Wippe unter beide Kugeln. Der Tennisball fliegt zum Schnapptor, die Bowlingkugel wartet darüber.",
   "successText": "Der Tennisball löste das Tor aus; die Bowlingkugel fiel durch die Öffnung genau in den Korb.",
-  "inventory": [{"type":"seesaw","count":1}],
-  "fixedGadgets": [
-    {"id":"falling-impact","type":"ball","x":260,"y":76,"role":"impact","collisionLabel":"ball"},
-    {"id":"gate-trigger","type":"tennisBall","x":450,"y":380,"role":"trigger","collisionLabel":"tennisBall"},
-    {"id":"main-ball","type":"ball","x":600,"y":265,"role":"payload","collisionLabel":"mainBall"},
-    {"id":"snap-gate","type":"snapGate","x":600,"y":320,"rotation":1.5707963268,"role":"barrier","collisionLabel":"snapGate"},
-    {"id":"basket","type":"basket","x":600,"y":438,"role":"goal","collisionLabel":"basket","physics":{"width":126,"height":70}}
+  "inventory": [
+    {
+      "type": "seesaw",
+      "count": 1
+    }
   ],
-  "systems": ["seesaw-launch","snap-gate"],
-  "goal": {"kind":"all","goals":[{"kind":"state","selector":{"id":"snap-gate"},"state":"open"},{"kind":"zone","entity":{"id":"main-ball"},"zone":{"id":"basket"}}]}
+  "fixedGadgets": [
+    {
+      "id": "falling-impact",
+      "type": "ball",
+      "x": 260,
+      "y": 76,
+      "role": "impact",
+      "collisionLabel": "ball"
+    },
+    {
+      "id": "gate-trigger",
+      "type": "tennisBall",
+      "x": 450,
+      "y": 380,
+      "role": "trigger",
+      "collisionLabel": "tennisBall"
+    },
+    {
+      "id": "main-ball",
+      "type": "ball",
+      "x": 600,
+      "y": 265,
+      "role": "payload",
+      "collisionLabel": "mainBall"
+    },
+    {
+      "id": "snap-gate",
+      "type": "snapGate",
+      "x": 600,
+      "y": 320,
+      "rotation": 1.5707963268,
+      "role": "barrier",
+      "collisionLabel": "snapGate"
+    },
+    {
+      "id": "basket",
+      "type": "basket",
+      "x": 600,
+      "y": 438,
+      "role": "goal",
+      "collisionLabel": "basket",
+      "physics": {
+        "width": 126,
+        "height": 70
+      }
+    }
+  ],
+  "systems": [
+    "seesaw-launch",
+    "snap-gate"
+  ],
+  "goal": {
+    "kind": "all",
+    "goals": [
+      {
+        "kind": "state",
+        "selector": {
+          "id": "snap-gate"
+        },
+        "state": "open"
+      },
+      {
+        "kind": "zone",
+        "entity": {
+          "id": "main-ball"
+        },
+        "zone": {
+          "id": "basket"
+        }
+      }
+    ]
+  },
+  "seesawLaunches": [
+    {
+      "impactId": "falling-impact",
+      "triggerId": "gate-trigger",
+      "velocity": {
+        "x": 8,
+        "y": -11
+      }
+    }
+  ]
 }

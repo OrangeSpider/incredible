@@ -26,7 +26,7 @@ test("testing a new editor level attracts cannonballs without manual system conf
   assertAttraction(validateLevel(level));
 });
 
-test("older editor files activate fixed, preset and inventory magnets when loaded", async t => {
+test("editor files activate fixed, preset and inventory magnets without modifying system labels", async t => {
   for (const source of ["fixedGadgets", "initialPlacements", "inventory"]) {
     await t.test(source, async () => {
       const level = newLevel();
@@ -35,14 +35,14 @@ test("older editor files activate fixed, preset and inventory magnets when loade
       const original = structuredClone(level);
       const [loaded] = await readLevelFiles([{ name: "old-editor-level.json", text: async () => JSON.stringify(level) }]);
       const checked = validateLevel(loaded.level);
-      assert.equal(checked.systems.filter(system => system === "magnetic-field").length, 1);
+      assert.equal(checked.systems.filter(system => system === "magnetic-field").length, 0);
       assert.deepEqual(level, original, "loading must not mutate the original document");
       assertAttraction(checked, source === "fixedGadgets" ? [shot] : [shot, ...(checked.initialPlacements.length ? checked.initialPlacements : [magnet])]);
     });
   }
 });
 
-test("saving an older editor level persists its required magnet system", async () => {
+test("saving an editor level preserves system labels and intrinsic magnet behavior", async () => {
   const level = newLevel();
   level.systems = level.systems.filter(system => system !== "magnetic-field");
   level.fixedGadgets = [magnet];
@@ -53,7 +53,7 @@ test("saving an older editor level persists its required magnet system", async (
   assert.equal(level.systems.includes("magnetic-field"), false);
 });
 
-test("magnet recovery preserves unrelated levels and rejects duplicate systems", () => {
+test("intrinsic activation preserves unrelated levels and rejects duplicate systems", () => {
   const level = { ...newLevel(), systems: [] };
   assert.deepEqual(validateLevel(level), level);
   assert.throws(() => validateLevel({ ...level, fixedGadgets: [magnet], systems: ["magnetic-field", "magnetic-field"] }), /Duplicate level system/);

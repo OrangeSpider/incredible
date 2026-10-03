@@ -30,15 +30,15 @@ export default function PhysicsHandbook({ onClose }: { onClose: () => void }) {
           <p className="physics-intro">Die Lupe bündelt nahes Licht 90 Pixel vor der Linse. Ihr Brennpunkt entzündet nach kurzer Erwärmung einen Docht oder eine Lunte. Drehe die Lupe, um den Brennpunkt auszurichten; Wände blockieren Licht und Wind.</p>
           <p className="physics-intro">Direktes Feuer an der kurzen TNT-Lunte zündet die Explosion. Wasser löscht sie vorher. Der Sprengzünder erzeugt bei einem Stoß von oben einen kurzen Funken rechts unten. Der Boxhandschuh reagiert einmal auf einen Treffer an der Rückseite und schlägt nach vorne. Ein Windrad dreht sich im Luftstrom; ein Riemen verbindet seine ANTRIEB-Anschlüsse mit Zahnrad oder Laufband.</p>
           <h3>Gadget-Katalog</h3>
-          <p className="physics-intro">Diese Tabelle kommt direkt aus derselben Definition, aus der Körper, Bauteile und Animationen erzeugt werden.</p>
+          <p className="physics-intro">Diese Tabelle kommt aus den Gadget-Definitionen. Reaktionsbeschreibungen sind Hinweise; die tatsächlich ausgeführten Wirkungen stehen bei den Interaktionen. Physik-Overrides verändern konkrete Körperparameter und Stoßschwellen.</p>
           <div className="interaction-table"><table>
-            <thead><tr><th>Gadget</th><th>Kategorie</th><th>Masse</th><th>Schwerkraft</th><th>Wasser</th><th>Zustände / Animationen</th></tr></thead>
+            <thead><tr><th>Gadget</th><th>Kategorie</th><th>Masse</th><th>Schwerkraft</th><th>Wasser (Beschreibung)</th><th>Zustände / Animationen</th></tr></thead>
             <tbody>{gadgets.map((gadget) => <tr key={gadget.type}>
               <td><b>{gadget.displayName}</b><br /><small>{gadget.type}</small></td>
               <td>{gadget.categories.join(", ")}</td>
               <td>{gadget.physics.massKg} kg</td>
               <td>{gadget.physics.gravityScale === 0 ? "nein" : `${gadget.physics.gravityScale}×`}</td>
-              <td>{waterNames[gadget.physics.waterReaction] ?? gadget.physics.waterReaction}</td>
+              <td>{waterNames[gadget.reactions?.water ?? "collide"] ?? gadget.reactions?.water ?? "collide"}</td>
               <td>{Object.keys(gadget.animations).join(" · ")}</td>
             </tr>)}</tbody>
           </table></div>

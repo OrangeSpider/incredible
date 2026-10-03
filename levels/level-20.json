@@ -118,5 +118,13 @@
         "name": "mouse.entered.hole"
       }
     ]
-  }
+  },
+  "animalChases": [
+    {
+      "catId": "joanne",
+      "mouseId": "mogli",
+      "exitId": "mouse-hole",
+      "gateId": "snap-gate"
+    }
+  ]
 }

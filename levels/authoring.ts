@@ -11,7 +11,7 @@ export function newLevel(number = 1): LevelDefinition {
     schemaVersion: 2, id: `level-${Date.now().toString(36)}`, number, scene: "custom",
     title: "Neues Level", objective: "Definiere das Ziel deiner Maschine.", hint: "Baue deine Maschine und starte sie.",
     buildTip: "Wähle rechts ein Bauteil und platziere es auf dem Spielfeld.", successText: "Deine Maschine hat das Ziel erreicht!",
-    inventory: [], fixedGadgets: [], initialPlacements: [], connections: [], systems: ["rocket-launch", "tension-rope", "snap-gate", "bucket-water", "water-collisions", "seesaw"],
+    inventory: [], fixedGadgets: [], initialPlacements: [], connections: [], systems: [],
     floor: true, goal: structuredClone(UNSET_GOAL),
   };
 }
@@ -51,6 +51,11 @@ function references(goal: ComposableGoalSpec, id: string): boolean {
 }
 
 export function removeGadget(level: LevelDefinition, id: string): LevelDefinition {
+  const clearRelations=(gadget:GadgetInstanceConfig)=>{
+    const properties={...gadget.properties};
+    for (const key of ["balloon","fishId"]) if(properties[key]===id) delete properties[key];
+    return {...gadget,properties};
+  };
   const prune = (goal: ComposableGoalSpec): ComposableGoalSpec | null => {
     if (goal.kind === "all" || goal.kind === "any") {
       const children = goal.goals.map(prune).filter((child): child is ComposableGoalSpec => child !== null);
@@ -58,8 +63,14 @@ export function removeGadget(level: LevelDefinition, id: string): LevelDefinitio
     }
     return references(goal, id) ? null : goal;
   };
-  return { ...level, fixedGadgets: level.fixedGadgets.filter(gadget => gadget.id !== id),
-    initialPlacements: (level.initialPlacements ?? []).filter(gadget => gadget.id !== id),
+  return { ...level,
+    animalChases:level.animalChases?.filter(flow=>![flow.catId,flow.mouseId,flow.exitId,flow.gateId].includes(id)),
+    catapults:level.catapults?.filter(flow=>![flow.catId,flow.mouseId,flow.seesawId,flow.platformId,flow.exitId].includes(id)),
+    fishChases:level.fishChases?.filter(flow=>![flow.catId,flow.fishId].includes(id)),
+    seesawLaunches:level.seesawLaunches?.filter(flow=>![flow.impactId,flow.triggerId].includes(id)),
+    loadRope:level.loadRope?.weightId===id?undefined:level.loadRope,
+    fixedGadgets: level.fixedGadgets.filter(gadget => gadget.id !== id).map(clearRelations),
+    initialPlacements: (level.initialPlacements ?? []).filter(gadget => gadget.id !== id).map(clearRelations),
     connections: (level.connections ?? []).filter(connection => connection.sourceId !== id && connection.targetId !== id),
     controlRopes: (level.controlRopes ?? []).filter(rope => rope.targetId !== id && rope.source.gadgetId !== id && !rope.guides.some(guide=>guide.gadgetId===id)),
     goal: "kind" in level.goal ? prune(level.goal) ?? structuredClone(UNSET_GOAL) : level.goal };

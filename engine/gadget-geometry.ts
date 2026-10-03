@@ -24,7 +24,7 @@ export const bodyPoint = (body: Matter.Body, point: Point) => localPoint(bodyTra
 export const bodyVector = (body: Matter.Body, point: Point) => localVector(bodyTransform(body), point);
 export function gadgetSize(config: GadgetInstanceConfig) {
   const physics = { ...GADGET_CATALOG[config.type].physics, ...config.physics };
-  if (physics.radius !== undefined) return { width: physics.radius * 2, height: physics.radius * 2 };
+  if (physics.radius !== undefined && (physics.shape==="circle"||physics.shape==="sensor")) return { width: physics.radius * 2, height: physics.radius * 2 };
   return { width: physics.width ?? (physics.radius ?? 25) * 2, height: physics.height ?? (physics.radius ?? 25) * 2 };
 }
 export const candleFlameLocal = (config: GadgetInstanceConfig): Point => ({ x: 0, y: Number(config.properties?.flameOffsetY ?? -gadgetSize(config).height / 2) });

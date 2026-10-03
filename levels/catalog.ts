@@ -1,3 +1,4 @@
+import {validateLevelRelations} from "../game/level-relations.ts";
 import level01 from "./level-01.json" with { type: "json" };
 import level02 from "./level-02.json" with { type: "json" };
 import level03 from "./level-03.json" with { type: "json" };
@@ -176,6 +177,7 @@ export function validateLevel(value:unknown):LevelDefinition{
     for (const key of ["flipX", "flipY"]) if (gadget[key] !== undefined && typeof gadget[key] !== "boolean") throw new Error(`Invalid gadget ${key}: ${gadget.id}`);
     if (gadget.physics !== undefined) {
       if (!isObject(gadget.physics)) throw new Error("Gadget physics must be an object");
+      checkKeys(gadget.physics,["shape","width","height","radius","massKg","density","friction","staticFriction","airFriction","restitution","gravityScale","isStatic","isSensor","inertiaLocked","maxSpeed","buoyancyForce","impactThreshold"],"physics");
       for (const key of ["width", "height", "radius"]) if (gadget.physics[key] !== undefined && (!finite(gadget.physics[key]) || Number(gadget.physics[key]) <= 0)) throw new Error(`Invalid gadget dimension ${key}: ${gadget.id}`);
     }
     if (gadget.type === "candle" && gadget.collisionLabel === "ignitionCandle" && isObject(gadget.physics) && gadget.physics.height === 52) gadget.properties = { flameOffsetY: -50, ...(isObject(gadget.properties) ? gadget.properties : {}) };
@@ -191,12 +193,10 @@ export function validateLevel(value:unknown):LevelDefinition{
   validateConnections(level.connections??[],[...level.fixedGadgets,...(level.initialPlacements??[])]);
   if(level.controlRopes!==undefined&&!Array.isArray(level.controlRopes))throw new Error("controlRopes must be an array");
   validateControlRopes(level.controlRopes??[],[...level.fixedGadgets,...(level.initialPlacements??[])]);
+  validateLevelRelations(level as LevelDefinition);
   if(level.schemaVersion===1)validateLegacyGoal(level.goal);
   else validateGoal(level.goal,ids);
   const validated=structuredClone(level as LevelDefinition);
-  // Older editor exports omit the runtime hook required by their magnets.
-  const hasMagnet=[...validated.fixedGadgets,...(validated.initialPlacements??[]),...validated.inventory].some(gadget=>gadget.type==="magnet");
-  if(hasMagnet&&!seenSystems.has("magnetic-field"))validated.systems.push("magnetic-field");
   return validated;
 }
 

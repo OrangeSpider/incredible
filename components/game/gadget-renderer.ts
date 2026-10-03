@@ -37,7 +37,7 @@ export function drawGadget(ctx: CanvasRenderingContext2D, body: Matter.Body, mac
   } else if (type === "payloadBall") {
     ctx.fillStyle = material(ctx,"#f68a6b","#a22d2c"); ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();ctx.fillStyle="#ffc783";ctx.beginPath();ctx.ellipse(-5,-6,5,2,-.5,0,Math.PI*2);ctx.fill();
   } else if (type === "scissor") {
-    const progress=state==="closed"?Math.min(1,age/260):Number(machine.state(id)?.properties.handleProgress??0),gap=27-22*progress;
+    const progress=state==="closed"?Math.min(1,age/260):Number(machine.state(id)?.properties["handleProgress:handle"]??0),gap=27-22*progress;
     ctx.lineCap="round";ctx.strokeStyle="#334c56";ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-gap,-32);ctx.lineTo(gap,27);ctx.moveTo(gap,-32);ctx.lineTo(-gap,27);ctx.stroke();ctx.strokeStyle="#c2d3cf";ctx.lineWidth=3;ctx.stroke();
     ctx.strokeStyle=material(ctx,"#e99267","#a5392f");ctx.lineWidth=5;for(const side of [-1,1]){ctx.beginPath();ctx.ellipse(side*gap,27,10,8,0,0,Math.PI*2);ctx.stroke();}
     ctx.fillStyle="#e6b856";ctx.strokeStyle="#684c2e";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fill();ctx.stroke();

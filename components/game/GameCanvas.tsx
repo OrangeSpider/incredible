@@ -25,7 +25,7 @@ import { createFluidWaterRenderer } from "./fluid-water-renderer";
 import { drawGadget, drawFields, drawConnections, drawConnectionPorts, drawMouseHole } from "./gadget-renderer";
 import type { GadgetConnection } from "@/engine/types";
 
-import { createSimulation, ROPE_ANCHOR, routeKindForPart } from "@/game/simulation-setup";
+import { createSimulation, routeKindForPart } from "@/game/simulation-setup";
 
 type GameCanvasProps = {
   level: LevelDefinition;
@@ -49,6 +49,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const scenePresentation = presentationForScene(level.scene);
+    const ROPE_ANCHOR = level.loadRope?.anchor ?? {x:0,y:0};
     const hasSystem = (system: string) => level.systems.includes(system);
     const standaloneMouseChase = hasSystem("cat-mouse") && !hasSystem("catapult") && !hasSystem("cat-fish");
     const canvas = canvasRef.current; if (!canvas) return;
@@ -102,7 +103,8 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     const W = 900, H = 520;
     const {bucket: bucketBody, seesaw: seesawBody,
       conveyor: conveyorBody, water: waterBodies, rockets: rocketBodies, weight, scissorBalloons} = runtime.options.bodies;
-    const {beltConnected, gearsConnected} = runtime.options;
+    const {gearsConnected} = runtime.options;
+    const beltConnected = machine.connections.some(connection=>connection.kind==="belt");
     const {moving: routeMoving, physicsPoints} = runtime.options.rope;
     const fallingCandle = machine.body("falling-candle");
     let raf=0,last=performance.now();
@@ -245,7 +247,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         if(gadgetConfig?.type === "hamsterWheel"){const port=localPort(gadgetConfig,"drive","drive");if(port)drawDriveWheel(ctx,port.local,14,running&&machine.state(gadgetId!)?.state==="running"?now*.008:0);}
         ctx.restore();
       }
-      if (hasSystem("tension-rope")) drawControlRopes(ctx, runtime, [
+      if (!level.loadRope) drawControlRopes(ctx, runtime, [
         ...level.fixedGadgets,
         ...placed.map(part => ({ ...part, id: placedConfigId(part) })),
       ], pendingScissor, ropeMode, selectedRope);
@@ -254,7 +256,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         const points = physicsPoints(); ctx.save(); ctx.strokeStyle = "#e5392c"; ctx.lineWidth = 5; ctx.setLineDash([7,5]); ctx.beginPath();
         points.forEach((point,index) => { if(index===0)ctx.moveTo(point.x,point.y);else ctx.lineTo(point.x,point.y); }); ctx.stroke(); ctx.restore();
       }
-      if(hasSystem("pulley-rope")&&ropeMode&&!running){const selectedParts=new Map<number,number>();ropePath.forEach((node,index)=>{if(node.kind==="part")selectedParts.set(node.placedId,index)});const anchorOrder=ropePath.findIndex(node=>node.kind==="anchor"),drawPort=(x:number,y:number,order?:number,label?:string)=>{ctx.save();ctx.fillStyle=order!==undefined&&order>=0?"#d39a28":"#2f9b67";ctx.strokeStyle="#fff4cf";ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,13,0,Math.PI*2);ctx.fill();ctx.stroke();if(order!==undefined&&order>=0){ctx.fillStyle="#173f50";ctx.font="bold 11px system-ui";ctx.textAlign="center";ctx.fillText(String(order+1),x,y+4)}if(label){ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.textAlign="left";ctx.fillText(label,x+28,y+4)}ctx.restore()};drawPort(ROPE_ANCHOR.x,ROPE_ANCHOR.y,anchorOrder>=0?anchorOrder:undefined);for(const part of placed){const kind=routeKindForPart(part.type);if(!kind)continue;drawPort(part.x,part.y,selectedParts.get(part.id),part.type==="pulley"?"FEST":part.type==="movingPulley"?"LOSE":"KUGEL")}}
+      if(!!level.loadRope&&ropeMode&&!running){const selectedParts=new Map<number,number>();ropePath.forEach((node,index)=>{if(node.kind==="part")selectedParts.set(node.placedId,index)});const anchorOrder=ropePath.findIndex(node=>node.kind==="anchor"),drawPort=(x:number,y:number,order?:number,label?:string)=>{ctx.save();ctx.fillStyle=order!==undefined&&order>=0?"#d39a28":"#2f9b67";ctx.strokeStyle="#fff4cf";ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,13,0,Math.PI*2);ctx.fill();ctx.stroke();if(order!==undefined&&order>=0){ctx.fillStyle="#173f50";ctx.font="bold 11px system-ui";ctx.textAlign="center";ctx.fillText(String(order+1),x,y+4)}if(label){ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.textAlign="left";ctx.fillText(label,x+28,y+4)}ctx.restore()};drawPort(ROPE_ANCHOR.x,ROPE_ANCHOR.y,anchorOrder>=0?anchorOrder:undefined);for(const part of placed){const kind=routeKindForPart(part.type);if(!kind)continue;drawPort(part.x,part.y,selectedParts.get(part.id),part.type==="pulley"?"FEST":part.type==="movingPulley"?"LOSE":"KUGEL")}}
       drawSceneHints(scenePresentation, sceneFrame);
       raf=requestAnimationFrame(render);
     }; raf=requestAnimationFrame(render);
