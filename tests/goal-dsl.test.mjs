@@ -51,14 +51,10 @@ test("position and state predicates are evaluated against the current snapshot",
   assert.equal(evaluateGoal(goal,context({items:entities.map(entity=>entity.id==="rocket-1"?{...entity,y:0}:entity)})),false);
 });
 
-test("legacy version-1 goals still validate and evaluate",()=>{
-  assert.equal(LEVELS.length,34);
-  assert.ok(LEVELS.every(level=>level.schemaVersion===2&&"kind" in level.goal));
-  const old=structuredClone(LEVELS[0]);
-  old.schemaVersion=1;
-  old.goal={mode:"event",event:"cat.entered.exit"};
-  assert.deepEqual(validateLevel(old),old);
-  assert.equal(evaluateGoal(old.goal,context({signals:{"cat.entered.exit":true}})),true);
+test("obsolete formats are rejected rather than adapted",()=>{
+  assert.throws(()=>validateLevel({...LEVELS[0],schemaVersion:1}),/schemaVersion/);
+  assert.throws(()=>validateLevel({...LEVELS[0],goal:{mode:"event",event:"done"}}),/kind/);
+  assert.throws(()=>validateLevel({...LEVELS[0],systems:[]}),/systems/);
 });
 
 test("recursive validation rejects vacuous and structurally unsafe goals",()=>{
@@ -72,5 +68,4 @@ test("recursive validation rejects vacuous and structurally unsafe goals",()=>{
     {kind:"never",goal:{kind:"signal",name:"payload.lost"},afterMs:0},
     {kind:"all",goals:[{kind:"signal",name:"ready"},{kind:"what"}]},
   ])assert.throws(()=>validateLevel({...level,goal}));
-  assert.throws(()=>validateLevel({...level,systems:["unknown-physics-system"]}));
 });

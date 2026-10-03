@@ -61,10 +61,6 @@
       }
     }
   ],
-  "systems": [
-    "seesaw-launch",
-    "snap-gate"
-  ],
   "goal": {
     "kind": "all",
     "goals": [

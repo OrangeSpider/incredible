@@ -83,7 +83,7 @@ Steuerseile speichern ebenfalls Anschlussidentitäten statt lokaler Koordinaten:
 
 ## Aktivierung und Instanzbeziehungen (Stufe 4)
 
-Gadget-Definitionen liefern über `mechanics` die benötigten Runtime-Hooks. Die räumlichen Engine-Mechaniken und deklarativen Regeln arbeiten ohnehin für alle registrierten Instanzen. `level.systems` schaltet keine Physik ein; die vorhandenen Labels dienen bis zur Darstellungsbereinigung noch der Szenenpräsentation. Neue Editorlevels starten mit einer leeren Liste. Der Validator ergänzt keine Magnet-Systemlabels.
+Gadget-Definitionen liefern über `mechanics` die benötigten Runtime-Hooks. Die räumlichen Engine-Mechaniken und deklarativen Regeln arbeiten ohnehin für alle registrierten Instanzen. `systems` ist aus dem endgültigen Format entfernt und wird beim Import abgewiesen. Die Darstellung liest jede Instanz über ihre stabile ID; der Validator prüft ausschließlich und ergänzt keine Eigenschaften. Frei platzierte Anfangszustände kommen aus `placementState` oder `defaultState` im Katalog.
 
 Explizite Szenenabläufe speichern ihre Beziehungen direkt:
 
@@ -106,3 +106,10 @@ Steuerseil-Zielports definieren ihre Wirkung mit `action: "close" | "open"`. Der
 `physics` enthält Körperparameter und tatsächlich verwendete Stoßschwellen. `impactThreshold` wirkt auf Scheren-/Hamsterradkontaktregeln sowie Glasbruch und Generatorstart. Masse, Reibung, Restitution, Sensor-/Statikzustand und Trägheit werden auch bei vorgefertigten Körpern angewendet; Eimer bleiben offene zusammengesetzte Körper und unterstützen Breiten-/Höhenskalierung. Eine ausdrücklich angegebene `density` berechnet die Masse aus der Fläche, sofern kein ausdrückliches `massKg` vorliegt; `massKg` hat Vorrang. Schwerkraftfaktor, Auftrieb und Geschwindigkeitsgrenze bleiben die vorhandenen Engine-Parameter. Der Levelvalidator prüft Feldnamen und Werte; eine zusätzliche Reaktionssprache gibt es nicht.
 
 Riemen und Zahnradkontakt bilden einen bei jedem Schritt neu berechneten Antriebsgraphen. Nur aktive Eigenantriebe speisen ihn. Getrennte Empfänger und ganze abgetrennte Zahnradinseln werden inaktiv; Wiederverbindung stellt die Übertragung wieder her. Stromleitungen werden weiterhin separat aus den Generatorzuständen ausgewertet. Lastseilrouten behalten ihr eigenes Modell mit einem ausdrücklich ausgewählten Gewicht und genau einem Zugkörper; Anker, Ausgangshöhe und Massen kommen aus den Daten bzw. registrierten Körpern.
+
+
+### Endgültiges Darstellungs- und Datenformat
+
+`schemaVersion: 2` und `goal.kind` sind verbindlich. Verbindungen verlangen `sourcePortId` und `targetPortId`; Steuerseile speichern `PortReference` für Quelle und Umlenkrollen sowie Ziel-ID und Zielport. Kerzen können ihre Flammenlage ausdrücklich mit `properties.flameOffsetY` beschreiben. Ausgelieferte Levels speichern diese Werte direkt. Es gibt keine Importmigration, `standalone`-Markierung oder Version-1-Auswertung.
+
+Der Körperrenderer verwendet Kataloganimationen und vorhandenes Artwork. Der Feuerrenderer zeichnet lokale Luntenfronten, Kanonenblitze und Raketenphasen je Instanz. Der Lastseilrenderer liest den konfigurierten Anker und aktuelle Körperpositionen unabhängig vom Szenennamen. Zahnräder verwenden den je Instanz fortgeschriebenen Rotorwinkel und die aktuelle Drehrichtung des laufenden Antriebsgraphen; beim Trennen bleibt der Winkel stehen. Erweiterungsschritte stehen in `ARCHITECTURE.md`.

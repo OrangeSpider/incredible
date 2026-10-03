@@ -13,26 +13,8 @@ export type MachineRuntimeOptions = {
   machine: MachinePhysicsEngine;
   running: boolean;
   onWin: () => void;
-  bodies: {
-    cat: Matter.Body | null;
-    balloon: Matter.Body | null;
-    levelBall: Matter.Body | null;
-    weight: Matter.Body | null;
-    bucket: Matter.Body | null;
-    seesaw: Matter.Body | null;
-    fishBowl: Matter.Body | null;
-    fish: Matter.Body | null;
-    mouse: Matter.Body | null;
-    cannon: Matter.Body | null;
-    candle: Matter.Body | null;
-    hamsterWheel: Matter.Body | null;
-    conveyor: Matter.Body | null;
-    water: readonly Matter.Body[];
-    scissorBalloons: readonly Matter.Body[];
-    rockets: readonly Matter.Body[];
-  };
+  bodies: { weight: Matter.Body | null; water: readonly Matter.Body[] };
   controlRopes?: readonly ControlRope[];
-  gearsConnected: boolean;
   rope: {
     fixed: readonly Matter.Body[];
     moving: readonly Matter.Body[];
@@ -46,40 +28,12 @@ export type MachineRuntimeOptions = {
   };
 };
 
-export type RuntimeState = {
-  motor: boolean;
-  motorStartedAt: number;
-  driveTransferred: boolean;
-  balloonPopped: boolean;
-  mouseFleeAt: number;
-  catStartledAt: number;
-  catImpactMode: "none" | "launch" | "drop";
-  catFallStartedAt: number;
-  catOnPlatformAt: number;
-  fishBowlBrokenAt: number;
-  fishReleased: boolean;
-  fishFlopAt: number;
-  fishChaseAt: number;
-  gearTurnAt: number;
-  cannonHitAt: number;
-  candleWetHits: number;
-  candleExtinguished: boolean;
-  candleExtinguishedAt: number;
-  bucketTipAt: number;
-  seesawHitAt: number;
-  blockPosition: { x: number; y: number };
-  pulleyTurn: number;
-  won: boolean;
-};
+export type RuntimeState = { blockPosition: {x:number;y:number}; pulleyTurn:number; won:boolean };
 
 /** Owns gameplay state, intrinsic gadget hooks, collision delivery and goal checks. */
 export class MachineRuntime {
   readonly state: RuntimeState;
-  readonly waterSplashAt = new Map<number, number>();
-  readonly wetFuseIds = new Set<number>();
   readonly scissorClosedById = new Map<string,number>();
-  get scissorClosedAt(){return this.level.fixedGadgets.filter(gadget=>gadget.type==="scissor").map(gadget=>this.scissorClosedById.get(gadget.id)??0)}
-  readonly rocketIgnitedAt = new Map<string, number>();
   readonly ballVelocity = { x: 0, y: 0 };
   readonly blockVelocity = { x: 0, y: 0 };
   readonly systems: readonly RuntimeSystem[];
@@ -92,16 +46,7 @@ export class MachineRuntime {
   constructor(options: MachineRuntimeOptions) {
     this.options = options;
     this.controlRopes = new ControlRopeMechanism(options.machine, options.controlRopes ?? []);
-    this.state = {
-      motor: false, motorStartedAt: 0, driveTransferred: false, balloonPopped: false,
-      mouseFleeAt: 0, catStartledAt: 0, catImpactMode: "none", catFallStartedAt: 0,
-      catOnPlatformAt: 0, fishBowlBrokenAt: 0, fishReleased: false, fishFlopAt: 0,
-      fishChaseAt: 0, gearTurnAt: 0,
-      cannonHitAt: 0,
-      candleWetHits: 0, candleExtinguished: false, candleExtinguishedAt: 0,
-      bucketTipAt: 0, seesawHitAt: 0, blockPosition: { ...options.rope.initialBlockPosition },
-      pulleyTurn: 0, won: false,
-    };
+    this.state = { blockPosition: {...options.rope.initialBlockPosition}, pulleyTurn:0, won:false };
     this.systems = createRuntimeSystems(this);
     this.unsubscribe = options.machine.subscribe(event => this.onEngineEvent(event));
   }

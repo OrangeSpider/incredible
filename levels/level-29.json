@@ -27,13 +27,9 @@
       "type": "candle",
       "x": 580,
       "y": 350,
-      "state": "unlit",
-      "properties": {
-        "standalone": true
-      }
+      "state": "unlit"
     }
   ],
-  "systems": [],
   "goal": {
     "kind": "signal",
     "name": "heat.ignited.candle"

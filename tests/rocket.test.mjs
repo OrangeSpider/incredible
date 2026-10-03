@@ -147,7 +147,6 @@ test("rocket flames respect wet wicks and cannot fire a cannon through its muzzl
 
 test("rocket exhaust also feeds the existing level fuse networks and fires their cannon once", () => {
   const level = newLevel();
-  level.systems = [];
   level.fixedGadgets = [
     { id: "rocket", type: "rocket", x: 300, y: 400, state: "launching" },
     { id: "fuse", type: "fuse", x: 340, y: 330 },

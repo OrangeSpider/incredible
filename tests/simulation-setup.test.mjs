@@ -6,7 +6,7 @@ import {createScenario, loadLevel} from "./helpers/machine-scenario.mjs";
 import {WATER_PARTICLE_COUNT} from "../game/water.ts";
 import {LEVEL_FIVE_INITIAL_WEIGHT_Y} from "../game/pulley.ts";
 
-const level = (extra = {}) => ({...loadLevel(14), systems: [], fixedGadgets: [], connections: [], ...extra});
+const level = (extra = {}) => ({...loadLevel(14), fixedGadgets: [], connections: [], ...extra});
 const part = (id, type, x, y, extra = {}) => ({id, type, x, y, rotation: 0, ...extra});
 const setup = (t, options) => {
   const simulation = createSimulation({level: level(), running: true, onWin: () => {}, ...options});
@@ -37,14 +37,14 @@ test("shared setup registers several bucket assemblies and pivot gadgets", t => 
   const joints = Matter.Composite.allConstraints(machine.world).map(joint => joint.label);
   assert.ok(joints.includes("joint:placed-12"));
   assert.ok(joints.includes("joint:placed-13"));
-  assert.equal(runtime.options.bodies.seesaw, null);
+  assert.equal(machine.bodiesByType("seesaw").length, 2);
 });
 
 test("test helper uses registered bucket water and honors a missing floor", t => {
   const scenario = createScenario(level({floor: false}), [{type: "bucket", x: 200, y: 200}]);
   t.after(() => {scenario.runtime.dispose(); scenario.machine.destroy()});
   assert.ok(scenario.machine.body("placed-0"));
-  assert.equal(scenario.runtime.options.bodies.bucket, scenario.machine.body("placed-0"));
+  assert.equal(scenario.machine.bodiesByType("bucket")[0], scenario.machine.body("placed-0"));
   assert.equal(scenario.machine.entities().filter(entity => entity.type === "water").length, WATER_PARTICLE_COUNT);
   assert.equal(Matter.Composite.allBodies(scenario.machine.world).some(body => body.label === "floor"), false);
   const {machine} = setup(t, {});
@@ -69,7 +69,7 @@ test("connections prepare the belt runtime and explicit empty connections overri
 test("shared setup prepares live load rope geometry and initial weight position", t => {
   const placed = [part(1, "movingPulley", 400, 300), part(2, "pulley", 600, 100), part(3, "ball", 700, 300)];
   const ropePath = [{kind: "anchor"}, ...[1, 2, 3].map(placedId => ({kind: "part", placedId}))];
-  const {machine, runtime, routeAnalysis} = setup(t, {level: level({systems: [],loadRope:{weightId:"weight",anchor:{x:92,y:64}},
+  const {machine, runtime, routeAnalysis} = setup(t, {level: level({loadRope:{weightId:"weight",anchor:{x:92,y:64}},
     fixedGadgets: [{id: "weight", type: "weight", x: 760, y: 430}]}), placed, ropePath});
   const rope = runtime.options.rope;
   assert.equal(rope.ready, true);
@@ -104,16 +104,16 @@ test("placement physics overrides and preview mouse state remain unchanged", t =
 });
 
 test("shared setup prepares gear connectivity and per-instance cannon fuses", t => {
-  const {machine, runtime, gearDepth} = setup(t, {level: level({fixedGadgets: [
+  const {machine, runtime} = setup(t, {level: level({fixedGadgets: [
     {id: "source", type: "gearSource", collisionLabel: "custom-source", x: 100, y: 100},
     {id: "middle", type: "gear", collisionLabel: "gear", x: 184, y: 100},
     {id: "target", type: "gearTarget", collisionLabel: "custom-target", x: 268, y: 100},
     {id: "cannon", type: "cannon", collisionLabel: "cannon", x: 500, y: 300},
     {id: "second-cannon", type: "cannon", collisionLabel: "cannon", x: 700, y: 300},
   ]}), placed: [part(10, "fuse", 400, 200, {rotation: .4})]});
-  assert.equal(runtime.options.gearsConnected, true);
-  assert.equal(gearDepth.get(machine.body("target").id), 2);
-  assert.equal(runtime.options.bodies.cannon, null);
+  runtime.tick(16,16);
+  assert.equal(machine.state("target").state,"running");
+  assert.equal(machine.bodiesByType("cannon").length,2);
   const fuse = machine.mechanics.fuseSnapshot("placed-10");
   assert.ok(fuse.samples.length > 0);
   assert.equal(machine.mechanics.fuseSnapshot("cannon:fuse").samples.length, 14);

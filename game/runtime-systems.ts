@@ -55,11 +55,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
   }}),
   cannon:runtime=>targetContactSystem(runtime,"cannonTarget","cannonball","cannonball.hit.target"),
   seesaw:runtime=>targetContactSystem(runtime,"basket","payloadBall","seesaw_payload.entered.basket"),
-  fire:runtime=>({afterStep(){
-    runtime.state.balloonPopped=runtime.machine.entities().some(entity=>entity.type==="balloon"&&entity.state==="popped");
-    runtime.state.candleExtinguished=runtime.machine.entities().some(entity=>entity.type==="candle"&&entity.state==="extinguished");
-  }}),
-
   "bucket-water": runtime => {
     const buckets = runtime.machine.bodiesByType("bucket").map(bucket => {
       const startAngle = bucket.angle;
@@ -71,7 +66,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     return { afterStep() {
       if (!runtime.running || !buckets.length) return;
       startedAt ??= runtime.machine.timeMs;
-      runtime.state.bucketTipAt = startedAt;
       const tip = Math.max(0, Math.min(1, (runtime.machine.timeMs - startedAt) / 1900)), eased = tip * tip * (3 - 2 * tip);
       for (const { bucket, startAngle, pivot, handle } of buckets) {
         const plugin=machinePlugin(bucket),angle = startAngle + eased * 2.1 * (!!plugin?.flipX !== !!plugin?.flipY ? -1 : 1);
@@ -82,15 +76,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     } };
   },
   "water-collisions": runtime => ({
-    onCollision(collision) {
-      const water = bodyWithType(collision, "water");
-      if (!water) return;
-      if ([collision.bodyA,collision.bodyB].some(body=>body.label==="floor") && !runtime.waterSplashAt.has(water.id)) runtime.waterSplashAt.set(water.id, runtime.now || performance.now());
-      const fuse = bodyWithType(collision, "fuse");
-      if (fuse) {
-        runtime.wetFuseIds.add(fuse.id);
-      }
-    },
     afterStep() {
       if (!runtime.running) return;
       if (runtime.machine.entities().some(entity=>entity.type==="candle"&&entity.state==="extinguished"&&(runtime.machine.stateAgeMs(entity.id)??0)>700)) {
@@ -151,13 +136,7 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       }
     },
   }),
-  "rocket-launch": runtime => ({
-    onState(event) {
-      if (event.type !== "state" || event.state !== "burning" || !event.instanceId || runtime.rocketIgnitedAt.has(event.instanceId)) return;
-      if (runtime.bodies.rockets.some(body => machinePlugin(body)?.instanceId === event.instanceId)) runtime.rocketIgnitedAt.set(event.instanceId, runtime.now || performance.now());
-    },
 
-  }),
 };
 
 /** Intrinsic hooks are derived from definitions; only scene choreography uses level data. */
@@ -166,10 +145,5 @@ export function createRuntimeSystems(runtime: MachineRuntime): RuntimeSystem[] {
   const systems = [...required].flatMap(id=>SYSTEM_FACTORIES[id] ? [SYSTEM_FACTORIES[id](runtime)] : []);
   if (runtime.level.loadRope) systems.push(createPulleySystem(runtime));
   systems.push(...createAnimalFlows(runtime));
-  // Presentation summaries never drive a mechanism.
-  systems.push({afterStep(){
-    runtime.state.motor=runtime.machine.entities().some(entity=>entity.type==="conveyor"&&entity.state==="running");
-    runtime.state.fishReleased=runtime.machine.entities().some(entity=>entity.type==="fish"&&entity.state==="flopping");
-  }});
   return systems;
 }

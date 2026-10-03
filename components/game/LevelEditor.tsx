@@ -131,7 +131,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
     if (tool && !showGoals) {
       const definition = GADGET_CATALOG[tool], id = `${tool}-${crypto.randomUUID().slice(0, 8)}`;
       const gadget: GadgetInstanceConfig = { id, type: tool, ...at, rotation: definition.defaultRotation ?? 0,
-        ...(["candle", "cat", "mouse", "fish", "fishBowl"].includes(tool) ? { properties: { standalone: true } } : {}), ...(tool === "fish" ? { state: "flopping" } : {}) };
+        state: GADGET_CATALOG[tool].placementState ?? GADGET_CATALOG[tool].defaultState };
       change({ ...draft, [placement]: [...(draft[placement] ?? []), gadget] }); setSelectedId(id); setSelectedConnection(null); setSelectedRope(null); if (!event.shiftKey) setTool(null); return;
     }
     const gadget = hitGadget(gadgets, at);

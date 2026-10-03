@@ -1,5 +1,5 @@
-import { GADGET_CATALOG } from "@/engine/gadget-catalog";
-import type { ResolvedAnimation } from "@/engine/animation";
+import { GADGET_CATALOG } from "../../engine/gadget-catalog.ts";
+import type { ResolvedAnimation } from "../../engine/animation.ts";
 
 const rowsByAsset = new Map<string, number>();
 for (const gadget of Object.values(GADGET_CATALOG)) {

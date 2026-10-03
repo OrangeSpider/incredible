@@ -24,7 +24,6 @@ export function createAnimalFlows(runtime: MachineRuntime): RuntimeSystem[] {
       const mouseX=Math.min(mouseLimit,mouse.position.x+runtime.dt*.09),catX=Math.min(catLimit,cat.position.x+runtime.dt*.055);
       Matter.Body.setPosition(mouse,standingPoint?standingPoint(mouseX):{x:mouseX,y:mouse.position.y});
       Matter.Body.setPosition(cat,standingPoint?standingPoint(catX):{x:catX,y:cat.position.y});
-      runtime.state.mouseFleeAt ||= runtime.now;
       if (mouseX>=destination-25) { machine.setSignal(`mouse.entered.hole.${mouseId}`); machine.setSignal("mouse.entered.hole"); }
     } };
   };
@@ -44,12 +43,11 @@ export function createAnimalFlows(runtime: MachineRuntime): RuntimeSystem[] {
       if (!started && impact && !impact.isStatic && !impact.isSensor && machine.entities().find(entity=>entity.id===machinePlugin(impact)?.instanceId)?.tags.includes("falling-body")) {
         started=true;
         const mode=catapultImpactMode(impact.position.x,seesaw.position.x);
-        machine.state(flow.catId)!.properties.startledAt=runtime.now;
-        runtime.state.catStartledAt=runtime.now; runtime.state.catImpactMode=mode;
+        machine.setState(flow.catId,"startled");
         if (mode==="launch") { Matter.Body.setPosition(cat,catapultReleasePosition(cat.position));Matter.Body.setVelocity(cat,catapultLaunchVelocity(impact.velocity.y)); }
       }
       if (started && !landed && ((bodyA===cat&&bodyB===platform)||(bodyB===cat&&bodyA===platform))) {
-        landed=true;runtime.state.catOnPlatformAt=runtime.now;
+        landed=true;machine.setState(flow.catId,"idle");
         Matter.Body.setStatic(cat,true);Matter.Body.setPosition(cat,standingPoint(cat.position.x));Matter.Body.setAngle(cat,0);
       }
     }});
@@ -58,7 +56,7 @@ export function createAnimalFlows(runtime: MachineRuntime): RuntimeSystem[] {
   for (const flow of runtime.level.fishChases??[]) systems.push({afterStep(){
     const cat=machine.body(flow.catId),fish=machine.body(flow.fishId);
     if (!runtime.running || !cat || !fish || !catSeesFish({catX:cat.position.x,catY:cat.position.y,fishX:fish.position.x,fishY:fish.position.y,fishVisible:machine.state(flow.fishId)?.state==="flopping"})) return;
-    machine.setState(flow.catId,"running"); runtime.state.fishChaseAt ||= runtime.now;
+    machine.setState(flow.catId,"running");
     Matter.Body.setPosition(cat,{x:advanceCatTowardFish(cat.position.x,fish.position.x,runtime.dt),y:cat.position.y});
     Matter.Body.setVelocity(cat,{x:0,y:cat.velocity.y});
     if (Math.abs(fish.position.x-cat.position.x)<=52) {machine.setSignal(`cat.reached.fish.${flow.catId}`);machine.setSignal("cat.reached.fish");}

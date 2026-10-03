@@ -35,7 +35,7 @@ test("flipped candle flame and rocket nozzle use the same transformed anchors",(
 test("multiple editor fishbowls release one fish each and their invisible bodies never support the ball",()=>{
   const m=new MachinePhysicsEngine();
   for(const [id,x] of [["a",200],["b",650]]){
-    m.addGadget({id,type:"fishBowl",x,y:280,properties:{standalone:true}});
+    m.addGadget({id,type:"fishBowl",x,y:280});
     m.addGadget({id:`${id}-ball`,type:"ball",x,y:180});
     Matter.Body.setVelocity(m.body(`${id}-ball`),{x:0,y:7});
   }

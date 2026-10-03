@@ -78,7 +78,7 @@ test("interaction resolver applies fire, water and sharp-object rules to the cor
 
 test("the runtime engine creates level bodies from JSON and changes gadget state", () => {
   const level = validateLevel({
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "engine-collision-test",
     number: 99,
     scene: "engine-collision-test",
@@ -92,8 +92,7 @@ test("the runtime engine creates level bodies from JSON and changes gadget state
       { id: "balloon", type: "balloon", x: 100, y: 100 },
       { id: "needle", type: "needle", x: 100, y: 100 },
     ],
-    systems: ["buoyancy", "sharp-objects"],
-    goal: { mode: "event", event: "balloon.popped" },
+    goal: { kind: "signal", name: "balloon.popped" },
   });
   const engine = new MachinePhysicsEngine(level);
   engine.step(16.666);

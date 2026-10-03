@@ -30,12 +30,10 @@ test("editor files activate fixed, preset and inventory magnets without modifyin
   for (const source of ["fixedGadgets", "initialPlacements", "inventory"]) {
     await t.test(source, async () => {
       const level = newLevel();
-      level.systems = level.systems.filter(system => system !== "magnetic-field");
       level[source] = source === "inventory" ? [{ type: "magnet", count: 1 }] : [magnet];
       const original = structuredClone(level);
       const [loaded] = await readLevelFiles([{ name: "old-editor-level.json", text: async () => JSON.stringify(level) }]);
       const checked = validateLevel(loaded.level);
-      assert.equal(checked.systems.filter(system => system === "magnetic-field").length, 0);
       assert.deepEqual(level, original, "loading must not mutate the original document");
       assertAttraction(checked, source === "fixedGadgets" ? [shot] : [shot, ...(checked.initialPlacements.length ? checked.initialPlacements : [magnet])]);
     });
@@ -44,17 +42,14 @@ test("editor files activate fixed, preset and inventory magnets without modifyin
 
 test("saving an editor level preserves system labels and intrinsic magnet behavior", async () => {
   const level = newLevel();
-  level.systems = level.systems.filter(system => system !== "magnetic-field");
   level.fixedGadgets = [magnet];
   let saved = "";
   const directory = { getFileHandle: async () => ({ createWritable: async () => ({ write: async data => { saved = data; }, close: async () => {} }) }) };
   await writeLevelFile(directory, level);
   assertAttraction(JSON.parse(saved));
-  assert.equal(level.systems.includes("magnetic-field"), false);
 });
 
-test("intrinsic activation preserves unrelated levels and rejects duplicate systems", () => {
-  const level = { ...newLevel(), systems: [] };
+test("intrinsic activation preserves unrelated levels", () => {
+  const level = newLevel();
   assert.deepEqual(validateLevel(level), level);
-  assert.throws(() => validateLevel({ ...level, fixedGadgets: [magnet], systems: ["magnetic-field", "magnetic-field"] }), /Duplicate level system/);
 });

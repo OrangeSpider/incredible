@@ -97,12 +97,6 @@
       }
     }
   ],
-  "systems": [
-    "magnetic-field",
-    "snap-gate",
-    "cat-mouse",
-    "animal-support"
-  ],
   "goal": {
     "kind": "all",
     "goals": [

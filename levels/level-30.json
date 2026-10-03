@@ -29,7 +29,6 @@
       "y": 300
     }
   ],
-  "systems": [],
   "goal": {
     "kind": "signal",
     "name": "heat.ignited.fuse"

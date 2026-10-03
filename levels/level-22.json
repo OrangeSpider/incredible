@@ -51,10 +51,6 @@
       }
     }
   ],
-  "systems": [
-    "snap-gate",
-    "tension-rope"
-  ],
   "goal": {
     "kind": "all",
     "goals": [

@@ -70,16 +70,29 @@ Der Button **EDITOR** öffnet eine visuelle Werkstatt mit dem aktuellen Level. *
 
 Lampen, Taschenlampen und Ventilatoren stehen mit Einschaltknopf und mit Steckdose zur Verfügung. Für Steckdosenvarianten **Stromleitung** auswählen und den Generatoranschluss mit der Steckdose verbinden. **Seil** verbindet einen Scherengriff oder Torriegel über optionale Umlenkrollen mit einem Zugpunkt. Auch diese Verbindungen werden gespeichert.
 
-Ventilatoren zeigen ihre Blasrichtung auch ausgeschaltet als Pfeil; Drehen und Spiegeln verändern den Pfeil und den Luftstrom gemeinsam. **Antriebsriemen** können an beiden Laufbandrädern und am Generatorrad befestigt werden. Ein Generator erzeugt Strom, solange ein Riemen ihn antreibt, oder dauerhaft nach dem bisherigen Einschalten durch einen Stoß. Die gewählten Riemenräder werden in `connections` über die optionalen Felder `sourcePortId` und `targetPortId` gespeichert (`left`, `right` beziehungsweise `drive`). Ältere Verbindungen ohne diese Felder bleiben gültig und nutzen am Laufband das linke Rad. Nach einem Erfolg erscheint die Meldung neben beziehungsweise unter dem Spielfeld, damit die Maschine sichtbar bleibt.
+Ventilatoren zeigen ihre Blasrichtung auch ausgeschaltet als Pfeil; Drehen und Spiegeln verändern den Pfeil und den Luftstrom gemeinsam. **Antriebsriemen** können an beiden Laufbandrädern und am Generatorrad befestigt werden. Ein Generator erzeugt Strom, solange ein Riemen ihn antreibt, oder dauerhaft nach dem bisherigen Einschalten durch einen Stoß. Die gewählten Riemenräder werden in `connections` über die verbindlichen Felder `sourcePortId` und `targetPortId` gespeichert (`left`, `right` beziehungsweise `drive`). Nach einem Erfolg erscheint die Meldung neben beziehungsweise unter dem Spielfeld, damit die Maschine sichtbar bleibt.
 
 Direktes Schreiben in Ordner verwendet die vom Browser angebotene `showDirectoryPicker`-API und benötigt einen sicheren Kontext (HTTPS oder localhost). Falls diese API fehlt, können Ordner über den Dateidialog eingelesen und einzelne Levels als JSON heruntergeladen werden. Die heruntergeladenen Dateien anschließend im gewünschten Levelordner ablegen.
 
 Zum Spielen einer Sammlung im Dialog **LEVEL** auf **Ordner zum Spielen auswählen** klicken. Alle JSON-Level im Ordner einschließlich Unterordnern werden vorab geprüft und nach Levelnummer, danach nach Dateinamen sortiert. Nach jedem Erfolg lädt **Nächstes Level** die nächste Datei dieser Sammlung. **Mitgelieferte Levels** wechselt zurück zum ursprünglichen Katalog. Ungültige Dateien und doppelte Level-IDs werden mit Dateiname beziehungsweise ID gemeldet.
 
-Das Format wird durch `levels/level.schema.json` beschrieben. Feste Startobjekte stehen in `fixedGadgets`, das Spielerinventar in `inventory`, aktive Verhaltensmodule in `systems` und das Ziel in `goal`. `connections` speichert Stromleitungen und Riemen, `controlRopes` Steuerseile und `floor: false` ein unten offenes Spielfeld. Objekt-IDs bleiben beim Testen und Laden erhalten. Bewegungsziele verwenden `kind: "motion"` und `minimumSpeed` (Matter.js-Tempo), Rechteckziele `kind: "area"` mit `selector`, `x`, `y`, `width` und `height`; geprüft wird der Objektmittelpunkt. Ziele für Spielerbauteile verwenden zusätzlich `tag: "player-part"`.
+Das Format wird durch `levels/level.schema.json` beschrieben. Feste Startobjekte stehen in `fixedGadgets`, das Spielerinventar in `inventory`, das Ziel in `goal` und ausdrückliche Instanzbeziehungen in `animalChases`, `catapults`, `fishChases` bzw. `seesawLaunches`. `connections` speichert Stromleitungen und Riemen, `controlRopes` Steuerseile und `floor: false` ein unten offenes Spielfeld. Objekt-IDs bleiben beim Testen und Laden erhalten. Bewegungsziele verwenden `kind: "motion"` und `minimumSpeed` (Matter.js-Tempo), Rechteckziele `kind: "area"` mit `selector`, `x`, `y`, `width` und `height`; geprüft wird der Objektmittelpunkt. Ziele für Spielerbauteile verwenden zusätzlich `tag: "player-part"`.
 
 ## Physikmodell
 
 Jeder Gadget-Typ besitzt genau eine Definition in `engine/gadget-catalog.ts`: Kategorien, Tags, Form, Abmessungen, Masse, Reibung, Rückprall, Schwerkraftfaktor, Feuer-/Wasser-/Aufprallreaktionen sowie Animationen je Zustand.
 
 `engine/interaction-rules.ts` kombiniert Gadgets über Typen, Kategorien und Tags. Deshalb gilt beispielsweise dieselbe Aufprallregel für Bowlingkugel und Tennisball, während deren Masse und Rückprall verschieden bleiben.
+
+
+Alle Level verwenden ausschließlich `schemaVersion: 2` mit `goal.kind`. Validatoren prüfen Daten ohne Normalisierung; alte Zielformate, Systemlisten und unvollständige Anschlussidentitäten werden zurückgewiesen. Der gemeinsame Aufbau in `game/simulation-setup.ts` aktiviert Hooks aus Gadget-Definitionen und wird von Spiel, Editor und Szenariotests verwendet. Lastseilrouten benötigen ein ausdrücklich referenziertes Gewicht und einen Anker. Neue Gadgets werden im bestehenden Katalog, den fachlichen Mechaniken und kleinen Renderern ergänzt; Details stehen in der Architekturdokumentation.
+
+Lokale vollständige Prüfung mit der vorhandenen Node-Umgebung:
+
+```sh
+node --experimental-strip-types --test tests/*.test.mjs
+node node_modules/typescript/bin/tsc -p tsconfig.next.json --noEmit --incremental false
+node node_modules/next/dist/bin/next build
+```
+
+Der HTML-Test unter `tests/rendered-html.test.mjs` prüft das vorhandene Worker-Artefakt in `dist`; ein lokaler Next-Build aktualisiert dieses separate Artefakt nicht. Browserprüfungen des lokalen Produktionsservers ergänzen die Prüfung des aktuellen Anwendungscodes.

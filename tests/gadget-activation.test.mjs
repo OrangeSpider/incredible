@@ -90,7 +90,7 @@ test('two explicit animal pairs use their own gates and shifted destinations',t=
 
 test('translated catapult scene with renamed IDs retains the shared simulation solution',t=>{
  const base=loadLevel(12),rename=id=>`new-${id}`;
- const level={...base,systems:[],fixedGadgets:base.fixedGadgets.map(g=>({...g,id:rename(g.id),x:g.x-80,y:g.y-30,collisionLabel:'art-label'})),catapults:base.catapults.map(flow=>Object.fromEntries(Object.entries(flow).map(([key,id])=>[key,rename(id)]))),goal:{kind:'signal',name:'mouse.entered.hole'}};
+ const level={...base,fixedGadgets:base.fixedGadgets.map(g=>({...g,id:rename(g.id),x:g.x-80,y:g.y-30,collisionLabel:'art-label'})),catapults:base.catapults.map(flow=>Object.fromEntries(Object.entries(flow).map(([key,id])=>[key,rename(id)]))),goal:{kind:'signal',name:'mouse.entered.hole'}};
  const s=createScenario(level,[{type:'ball',x:125,y:80}]);t.after(()=>{s.runtime.dispose();s.machine.destroy()});s.step(900);
  assert.equal(s.won,true);assert.ok(s.machine.body('new-joanne').position.y<260);assert.equal(s.machine.state('new-mogli').state,'running');
 });

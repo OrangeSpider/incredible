@@ -25,6 +25,7 @@ export default function PhysicsHandbook({ onClose }: { onClose: () => void }) {
           <p className="physics-intro">Wähle das Seil und klicke zuerst einen Scherengriff oder Torriegel. Klicke anschließend auf die gewünschten Rollen und zuletzt auf eine Kugel, einen Ballonknoten oder eines der beiden Wippenenden.</p>
           <p className="physics-intro">Ein Seil zieht erst, wenn sein Verlauf länger wird und es sich spannt. Soll das steigende Wippenende ziehen, führe das Seil über eine Rolle unter diesem Ende. Ein schlaffes Seil drückt nicht. Rote Seile kreuzen eine Mauer und brauchen einen anderen Verlauf.</p>
           <p className="physics-intro">Nach dem Verbinden wechselst du automatisch zu „Bearbeiten“. Du kannst die Bauteile weiter verschieben und drehen. Zum Lösen klicke auf das Seil oder seinen verbundenen Griff und danach auf „Entfernen“. Das Seil kommt ins Inventar zurück. Escape bricht den begonnenen Verlauf ab.</p>
+          <p className="physics-intro">Lastseile verwenden den im Level angegebenen Festpunkt und das zugeordnete Gewicht. Eine Route verbindet eine Lastgruppe mit genau einer Zugkugel. Der Verlauf und die tatsächlichen Massen bestimmen den Zug.</p>
           <h3>Strom, Licht und Stoß</h3>
           <p className="physics-intro">Taschenlampe und Knopflampe haben eine Batterie. Ein mechanischer Treffer auf den roten Knopf schaltet sie ein. Die Steckdosenvarianten von Lampe und Ventilator benötigen eine Leitung vom Generator: Wähle „Stromleitung“, klicke STROM und dann STECKDOSE. Ein Stoß startet den Generator. Zum Zurückgeben die Leitung auswählen und „Entfernen“ drücken.</p>
           <p className="physics-intro">Die Lupe bündelt nahes Licht 90 Pixel vor der Linse. Ihr Brennpunkt entzündet nach kurzer Erwärmung einen Docht oder eine Lunte. Drehe die Lupe, um den Brennpunkt auszurichten; Wände blockieren Licht und Wind.</p>
@@ -48,7 +49,7 @@ export default function PhysicsHandbook({ onClose }: { onClose: () => void }) {
             <tbody>{forceSources.map((gadget) => <tr key={gadget.type}><td>{gadget.displayName}</td><td>{gadget.description}</td><td>{gadget.tags.join(", ")}</td></tr>)}</tbody>
           </table></div>
           <h3>Abstrakte Levelziele</h3>
-          <p className="physics-intro">Ein Level prüft Signale und Zustände mit den Modi <b>event</b>, <b>all</b>, <b>any</b>, <b>state</b> oder <b>position</b>. Die Gadgets selbst kennen das konkrete Levelziel nicht.</p>
+          <p className="physics-intro">Ein Level prüft Zustände, Positionen, Bewegung, Zielbereiche, Kontakte, Ereignisse und Signale. Ziele können mit <b>all</b> und <b>any</b> kombiniert werden; <b>count</b> zählt passende Objekte, <b>never</b> prüft ein Verbot bis zum Abschluss. Die Gadgets selbst kennen das konkrete Levelziel nicht.</p>
           <h3>Gadget-Interaktionen</h3>
           <div className="interaction-table"><table>
             <thead><tr><th>Quelle</th><th>Ziel</th><th>Auslöser</th><th>Regel</th><th>Stand</th></tr></thead>

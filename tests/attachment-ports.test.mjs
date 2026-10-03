@@ -19,7 +19,7 @@ function setup(t, level, connections) {
 const rope = (source = "ball", portId = "pull") => ({targetId:"gate",targetPortId:"handle",guides:[],source:{gadgetId:source,portId}});
 
 test("basketball inherits a rope-end port and pulls a latch through shared setup", t => {
-  const level = validateLevel({...newLevel(),systems:["tension-rope"],fixedGadgets:[
+  const level = validateLevel({...newLevel(),fixedGadgets:[
     {id:"gate",type:"snapGate",x:100,y:100}, {id:"ball",type:"basketball",x:260,y:100},
   ],controlRopes:[rope()]});
   const ports=ropePorts(level.fixedGadgets);

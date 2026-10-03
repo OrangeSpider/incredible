@@ -32,7 +32,6 @@
       "y": 300
     }
   ],
-  "systems": [],
   "goal": {
     "kind": "state",
     "selector": {

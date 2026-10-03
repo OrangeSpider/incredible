@@ -12,10 +12,6 @@ export function catSpriteOffsetX(pose:CatSpritePose,size:number):number{
   return pose.state==="idle"?CAT_IDLE_SOURCE_OFFSETS_X[pose.frame]*size/256:0;
 }
 
-export function catIsRunning({motor,level,mouseFleeAt}:{motor:boolean;level:number;mouseFleeAt:number}):boolean{
-  return motor||(level===6&&mouseFleeAt>0);
-}
-
 /**
  * The startled state deliberately owns three frames and then falls through to
  * running. Future explosions or impacts only need to provide `startledAt`.

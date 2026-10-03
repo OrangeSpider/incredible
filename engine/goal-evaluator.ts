@@ -1,4 +1,4 @@
-import type {ComposableGoalSpec,EntityPredicate,GoalComparison,GoalEntity,GoalEvent,GoalSelector,GoalSpec,LegacyGoalSpec} from "./types.ts";
+import type {ComposableGoalSpec,EntityPredicate,GoalComparison,GoalEntity,GoalEvent,GoalSelector,GoalSpec} from "./types.ts";
 
 /** A read-only snapshot of the running machine. Events and signals are historical facts. */
 export type GoalContext={
@@ -77,16 +77,6 @@ function evaluateComposable(goal:ComposableGoalSpec,context:GoalContext):boolean
   }
 }
 
-function evaluateLegacy(goal:LegacyGoalSpec,context:GoalContext):boolean{
-  if(goal.mode==="event")return Boolean(goal.event&&context.signal(goal.event)===true);
-  const results=(goal.conditions??[]).map(condition=>{
-    const actual=context.signal(condition.signal);
-    if(condition.operator==="occurred")return actual===true;
-    return compare(actual,condition.operator,condition.value);
-  });
-  return results.length>0&&(goal.mode==="any"?results.some(Boolean):results.every(Boolean));
-}
-
 export function evaluateGoal(goal:GoalSpec,context:GoalContext):boolean{
-  return "mode" in goal?evaluateLegacy(goal,context):evaluateComposable(goal,context);
+  return evaluateComposable(goal,context);
 }

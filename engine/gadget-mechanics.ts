@@ -194,6 +194,10 @@ export class GadgetMechanics {
         machine.setState(id,"idle"); const body = machine.body(id); if (body) Matter.Body.setAngularVelocity(body,0);
       }
     }
+    for (const gear of gears) {
+      const state=machine.state(gear.id)!;
+      if (state.state==="running") state.properties.rotorAngle=Number(state.properties.rotorAngle??0)+(machine.body(gear.id)?.angularVelocity||.08)*dt/(1000/60);
+    }
     this.beltDriven = driven;
     // Consumers see a belt-driven generator's updated power in this same step.
     for (const entity of entities.filter(entity => GADGET_CATALOG[entity.type].electrical?.supply === "socket")) {

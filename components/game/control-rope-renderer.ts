@@ -50,7 +50,7 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
       ctx.restore();
     }
   }
-  for (const config of runtime.level.fixedGadgets) {
+  for (const config of configs) {
     if (config.type !== "scissor") continue;
     const closed = machine.state(config.id)?.state === "closed";
     const balloon = machine.body(String(config.properties?.balloon ?? ""));
@@ -58,7 +58,7 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
       strokeRope(ctx, [ { x: balloon.position.x, y: balloon.position.y + 27 }, closed ? { x: balloon.position.x + Math.sin(now / 170) * 7, y: balloon.position.y + 59 } : bodyPoint(machine.body(config.id)!, { x: 0, y: -12 }) ], closed ? 6 : 0);
     }
     if (closed && (machine.stateAgeMs(config.id) ?? 0) < 450) {
-      ctx.save(); ctx.fillStyle = "#aa3f2b"; ctx.font = "bold 14px system-ui"; ctx.fillText("SCHNAPP!", config.x - 32, config.y - 48); ctx.restore();
+      ctx.save(); ctx.fillStyle = "#aa3f2b"; ctx.font = "bold 14px system-ui"; ctx.fillText("SCHNAPP!", (machine.body(config.id)?.position.x??config.x) - 32, (machine.body(config.id)?.position.y??config.y) - 48); ctx.restore();
     }
   }
   if (!ropeMode || running) return;

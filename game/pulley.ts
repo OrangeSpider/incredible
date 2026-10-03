@@ -1,3 +1,4 @@
+import type { PlaceableGadgetType } from "../engine/types.ts";
 export const LEVEL_FIVE_LOAD_KG=50;
 export const BOWLING_PULL_KG=16;
 export const LEVEL_FIVE_TARGET_Y=350;
@@ -53,3 +54,13 @@ export const loadRiseFromPull=(pullDistance:number,strands:number)=>strands>0?Ma
 
 /** The visible top edge of the load, not its hidden centre point, reaches the target. */
 export const pulleyTargetReached=(weightCenterY:number,targetY=LEVEL_FIVE_TARGET_Y,weightHeight=LEVEL_FIVE_WEIGHT_HEIGHT)=>weightCenterY-weightHeight/2<=targetY;
+
+export function routeKindForPart(type: PlaceableGadgetType): PulleyRouteKind | null {
+  if (type === "movingPulley")
+    return "moving";
+  if (type === "pulley")
+    return "fixed";
+  if (type === "ball")
+    return "pull";
+  return null;
+}

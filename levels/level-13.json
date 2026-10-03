@@ -55,12 +55,6 @@
       }
     }
   ],
-  "systems": [
-    "breakable-container",
-    "fish-release",
-    "cat-fish",
-    "animal-support"
-  ],
   "goal": {
     "kind": "signal",
     "name": "cat.reached.fish"

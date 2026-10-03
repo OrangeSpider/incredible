@@ -46,11 +46,6 @@
       }
     }
   ],
-  "systems": [
-    "scissors",
-    "tension-rope",
-    "buoyancy"
-  ],
   "goal": {
     "kind": "all",
     "goals": [

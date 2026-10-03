@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {CAT_IDLE_FRAME_MS,CAT_STARTLE_DURATION_MS,catIsRunning,catSpriteOffsetX,catSpritePose} from "../game/cat.ts";
+import {CAT_IDLE_FRAME_MS,CAT_STARTLE_DURATION_MS,catSpriteOffsetX,catSpritePose} from "../game/cat.ts";
 import {ANIMAL_FALL_SPEED,isAnimalFalling} from "../game/animals.ts";
 
 test("sitting cat blinks without continuously changing its body pose",()=>{
@@ -15,13 +15,6 @@ test("sitting cat blinks without continuously changing its body pose",()=>{
 
 test("cat has a three-frame running loop",()=>{
   assert.deepEqual(catSpritePose(200,{running:true,startledAt:null}),{state:"running",row:1,frame:2});
-});
-
-test("level 7 switches the cat to its running animation during the mouse chase",()=>{
-  assert.equal(catIsRunning({motor:false,level:6,mouseFleeAt:0}),false);
-  assert.equal(catIsRunning({motor:false,level:6,mouseFleeAt:1000}),true);
-  assert.equal(catIsRunning({motor:false,level:5,mouseFleeAt:1000}),false);
-  assert.equal(catIsRunning({motor:true,level:0,mouseFleeAt:0}),true);
 });
 
 test("startled cat shows three shock frames and then runs away",()=>{

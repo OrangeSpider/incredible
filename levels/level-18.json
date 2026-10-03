@@ -63,10 +63,6 @@
       "collisionLabel": "cannonTarget"
     }
   ],
-  "systems": [
-    "cannon",
-    "magnetic-field"
-  ],
   "goal": {
     "kind": "all",
     "goals": [

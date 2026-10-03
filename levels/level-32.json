@@ -20,10 +20,7 @@
       "type": "candle",
       "x": 270,
       "y": 350,
-      "state": "burning",
-      "properties": {
-        "standalone": true
-      }
+      "state": "burning"
     },
     {
       "id": "payload",
@@ -41,7 +38,6 @@
       }
     }
   ],
-  "systems": [],
   "goal": {
     "kind": "all",
     "goals": [

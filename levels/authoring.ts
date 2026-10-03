@@ -11,7 +11,7 @@ export function newLevel(number = 1): LevelDefinition {
     schemaVersion: 2, id: `level-${Date.now().toString(36)}`, number, scene: "custom",
     title: "Neues Level", objective: "Definiere das Ziel deiner Maschine.", hint: "Baue deine Maschine und starte sie.",
     buildTip: "Wähle rechts ein Bauteil und platziere es auf dem Spielfeld.", successText: "Deine Maschine hat das Ziel erreicht!",
-    inventory: [], fixedGadgets: [], initialPlacements: [], connections: [], systems: [],
+    inventory: [], fixedGadgets: [], initialPlacements: [], connections: [],
     floor: true, goal: structuredClone(UNSET_GOAL),
   };
 }
@@ -21,16 +21,9 @@ export function goalList(goal: GoalSpec): GoalSpec[] {
   return "kind" in goal && (goal.kind === "all" || goal.kind === "any") ? goal.goals : [goal];
 }
 
-export function legacyToComposable(goal: GoalSpec): ComposableGoalSpec {
-  if ("kind" in goal) return goal;
-  if (goal.mode === "event") return { kind: "signal", name: goal.event! };
-  const goals: ComposableGoalSpec[] = (goal.conditions ?? []).map(condition => ({ kind: "signal", name: condition.signal, operator: condition.operator, value: condition.value }));
-  return { kind: goal.mode === "any" ? "any" : "all", goals };
-}
-
 export function combineGoals(goals: GoalSpec[], mode: "all" | "any" = "all"): ComposableGoalSpec {
   if (!goals.length) return structuredClone(UNSET_GOAL);
-  return goals.length === 1 ? legacyToComposable(goals[0]) : { kind: mode, goals: goals.map(legacyToComposable) };
+  return goals.length === 1 ? goals[0] : { kind: mode, goals: goals };
 }
 
 export function exitGoal(selector: GoalSelector, side: "top" | "bottom" | "left" | "right"): ComposableGoalSpec {

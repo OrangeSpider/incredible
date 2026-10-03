@@ -34,7 +34,6 @@ import level33 from "./level-33.json" with { type: "json" };
 import level34 from "./level-34.json" with { type: "json" };
 import level35 from "./level-35.json" with { type: "json" };
 import {GADGET_CATALOG} from "../engine/gadget-catalog.ts";
-import {KNOWN_RUNTIME_SYSTEM_IDS} from "../game/runtime-system-ids.ts";
 import {validateConnections} from "../game/gadget-connections.ts";
 import {validateControlRopes} from "../game/control-ropes.ts";
 import type {ComposableGoalSpec,GoalSelector,LevelDefinition,PlaceableGadgetType} from "../engine/types.ts";
@@ -139,36 +138,14 @@ function validateGoal(value:unknown,ids:Set<string>,path="goal",depth=0):asserts
   }
 }
 
-function validateLegacyGoal(value:unknown){
-  if(!isObject(value)||!["event","all","any","state","position"].includes(String(value.mode)))throw new Error("Level needs a legacy goal mode");
-  checkKeys(value,["mode","event","conditions"],"goal");
-  if(value.mode==="event"){
-    if(!nonempty(value.event))throw new Error("goal.event must be nonempty");
-    return;
-  }
-  if(!Array.isArray(value.conditions)||value.conditions.length===0)throw new Error("goal.conditions must be nonempty");
-  for(const [index,condition] of value.conditions.entries()){
-    if(!isObject(condition))throw new Error(`goal.conditions[${index}] must be an object`);
-    checkKeys(condition,["signal","operator","value"],`goal.conditions[${index}]`);
-    if(!nonempty(condition.signal)||!["occurred","equals","above","below"].includes(String(condition.operator)))throw new Error(`goal.conditions[${index}] is invalid`);
-    if(condition.operator==="equals"&&(condition.value===undefined||typeof condition.value==="object"))throw new Error(`goal.conditions[${index}] needs a value`);
-    if(["above","below"].includes(String(condition.operator))&&!finite(condition.value))throw new Error(`goal.conditions[${index}] needs a number`);
-  }
-}
-
 export function validateLevel(value:unknown):LevelDefinition{
   if(!value||typeof value!=="object")throw new Error("Level JSON must be an object");
   const level=value as Partial<LevelDefinition>;
-  if(level.schemaVersion!==1&&level.schemaVersion!==2)throw new Error("Unsupported level schemaVersion");
+  if(level.schemaVersion!==2)throw new Error("Unsupported level schemaVersion");
   if(!level.id||!level.scene||!level.title||!level.objective)throw new Error("Level needs id, scene, title and objective");
   if(!Number.isInteger(level.number)||Number(level.number)<1)throw new Error("Level number must be a positive integer");
-  if(!Array.isArray(level.inventory)||!Array.isArray(level.fixedGadgets)||!Array.isArray(level.systems))throw new Error("Level needs inventory, fixedGadgets and systems arrays");
-  const seenSystems=new Set<string>();
-  for(const system of level.systems){
-    if(!KNOWN_RUNTIME_SYSTEM_IDS.has(system))throw new Error(`Unknown level system: ${system}`);
-    if(seenSystems.has(system))throw new Error(`Duplicate level system: ${system}`);
-    seenSystems.add(system);
-  }
+  if(!Array.isArray(level.inventory)||!Array.isArray(level.fixedGadgets))throw new Error("Level needs inventory and fixedGadgets arrays");
+  if ("systems" in level) throw new Error("systems is no longer part of the level format");
   const ids=new Set<string>();
   if(level.floor!==undefined&&typeof level.floor!=="boolean")throw new Error("floor must be boolean");
   const validateGadget=(gadget:unknown)=>{
@@ -180,7 +157,6 @@ export function validateLevel(value:unknown):LevelDefinition{
       checkKeys(gadget.physics,["shape","width","height","radius","massKg","density","friction","staticFriction","airFriction","restitution","gravityScale","isStatic","isSensor","inertiaLocked","maxSpeed","buoyancyForce","impactThreshold"],"physics");
       for (const key of ["width", "height", "radius"]) if (gadget.physics[key] !== undefined && (!finite(gadget.physics[key]) || Number(gadget.physics[key]) <= 0)) throw new Error(`Invalid gadget dimension ${key}: ${gadget.id}`);
     }
-    if (gadget.type === "candle" && gadget.collisionLabel === "ignitionCandle" && isObject(gadget.physics) && gadget.physics.height === 52) gadget.properties = { flameOffsetY: -50, ...(isObject(gadget.properties) ? gadget.properties : {}) };
     if(ids.has(gadget.id))throw new Error(`Duplicate gadget id: ${gadget.id}`);
     ids.add(gadget.id);
   };
@@ -194,8 +170,7 @@ export function validateLevel(value:unknown):LevelDefinition{
   if(level.controlRopes!==undefined&&!Array.isArray(level.controlRopes))throw new Error("controlRopes must be an array");
   validateControlRopes(level.controlRopes??[],[...level.fixedGadgets,...(level.initialPlacements??[])]);
   validateLevelRelations(level as LevelDefinition);
-  if(level.schemaVersion===1)validateLegacyGoal(level.goal);
-  else validateGoal(level.goal,ids);
+  validateGoal(level.goal,ids);
   const validated=structuredClone(level as LevelDefinition);
   return validated;
 }

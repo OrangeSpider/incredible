@@ -54,11 +54,6 @@
       }
     }
   ],
-  "systems": [
-    "snap-gate",
-    "tension-rope",
-    "buoyancy"
-  ],
   "goal": {
     "kind": "all",
     "goals": [

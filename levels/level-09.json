@@ -43,9 +43,6 @@
       "collisionLabel": "cannonTarget"
     }
   ],
-  "systems": [
-    "cannon"
-  ],
   "goal": {
     "kind": "signal",
     "name": "cannonball.hit.target"

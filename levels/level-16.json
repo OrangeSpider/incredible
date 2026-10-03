@@ -15,6 +15,5 @@
     {"id":"target-ring","type":"targetRing","x":750,"y":145,"role":"goal","collisionLabel":"targetRing"},
     {"id":"stone-wall","type":"stoneWall","x":675,"y":395,"collisionLabel":"stoneWall"}
   ],
-  "systems": ["bucket-water","water-collisions","fire","buoyancy","fan-airflow"],
   "goal": {"kind":"all","goals":[{"kind":"state","selector":{"id":"candle"},"state":"extinguished"},{"kind":"zone","entity":{"id":"balloon"},"zone":{"id":"target-ring"}}]}
 }

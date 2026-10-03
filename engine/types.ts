@@ -79,6 +79,7 @@ export type GadgetDefinition={
   appearance:{renderer:string;color?:string;outline?:string};
   electrical?:{activeState:string;supply:"battery"|"socket"|"generator";switch?:{x:number;y:number}};
   joint?:{kind:"pivot";localX:number;localY:number;stiffness:number;damping:number};
+  placementState?:string;
   defaultState:string;
   animations:Record<string,GadgetAnimation>;
   defaultRotation?:number;
@@ -109,12 +110,6 @@ export type InventoryEntry={type:PlaceableGadgetType;count:number};
 export type GadgetConnection={id:string;kind:"wire"|"belt";sourceId:string;targetId:string;sourcePortId:string;targetPortId:string};
 export type ControlRopeConfig={targetId:string;targetPortId:string;guides:PortReference[];source:PortReference};
 
-export type LegacyGoalSpec={
-  mode:"event"|"all"|"any"|"state"|"position";
-  event?:string;
-  conditions?:Array<{signal:string;operator:"occurred"|"equals"|"above"|"below";value?:string|number|boolean}>;
-};
-
 /** A selector matches every supplied field. At least one field is required by validation. */
 export type GoalSelector={id?:string;type?:GadgetType;tag?:string;role?:string};
 export type GoalEntity={id:string;type:GadgetType;tags?:readonly string[];role?:string;state?:string;x?:number;y?:number;speed?:number};
@@ -135,10 +130,10 @@ export type ComposableGoalSpec=
   |{kind:"all"|"any";goals:ComposableGoalSpec[]}
   |{kind:"count";selector:GoalSelector;where?:EntityPredicate;operator:"atLeast"|"atMost"|"exactly";value:number}
   |{kind:"never";goal:ComposableGoalSpec;afterMs?:number;until?:ComposableGoalSpec};
-export type GoalSpec=LegacyGoalSpec|ComposableGoalSpec;
+export type GoalSpec=ComposableGoalSpec;
 
 export type LevelDefinition={
-  schemaVersion:1|2;
+  schemaVersion:2;
   id:string;
   number:number;
   scene:string;
@@ -153,7 +148,6 @@ export type LevelDefinition={
   connections?:GadgetConnection[];
   controlRopes?:ControlRopeConfig[];
   floor?:boolean;
-  systems:string[];
   animalChases?:Array<{catId:string;mouseId:string;exitId:string;gateId?:string}>;
   catapults?:Array<{catId:string;mouseId:string;seesawId:string;platformId:string;exitId:string}>;
   fishChases?:Array<{catId:string;fishId:string}>;

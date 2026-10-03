@@ -9,7 +9,7 @@ import { analyzePulleyRoute, type PulleyRouteKind } from "@/game/pulley";
 import { advanceRopeDraft, ropePorts, ropeUsesGadget, ropeConfigPoints, controlRopeKey, type PendingControlRope } from "@/game/control-ropes";
 import { gadgetPorts, connectPorts, connectionPorts, gadgetPortKey, distanceToPath, type GadgetPort } from "@/game/gadget-connections";
 import GameCanvas from "./GameCanvas";
-import { routeKindForPart } from "@/game/simulation-setup";
+import { routeKindForPart } from "@/game/pulley";
 import GameHeader from "./GameHeader";
 import GameToolbar from "./GameToolbar";
 import LevelEditor from "./LevelEditor";
@@ -217,7 +217,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     const id = Math.round(performance.now() * 1000);
     setSelectedId(id);
     setSelectedConnection(null); setSelectedRope(null);
-    setPlaced((items) => [...items, { id, type: selected, x: point.x, y: point.y, rotation: defaultRotation(selected), tags: ["player-part"], ...(["candle", "cat", "mouse", "fish", "fishBowl"].includes(selected) ? { properties: { standalone: true } } : {}), ...(selected === "fish" ? { state: "flopping" } : {}) }]);
+    setPlaced((items) => [...items, { id, type: selected, x: point.x, y: point.y, rotation: defaultRotation(selected), tags: ["player-part"], state: GADGET_CATALOG[selected].placementState ?? GADGET_CATALOG[selected].defaultState }]);
   };
 
   const boardPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {

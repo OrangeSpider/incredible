@@ -68,12 +68,6 @@
       }
     }
   ],
-  "systems": [
-    "seesaw",
-    "catapult",
-    "cat-mouse",
-    "animal-support"
-  ],
   "goal": {
     "kind": "signal",
     "name": "mouse.entered.hole"

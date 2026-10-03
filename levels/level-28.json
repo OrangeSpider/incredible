@@ -39,7 +39,6 @@
       "collisionLabel": "levelBalloon"
     }
   ],
-  "systems": [],
   "goal": {
     "kind": "all",
     "goals": [

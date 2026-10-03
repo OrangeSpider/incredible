@@ -68,13 +68,6 @@
       }
     }
   ],
-  "systems": [
-    "seesaw",
-    "snap-gate",
-    "scissors",
-    "tension-rope",
-    "buoyancy"
-  ],
   "goal": {
     "kind": "all",
     "goals": [

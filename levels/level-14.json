@@ -118,12 +118,6 @@
       }
     }
   ],
-  "systems": [
-    "seesaw",
-    "scissors",
-    "tension-rope",
-    "buoyancy"
-  ],
   "goal": {
     "kind": "count",
     "selector": {
