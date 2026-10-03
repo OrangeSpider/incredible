@@ -8,6 +8,7 @@ import { airflowAt, AIRFLOW_ACCELERATION } from "../game/airflow.ts";
 import { applySeesawImpact, limitSeesawRotation } from "../game/seesaw.ts";
 import { FuseNetwork } from "../game/fuse.ts";
 import { bodyPoint, bodyVector, bodyTransform, inversePoint, candleFlameLocal, rocketNozzleLocal } from "./gadget-geometry.ts";
+import { boxingGloveStrength } from "../game/boxing-glove.ts";
 import { FISH_REVEAL_DELAY_MS } from "../game/fish.ts";
 import { rocketVisual, ROCKET_IGNITION_MS, ROCKET_TOTAL_LAUNCH_MS } from "../game/rocket.ts";
 import { CAT_STARTLE_DURATION_MS, CAT_BLAST_RUN_SPEED, CAT_BLAST_FLEE_DURATION_MS } from "../game/cat.ts";
@@ -207,12 +208,13 @@ export class GadgetMechanics {
     }
     for (const [id, hit] of this.punches) {
       const glove = machine.body(id)!, age = machine.stateAgeMs(id) ?? 0; if (age > 300) continue;
+      const strength = boxingGloveStrength(machine.config(id)?.properties);
       const direction = bodyVector(glove, { x: 1, y: 0 }), c = direction.x, s = direction.y, reach = 36 + Math.min(1, age / 110) * 82;
       for (const body of Matter.Composite.allBodies(machine.world)) {
         if (body === glove || body.isSensor || hit.has(body.id)) continue;
         const dx = body.position.x - glove.position.x, dy = body.position.y - glove.position.y, forward = dx * c + dy * s;
         if (forward > 30 && forward < reach + (body.circleRadius || 15) && Math.abs(-dx * s + dy * c) < 33) {
-          hit.add(body.id); this.strike(body, { x: c * 9, y: s * 9 });
+          hit.add(body.id); this.strike(body, { x: c * strength, y: s * strength });
         }
       }
     }

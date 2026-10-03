@@ -14,6 +14,9 @@ import GoalEditor from "./GoalEditor";
 import GoalOverlay from "./GoalOverlay";
 import { placedConfigId, type PlacedGadget } from "./types";
 
+import { SEESAW_MAX_ANGLE } from "@/game/seesaw";
+import { boxingGloveStrength } from "@/game/boxing-glove";
+
 const LOCAL_DRAFT_KEY = "machine-level-editor-draft";
 const EMPTY: never[] = [];
 const NO_WIN = () => {};
@@ -240,6 +243,14 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
             change({ ...draft, fixedGadgets: draft.fixedGadgets.filter(gadget => gadget.id !== selected.id), initialPlacements: (draft.initialPlacements ?? []).filter(gadget => gadget.id !== selected.id), [group]: [...(draft[group] ?? []).filter(gadget => gadget.id !== selected.id), selected] });
           }}><option value="fixedGadgets">Fest vorgegeben</option><option value="initialPlacements">Verschiebbarer Startaufbau</option></select></label>
           <label>Startstatus<select value={selected.state ?? GADGET_CATALOG[selected.type].defaultState} onChange={event => change(updateGadget(draft, selected.id, { state: event.target.value }))}>{[...new Set([selected.state ?? GADGET_CATALOG[selected.type].defaultState, ...Object.keys(GADGET_CATALOG[selected.type].animations)])].map(state => <option key={state} value={state}>{STATE_LABELS[state] ?? state}</option>)}</select></label>
+          {selected.type === "seesaw" && <label>Startneigung<select value={selected.rotation ?? 0} onChange={event => change(updateGadget(draft, selected.id, { rotation: Number(event.target.value) }))}>
+            <option value={-SEESAW_MAX_ANGLE}>Links unten</option><option value={0}>Waagerecht</option><option value={SEESAW_MAX_ANGLE}>Rechts unten</option>
+            {![0, -SEESAW_MAX_ANGLE, SEESAW_MAX_ANGLE].includes(selected.rotation ?? 0) && <option value={selected.rotation}>Eigener Winkel</option>}
+          </select></label>}
+          {selected.type === "boxingGlove" && <label>Schlagkraft<input type="number" min="0.1" step="0.1" value={boxingGloveStrength(selected.properties)} onChange={event => {
+            const punchStrength = event.target.valueAsNumber;
+            if (Number.isFinite(punchStrength) && punchStrength > 0) change(updateGadget(draft, selected.id, { properties: { ...selected.properties, punchStrength } }));
+          }} /></label>}
           <label>Drehung °<input type="number" step="15" value={Math.round((selected.rotation ?? 0) * 180 / Math.PI)} onChange={event => change(updateGadget(draft, selected.id, { rotation: Number(event.target.value) * Math.PI / 180 }))} /></label>
           {(["x", "y"] as const).map(axis => <label key={axis}>{axis.toUpperCase()}<input type="number" value={Math.round(selected[axis])} onChange={event => change(updateGadget(draft, selected.id, { [axis]: Number(event.target.value) }))} /></label>)}
         </div>}

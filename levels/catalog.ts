@@ -157,6 +157,7 @@ export function validateLevel(value:unknown):LevelDefinition{
       checkKeys(gadget.physics,["shape","width","height","radius","massKg","density","friction","staticFriction","airFriction","restitution","gravityScale","isStatic","isSensor","inertiaLocked","maxSpeed","buoyancyForce","impactThreshold"],"physics");
       for (const key of ["width", "height", "radius"]) if (gadget.physics[key] !== undefined && (!finite(gadget.physics[key]) || Number(gadget.physics[key]) <= 0)) throw new Error(`Invalid gadget dimension ${key}: ${gadget.id}`);
     }
+    if (gadget.type === "boxingGlove" && isObject(gadget.properties) && gadget.properties.punchStrength !== undefined && (!finite(gadget.properties.punchStrength) || gadget.properties.punchStrength <= 0)) throw new Error(`Invalid gadget punchStrength: ${gadget.id}`);
     if(ids.has(gadget.id))throw new Error(`Duplicate gadget id: ${gadget.id}`);
     ids.add(gadget.id);
   };
