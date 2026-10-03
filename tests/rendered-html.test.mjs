@@ -42,15 +42,18 @@ test("goal areas are rendered in the editor but not disclosed on the game board"
   assert.doesNotMatch(game,/<GoalOverlay/);
 });
 
-test("hamster wheel uses a six-frame generated cartoon sprite sheet",async()=>{
-  const [source,sprite]=await Promise.all([
+test("hamster wheel separates its fixed housing from Louis' six-frame run cycle",async()=>{
+  const [source,housing,runner]=await Promise.all([
     readFile(new URL("../engine/gadget-catalog.ts",import.meta.url),"utf8"),
     readFile(new URL("../public/assets/hamster-wheel-sprites.png",import.meta.url)),
+    readFile(new URL("../public/assets/hamster-running-sprites.png",import.meta.url)),
   ]);
   assert.match(source,/hamster-wheel-sprites\.png/);
-  assert.deepEqual([...sprite.subarray(0,8)],[137,80,78,71,13,10,26,10],"asset must be a PNG");
-  assert.equal(sprite.readUInt32BE(16),768);
-  assert.equal(sprite.readUInt32BE(20),512,"the 3x2 sheet must contain six square animation cells");
+  assert.match(source,/hamster-running-sprites\.png/);
+  assert.deepEqual([...housing.subarray(0,8)],[137,80,78,71,13,10,26,10],"housing asset must be a PNG");
+  assert.deepEqual([...runner.subarray(0,8)],[137,80,78,71,13,10,26,10],"runner asset must be a PNG");
+  assert.equal(runner.readUInt32BE(16)/3,runner.readUInt32BE(20)/2,"the 3x2 runner sheet must contain six square animation cells");
+  assert.equal(runner[25],6,"the runner sheet must use RGBA pixels with transparency");
 });
 
 test("cat uses a generated three-state animation sprite sheet",async()=>{

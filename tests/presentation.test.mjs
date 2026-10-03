@@ -54,13 +54,19 @@ test('fire artwork uses instance type despite arbitrary collision labels and ind
  assert.equal(draw(machine.body('thread'),machine,10),true);assert.ok(ctx.calls.some(([key])=>key==='lineTo'));
 });
 
-test('active hamster wheel keeps a fixed housing around its clipped animation',t=>{
+test('active hamster wheel keeps a fixed housing, rotates its wheel and anchors Louis',t=>{
  const {machine}=simulation(t,[{id:'wheel',type:'hamsterWheel',x:200,y:200,state:'running'}]);
- const ctx=context(),states=[];
- drawGadgetBody(ctx,machine.body('wheel'),machine,270,true,(_ctx,animation)=>{states.push(animation?.state);return true;},()=>false);
+ machine.step(270);
+ const ctx=context(),states=[],placements=[];
+ drawGadgetBody(ctx,machine.body('wheel'),machine,270,true,(_ctx,animation,x,y)=>{states.push(animation?.state);placements.push([x,y,animation?.definition.kind==='sprite'?animation.definition.asset:null]);return true;},()=>false);
  assert.deepEqual(states,['idle','running']);
+ assert.deepEqual(placements,[
+  [0,0,'/assets/hamster-wheel-sprites.png'],
+  [1,7,'/assets/hamster-running-sprites.png'],
+ ]);
  assert.ok(ctx.calls.some(([key,x,y,r])=>key==='arc'&&x===0&&y===0&&r===46));
  assert.ok(ctx.calls.some(([key])=>key==='clip'));
+ assert.ok(ctx.calls.some(([key,angle])=>key==='rotate'&&Math.abs(angle-270*Math.PI*2/900)<1e-9));
 });
 
 test('full body rendering keeps cannon artwork under the local fire effects',t=>{
