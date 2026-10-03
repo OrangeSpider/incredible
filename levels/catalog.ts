@@ -34,8 +34,8 @@ import level34 from "./level-34.json" with { type: "json" };
 import level35 from "./level-35.json" with { type: "json" };
 import {GADGET_CATALOG} from "../engine/gadget-catalog.ts";
 import {KNOWN_RUNTIME_SYSTEM_IDS} from "../game/runtime-system-ids.ts";
-import {gadgetPorts,connectPorts,connectionPorts,sameConnection} from "../game/gadget-connections.ts";
-import {ropePorts} from "../game/control-ropes.ts";
+import {validateConnections} from "../game/gadget-connections.ts";
+import {validateControlRopes} from "../game/control-ropes.ts";
 import type {ComposableGoalSpec,GoalSelector,LevelDefinition,PlaceableGadgetType} from "../engine/types.ts";
 
 const rawLevels=[level01,level02,level03,level04,level06,level07,level08,level09,level10,level11,level12,level13,level14,level15,level16,level17,level18,level19,level20,level21,level22,level23,level24,level25,level26,level27,level28,level29,level30,level31,level32,level33,level34,level35];
@@ -188,25 +188,9 @@ export function validateLevel(value:unknown):LevelDefinition{
   const inventoryTypes=new Set<string>();
   for(const item of level.inventory){if(!isObject(item)||!GADGET_CATALOG[item.type as PlaceableGadgetType])throw new Error(`Unknown inventory type: ${item?.type}`);if(!Number.isInteger(item.count)||Number(item.count)<1)throw new Error(`Invalid inventory count for ${item.type}`);if(inventoryTypes.has(String(item.type)))throw new Error(`Duplicate inventory type: ${item.type}`);inventoryTypes.add(String(item.type))}
   if(level.connections!==undefined&&!Array.isArray(level.connections))throw new Error("connections must be an array");
-  const ports=gadgetPorts([...level.fixedGadgets,...(level.initialPlacements??[])]),connectionIds=new Set<string>();
-  for(const connection of level.connections??[]){
-    if(!nonempty(connection.id)||connectionIds.has(connection.id))throw new Error("Connection needs a unique id");
-    if(connection.kind!=="wire"&&connection.kind!=="belt")throw new Error("Unknown connection kind");
-    if((connection.sourcePortId!==undefined&&!nonempty(connection.sourcePortId))||(connection.targetPortId!==undefined&&!nonempty(connection.targetPortId)))throw new Error(`Invalid connection port: ${connection.id}`);
-    const [source,target]=connectionPorts(connection,ports);
-    if(!source||!target||!connectPorts(source,target,connection.kind,[],connection.id))throw new Error(`Invalid connection: ${connection.id}`);
-    if((level.connections??[]).some(other=>other!==connection&&sameConnection(other,connection)))throw new Error(`Duplicate connection: ${connection.id}`);
-    connectionIds.add(connection.id);
-  }
+  validateConnections(level.connections??[],[...level.fixedGadgets,...(level.initialPlacements??[])]);
   if(level.controlRopes!==undefined&&!Array.isArray(level.controlRopes))throw new Error("controlRopes must be an array");
-  const ropeEndpoints=ropePorts([...level.fixedGadgets,...(level.initialPlacements??[])]),ropeTargets=new Set<string>();
-  for(const rope of level.controlRopes??[]){
-    if(!isObject(rope)||!nonempty(rope.targetId)||!Array.isArray(rope.guides)||!isObject(rope.source)||!isObject(rope.source.local)||!finite(rope.source.local.x)||!finite(rope.source.local.y))throw new Error("Invalid control rope");
-    if(!ropeEndpoints.some(port=>port.gadgetId===rope.targetId&&port.kind==="target")||ropeTargets.has(rope.targetId))throw new Error(`Invalid or duplicate rope target: ${rope.targetId}`);
-    if(!ropeEndpoints.some(port=>port.gadgetId===rope.source.gadgetId&&port.kind==="source"&&port.local.x===rope.source.local.x&&port.local.y===rope.source.local.y))throw new Error("Invalid rope source");
-    if(new Set(rope.guides).size!==rope.guides.length||rope.guides.some(id=>!ropeEndpoints.some(port=>port.gadgetId===id&&port.kind==="guide")))throw new Error("Invalid rope guides");
-    ropeTargets.add(rope.targetId);
-  }
+  validateControlRopes(level.controlRopes??[],[...level.fixedGadgets,...(level.initialPlacements??[])]);
   if(level.schemaVersion===1)validateLegacyGoal(level.goal);
   else validateGoal(level.goal,ids);
   const validated=structuredClone(level as LevelDefinition);

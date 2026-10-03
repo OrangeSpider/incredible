@@ -20,7 +20,7 @@ Status: abgeschlossen.
 
 ## 2. Mechanikpfade vereinheitlichen
 
-Status: bereit; Schritt 1 abgeschlossen. Noch nicht begonnen.
+Status: abgeschlossen.
 
 - Lunten und Kanonen auf einen Ausführungspfad bringen. Mehrere Kanonen unabhängig verarbeiten; alle Geschosse bei der Engine registrieren.
 - Danach überlappende Scheren-, Trampolin- und Wippenlogik bereinigen, sodass jede Wirkung genau einen Verantwortlichen hat.
@@ -30,7 +30,7 @@ Status: bereit; Schritt 1 abgeschlossen. Noch nicht begonnen.
 
 ## 3. Anschlussdefinitionen vereinheitlichen
 
-Status: wartet auf Schritt 2.
+Status: abgeschlossen.
 
 - Anschlussfähigkeiten, lokale Positionen und vollständige Anschlussidentitäten zentral beschreiben.
 - Basketball mit `rope-end` erhält einen Seilanschluss ohne zusätzliche Typenliste.
@@ -41,7 +41,7 @@ Status: wartet auf Schritt 2.
 
 ## 4. Gadget-Aktivierung und Instanzzuordnungen bereinigen
 
-Status: wartet auf Schritt 3.
+Status: bereit; Schritt 3 abgeschlossen.
 
 - Automatisch benötigte Mechaniken aus Gadget-Definitionen beziehen. Explizite Abläufe bleiben ausdrücklich in Leveldaten konfiguriert.
 - Feste IDs, erste Instanz eines Typs und Szenenkoordinaten aus wiederverwendbaren Runtime-Systemen entfernen.
@@ -90,3 +90,48 @@ Tatsächlich ausgeführte Abschlussprüfungen:
 Voraussetzungen und Grenzen für Schritt 2:
 
 Der gemeinsame Aufbau ist jetzt die Quelle für Canvas und Szenariotests. Vorhandene feste IDs/Labels, Auswahl einzelner Runtime-Körper, der Zahnradgraph anhand der Ausgangspositionen und das einzelne `cannon-fuse` bleiben bewusst erhalten. Insbesondere wurden weder die Umschaltung zwischen GadgetMechanics und Runtime-Systemen noch Geschossregistrierung, Brenndauern, Scheren-, Trampolin- oder Wippenwirkungen verändert. Schritt 2 kann die Lunten-/Kanonenpfade auf dieser gemeinsamen Basis vereinheitlichen und Mehrinstanz-/Geschossselektortests ergänzen; hierfür gelten weiterhin direkte Levelanpassungen ohne Migrationen. Die generelle Bereinigung der Instanzzuordnungen folgt erst in Schritt 4.
+
+
+### Schritt 2 – Mechanikpfade vereinheitlicht (3. Oktober 2026)
+
+- `GadgetMechanics` besitzt das einzige räumliche Luntennetz. Jede Kanone hat eine eigene Lunte (`<id>:fuse`), eigenen Fortschritt und genau einen registrierten Schuss (`<id>:shot`). Instanzsignale `cannon.fired.<id>` ergänzen das fachliche Gesamtsignal. Die Umschaltung anhand von `fuse-network`, der alte Runtime-Schusspfad und globale Abbrand-/Schusszustände sind entfernt. Nasse Lunten löschen nur ihren eigenen Abschnitt. Die Netz-Snapshots stehen auch in der pausierten Bauvorschau bereit.
+- Regeln kennzeichnen mit `execution` ihre Zuständigkeit: ohne Angabe deklarativer EffectRegistry-Pfad, `spatial` für geometrische GadgetMechanics, `runtime` für explizite Levelabläufe. Die Engine überspringt diese beschreibenden Regeln in allen Ausführungseinstiegen. Keine Ausnahmen anhand einzelner Regel-IDs. Räumlicher Flammenkontakt, Glasbruch und Wippenübertragung behalten ihre Spezialmodelle.
+- Trampoline verwenden ausschließlich den deklarativen Bounce-Effekt. Wippenimpuls und Winkelbegrenzung liegen ausschließlich in GadgetMechanics für alle Wippen; die Runtime behält Levelziele und die expliziten Katapult-/Torabläufe. Scheren schließen über die deklarative Aufprallregel oder den bestehenden Steuerseilzug. Der Zustand löst einmalig die zugeordnete Ballonfreigabe aus; der zusätzliche Einzel-Scherenpfad ist entfernt. Die allgemeine Aktivierung und Zuordnung beliebiger platzierter Scheren bleiben Schritt 4 vorbehalten.
+- Canvas zeichnet Luntenfronten und Kanonenblitze anhand der jeweiligen Engine-Instanz. Szenenstatus ist eine Zusammenfassung dieser Zustände, keine zweite Ausführungssteuerung.
+- Leveldaten direkt angepasst: Levels 9, 18 und 20 entfernen `fuse-network`; Level 17 verwendet `scissors` statt `single-scissor`. Die beiden entfernten Capability-Namen werden nicht mehr akzeptiert. Keine Migration oder Fallbacks. Wegen der registrierten Geschossphysik verwendet die geprüfte Lösung für Level 20 nun den Magneten bei `(600, 180)` statt `(600, 160)`; die drei Lunten bleiben bei `(150,360,0)`, `(250,352,-0.08)`, `(350,340,-0.08)`. Das Tor öffnet und Mogli erreicht den Ausgang.
+
+Tatsächlich ausgeführte Abschlussprüfungen:
+
+- Drei neue Szenariotests in `tests/mechanic-paths.test.mjs`: unabhängige Zündung zweier Kanonen und einmalige Schusserzeugung, Geschoss-Zielselektoren nach ID/Typ/Tag, isoliertes Löschen nasser Lunten sowie kombinierte Trampolin-/Scheren-/Wippenwirkungen mit Zählung der Zustandswechsel und Impulse. Alle nutzen den gemeinsamen Aufbau; gezielte Kollisionen werden für die Zählprüfung eingespeist.
+- Bestehende Aufbau- und Raketenprüfungen verwenden die per Instanz verfügbaren Snapshots. Die bisherigen Level-Lösungstests einschließlich 9, 17, 18, 19 und der angepassten Lösung 20 bestehen.
+- `node --experimental-strip-types --test tests/*.test.mjs`: 191 bestanden, 0 fehlgeschlagen. Ausgabe: `outputs/step-2-tests.log`.
+- `node node_modules/typescript/bin/tsc -p tsconfig.next.json --noEmit --incremental false`: erfolgreich.
+- Kein Produktionsbuild und keine manuelle Browserprüfung durchgeführt. Kein Commit oder Push.
+
+Übergabe für Schritt 3:
+
+Anschlussdefinitionen und die bisherigen Steuerseil-/Riemen-/Stromleitungsregeln wurden nicht umgebaut. Schritt 3 kann die Portidentitäten vereinheitlichen. Allgemeine Mechanikaktivierung, feste IDs in expliziten Levelabläufen, erste Instanzen in Runtime-Körperzuordnungen und Scherenzuordnungen aus festen Levelgadgets bleiben für Schritt 4. Das Luntennetz wird bei Änderungen seines Gadgetbestands neu aufgebaut; dynamisches Hinzufügen von Lunten während einer laufenden Simulation ist kein geprüfter Ablauf dieser Stufe. Der Canvas enthält weiterhin Render-Sonderfälle für Schritt 5.
+
+
+### Schritt 3 – Anschlussdefinitionen vereinheitlicht (3. Oktober 2026)
+
+- `engine/gadget-ports.ts` und `GadgetDefinition.ports` beschreiben Anschlussarten, benannte IDs und lokale Geometrie gemeinsam. `PortReference` und `portKey` bilden vollständige Identitäten einschließlich beliebiger Anschlussnamen und Trennzeichen ab. Generische Zugpunkte kommen aus `rope-end`; der Basketball benötigt keine weitere Typenliste. Die rote Lastkugel trägt jetzt ebenfalls ihre bisher implizite Fähigkeit als `rope-end`. Besondere Griff-, Rollen-, Ballon-, Wippen-, Hamsterrad-, Generator- und Laufbandgeometrien stehen im Katalog; Laufbandzeichnung und Ports teilen die Radgeometrie aus `game/drive.ts`.
+- Strom-/Riemen-Ports und Steuerseil-Ports beziehen sich auf diese Definitionen. Simulation, Bauvorschau, Zeichnung, Hit-Tests im Spiel/Editor und Levelvalidierung verwenden dieselben lokalen Punkte mit Rotation und Spiegelung. Wippenbreite und Ballongröße werden beim Auflösen berücksichtigt; gespeicherte Steuerseile enthalten keine eingefrorenen lokalen Koordinaten mehr.
+- `GadgetConnection` verlangt `sourcePortId` und `targetPortId`. Stromleitungen speichern stets die Erzeuger- und Steckdosen-IDs in richtiger Orientierung, unabhängig von der Klickreihenfolge. Der Vergleich `right/default` und die Auswahl des ersten kompatiblen Ports bei fehlenden IDs sind entfernt. `validateConnections` prüft Import, Engine-Levelaufbau, gemeinsamen Simulationsaufbau und laufende Antriebs-/Stromverbindungen. Fehlende IDs, unpassende Ports und doppelte Verbindungen werden abgewiesen.
+- Steuerseile speichern `targetId` plus `targetPortId`, `guides: [{gadgetId, portId}]` und `source: {gadgetId, portId}`. `validateControlRopes` prüft Import und Runtime-Aufbau. Auswahl, Entfernen, Inventar und Duplikate verwenden die vollständige Zielanschlussidentität; mehrere benannte Ziel- und Rollenanschlüsse bleiben unterscheidbar. Rollen-Duplikate werden auch bei unterschiedlicher JSON-Feldreihenfolge erkannt. Der gemeinsame Aufbau und Testhelfer übernehmen gespeicherte Level-Steuerseile, sofern der Aufrufer sie nicht ausdrücklich ersetzt.
+- Direkt betroffene alte Anschlussannahmen entfernt: Ein platziertes `belt`-Gadget erzeugt keine implizite Hamsterrad-/Laufbandverbindung mehr. Der Marker, die separate Canvas-Riemenzeichnung und die doppelte Inventarzählung dieses Pfads sind entfernt. Riemen werden über ausdrücklich verbundene `drive`-Ports gebaut. Zugseil-, Strom- und Antriebsphysik bleiben getrennte fachliche Mechaniken.
+- Betroffene Module: Gadget-Katalog/-Typen/-Ports, `game/gadget-connections.ts`, `game/control-ropes.ts`, Engine/Mechanics, `simulation-setup.ts`, Spiel/Editor/Steuerseilzeichnung, Inventar und `levels/authoring.ts`/`catalog.ts`. `levels/level.schema.json`, gespeicherte Testlevel und `docs/GADGETS.md` beschreiben das neue Format direkt. Die ausgelieferten `level-*.json` enthalten bislang keine vorgegebenen `connections` oder `controlRopes`; in Schritt 3 mussten dort keine Verbindungen migriert oder Puzzlelösungen verändert werden. Die Leveländerungen aus Schritt 2 bleiben erhalten.
+
+Tatsächlich ausgeführte Abschlussprüfungen:
+
+- Sieben neue Prüfungen in `tests/attachment-ports.test.mjs` verwenden den gemeinsamen Simulationsaufbau: Basketball zieht einen Riegel; Wippenanschlüsse bei Rotation, Spiegelung und Größenänderung; beliebige benannte Riemenports und kollisionsfreie Identitätsschlüssel; Stromklickreihenfolge und Trennen/Wiederverbinden; Zurückweisung fehlender/ungültiger IDs; mehrere Griff-/Rollenports mit Export/Import und Wiederaufbau; Level 1 mit expliziter Riemenverbindung. Der letzte Test speist den Anstoß am Hamsterrad gezielt ein und prüft danach reale Übertragung und Levelziel.
+- Bestehende Steuerseillösungen 14 und 21–24, Antriebsverlust/-wiederverbindung und Gadget-/Level-Lösungen einschließlich der unveränderten Schritt-2-Lösung für Level 20 bestehen. Bestehende Testdaten verwenden jetzt ausdrücklich alle Anschluss-IDs.
+- `node --experimental-strip-types --test tests/*.test.mjs`: 198 bestanden, 0 fehlgeschlagen. Ausgabe: `outputs/step-3-tests.log`.
+- `node node_modules/typescript/bin/tsc -p tsconfig.next.json --noEmit --incremental false`: erfolgreich.
+- `git diff --check`: keine Fehler. Kein Produktionsbuild und keine manuelle Browserprüfung durchgeführt; der vorhandene HTML-Test nutzt weiterhin bestehende Build-Artefakte. Kein Commit oder Push.
+
+Konkrete Übergabe für Schritt 4:
+
+Die neuen Anschlussidentitäten sind verbindlich; keine fehlenden IDs normalisieren und keine alten Steuerseilkoordinaten importieren. Weitere Gadgets bekommen lokale Definitionen über `ports` oder die vorhandenen Fähigkeiten. Explizite Levelverbindungen müssen beide Ports benennen. Die allgemeine Aktivierung bleibt unverändert: Steuerseilzeichnung/-Bedienung und Zielwirkung hängen weiterhin an Runtime-Systemen; `ControlRopeMechanism` meldet Zug an die Zielinstanz, deren konkrete Aktivierung ist Gegenstand von Schritt 4. Der Steuerseil-Griffzustand liegt derzeit weiterhin pro Gadget, auch wenn mehrere Zielports adressierbar sind.
+
+Feste Szenen-IDs, erste Hamsterrad-/Laufband-/Wippeninstanzen, Scheren-Ballon-Zuordnungen und Szenenabläufe wurden nicht allgemein bereinigt. Insbesondere bleibt `runtime.options.beltConnected` ein Aufbau-Snapshot für den bestehenden Hamster-Szenenablauf; die fachliche Riemen-/Strommechanik berechnet ihre Verbindungen laufend neu. Schritt 4 soll diese Instanzzuordnungen und Aktivierung samt Antriebsverlust/Zahnradtrennung vereinheitlichen. Der vorhandene Lastseilrouten-Sonderablauf (`pulley-rope`, einschließlich Szenenanker und Instanzwahl) bleibt ebenfalls für die Szenenbereinigung; diese Stufe betrifft die benannten Gadget-Anschlüsse und Steuerseile. Die übrige Renderer-/Formatbereinigung und Build-/Browserabschlussprüfung bleiben Schritt 5.

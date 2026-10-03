@@ -2,9 +2,8 @@ import Matter from "matter-js";
 import { animalHasSupport, isAnimalFalling } from "./animals.ts";
 import { advanceCatAndMouse, CATAPULT_MOUSE_HOLE_X, CATAPULT_PLATFORM, catapultImpactMode, catapultLaunchVelocity, catapultReleasePosition } from "./catapult.ts";
 import { advanceCatTowardFish, catSeesFish } from "./fish.ts";
-import { bodyVector, bodyPoint, candleFlameLocal } from "../engine/gadget-geometry.ts";
-import { applySeesawImpact, limitSeesawRotation } from "./seesaw.ts";
-import { ropePullIsTaut, scissorClosesFromImpact } from "./scissors.ts";
+import { bodyVector, bodyPoint } from "../engine/gadget-geometry.ts";
+import { ropePullIsTaut } from "./scissors.ts";
 import { machinePlugin } from "../engine/body-factory.ts";
 import type { PhysicsEvent } from "../engine/physics-engine.ts";
 import type { MachineRuntime, RuntimeCollision } from "./machine-runtime.ts";
@@ -58,16 +57,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       if (id) runtime.machine.setState(id, "popped");
     },
   }),
-  trampoline: () => ({
-    onCollision(collision) {
-      const trampoline = bodyWithLabel(collision, "trampoline");
-      const ball = [collision.bodyA,collision.bodyB].find(body => ["levelBall","ball","tennisBall"].includes(body.label));
-      if (ball && trampoline && !ball.isStatic && ball.position.y < trampoline.position.y) {
-        const strength = ball.label === "tennisBall" ? 11 : 20;
-        Matter.Body.setVelocity(ball, { x: Math.sin(trampoline.angle) * strength, y: -Math.abs(Math.cos(trampoline.angle)) * strength });
-      }
-    },
-  }),
   "pulley-rope": createPulleySystem,
   "cat-mouse": runtime => ({
     afterStep() {
@@ -113,12 +102,8 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       if (hasPair(collision, "seesawBasket", "seesawPayload") && !runtime.state.seesawHitAt) {
         runtime.state.seesawHitAt = runtime.now || performance.now();
       }
-      const seesaw = runtime.bodies.seesaw, impact = movingImpact(collision);
-      if (runtime.level.systems.includes("catapult") || !seesaw || !impact || !bodyWithLabel(collision, "seesaw")) return;
-      applySeesawImpact(runtime.matter, seesaw, impact);
     },
     afterStep() {
-      if (runtime.running && runtime.bodies.seesaw) limitSeesawRotation(runtime.bodies.seesaw);
       if (runtime.state.seesawHitAt && runtime.now - runtime.state.seesawHitAt > 450) {
         runtime.machine.setSignal("seesaw_payload.entered.basket");
       }
@@ -129,7 +114,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       const cat = runtime.bodies.cat, seesaw = runtime.bodies.seesaw, impact = movingImpact(collision), state = runtime.state;
       if (cat && seesaw && impact && bodyWithLabel(collision, "seesaw") && !state.catStartledAt) {
         state.catStartledAt = runtime.now || performance.now(); state.catImpactMode = catapultImpactMode(impact.position.x, seesaw.position.x);
-        applySeesawImpact(runtime.matter, seesaw, impact);
         if (state.catImpactMode === "launch") { Matter.Body.setPosition(cat, catapultReleasePosition(cat.position)); Matter.Body.setVelocity(cat, catapultLaunchVelocity(impact.velocity.y)); }
       }
       if (cat && hasPair(collision, "cat", "catapultPlatform") && state.catStartledAt && !state.catOnPlatformAt) {
@@ -168,13 +152,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
     },
   }),
   scissors: runtime => ({
-    onCollision(collision) {
-      const scissor = [collision.bodyA, collision.bodyB].find(body => machinePlugin(body)?.type === "scissor");
-      if (!scissor) return;
-      const impact = scissor === collision.bodyA ? collision.bodyB : collision.bodyA;
-      const id = machinePlugin(scissor)?.instanceId;
-      if (id && ["ball", "tennisBall"].includes(impact.label) && impact.position.y < scissor.position.y && scissorClosesFromImpact(Math.max(impact.velocity.y, impact.speed), !impact.isStatic)) runtime.closeScissorById(id);
-    },
     onState(event) {
       if (event.type === "state" && event.state === "closed" && runtime.machine.state(event.instanceId)?.type === "scissor") runtime.closeScissorById(event.instanceId);
     },
@@ -221,9 +198,7 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       }
       const fuse = bodyWithLabel(collision, "fuse");
       if (fuse) {
-        runtime.wetFuseIds.add(fuse.id); const id = machinePlugin(fuse)?.instanceId;
-        if (id) runtime.machine.setState(id, "extinguished");
-        if (runtime.state.fuseIgnited && !runtime.state.fuseExtinguishedAt) runtime.state.fuseExtinguishedAt = runtime.now || performance.now();
+        runtime.wetFuseIds.add(fuse.id);
       }
     },
     afterStep() {
@@ -240,28 +215,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       }
     },
   }),
-  "fuse-network": runtime => ({
-    afterStep() {
-      const state = runtime.state, network = runtime.options.fuseNetwork;
-      if (!runtime.running || state.fuseExtinguishedAt) return;
-      state.fuseClock += runtime.dt; for (const candle of runtime.machine.bodiesByType("candle")) { const id=machinePlugin(candle)!.instanceId; if(runtime.machine.state(id)?.state==="burning") network.igniteNear(bodyPoint(candle,candleFlameLocal(runtime.machine.config(id)!)),30,state.fuseClock); }
-      for (const flame of runtime.machine.mechanics.rocketFlames) network.igniteNear(flame, 14, state.fuseClock);
-      network.update(state.fuseClock);
-      state.fuseIgnited = network.hasAnyBurned(state.fuseClock); state.fuseReady = network.burnTimeAt(runtime.options.cannonFuseId, 0) < Infinity;
-      const cannon = runtime.bodies.cannon;
-      if (cannon && !state.cannonFired) {
-        const snapshot = network.snapshot(runtime.options.cannonFuseId, state.fuseClock), id = machinePlugin(cannon)!.instanceId;
-        if (snapshot.samples.some(sample => sample.burned)) runtime.machine.setState(id, "fuseBurning");
-        runtime.machine.state(id)!.properties.fuseProgress = snapshot.samples.filter(sample => sample.burned).length / snapshot.samples.length;
-      }
-      if (!cannon || state.cannonFired || !network.hasBurnedEnd(runtime.options.cannonFuseId, state.fuseClock)) return;
-      state.cannonFired = true; state.cannonFiredAt = runtime.now;
-      const id = machinePlugin(cannon)?.instanceId; if (id) runtime.machine.setState(id, "firing");
-      const direction = bodyVector(cannon, { x: 1, y: 0 });
-      const shot = Matter.Bodies.circle(cannon.position.x + direction.x * 58, cannon.position.y + direction.y * 58, 11, { density: .0025, restitution: .3, label: "cannonball" });
-      Matter.Body.setVelocity(shot, { x: direction.x * 14, y: direction.y * 14 }); Matter.Composite.add(runtime.matter.world, shot);
-    },
-  }),
   cannon: runtime => ({
     onCollision(collision) {
       if (hasPair(collision, "cannonball", "cannonTarget") && !runtime.state.cannonHitAt) {
@@ -274,20 +227,6 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
       }
     },
   }),
-  "single-scissor": runtime => {
-    const scissorConfig=runtime.level.fixedGadgets.find(gadget=>gadget.type==="scissor");
-    const balloonId=String(scissorConfig?.properties?.balloon??"");
-    return {onCollision(collision){
-      const scissor=[collision.bodyA,collision.bodyB].find(body=>machinePlugin(body)?.type==="scissor");
-      const impact=scissor==collision.bodyA?collision.bodyB:collision.bodyA;
-      if(!scissor||!["ball","tennisBall"].includes(impact.label)||impact.isStatic||impact.position.y>=scissor.position.y||impact.velocity.y<1.5)return;
-      const scissorId=machinePlugin(scissor)?.instanceId;
-      if(!scissorId||runtime.machine.state(scissorId)?.state==="closed")return;
-      runtime.machine.setState(scissorId,"closed");
-      runtime.machine.setState(balloonId,"free");
-      runtime.machine.release(balloonId,{x:0,y:-1.2});
-    }};
-  },
   "magnetic-field": runtime => ({
     beforeStep(){
       if(!runtime.running)return;
@@ -344,11 +283,9 @@ const SYSTEM_FACTORIES: Readonly<Record<string, SystemFactory>> = {
         const impact=[collision.bodyA,collision.bodyB].find(body=>body.label==="ball");
         if(!seesaw||!impact||impact.position.x>=seesaw.position.x||trigger.position.x<=seesaw.position.x)return;
         launched=true;
-        applySeesawImpact(runtime.matter,seesaw,impact);
         Matter.Body.setVelocity(trigger,{x:8,y:-11});
         runtime.machine.setSignal("gate.trigger.launched");
       },
-      afterStep(){if(runtime.running&&runtime.bodies.seesaw)limitSeesawRotation(runtime.bodies.seesaw)},
     };
   },
   "rocket-launch": runtime => ({

@@ -64,7 +64,6 @@
     }
   ],
   "systems": [
-    "fuse-network",
     "cannon",
     "magnetic-field"
   ],

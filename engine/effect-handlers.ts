@@ -51,7 +51,7 @@ export function createDefaultEffectRegistry(): EffectRegistry {
 
   registry.register("start", setTargetState("running"));
   registry.register("pop", setTargetState("popped"));
-  registry.register("close", setTargetState("closed"));
+  registry.register("close", context => { if (!context.source.body?.isStatic) setTargetState("closed")(context); });
   registry.register("break", setTargetState("broken"));
   registry.register("ignite", setTargetState("burning"));
   registry.register("extinguish", setTargetState("extinguished"));
@@ -109,7 +109,7 @@ export function createDefaultEffectRegistry(): EffectRegistry {
   });
 
   registry.register("bounce", ({ source, target }) => {
-    if (!source.body || !target.body) return;
+    if (!source.body || !target.body || source.body.isStatic) return;
     const angle = target.body.angle;
     const strength = source.config.type === "tennisBall" ? 11 : 20;
     Matter.Body.setVelocity(source.body, {

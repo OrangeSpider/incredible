@@ -1,5 +1,6 @@
+import { localPort } from "../../engine/gadget-ports.ts";
 import { bodyPoint } from "../../engine/gadget-geometry.ts";
-import { handleOffset, ropePorts, type PendingControlRope, type Point } from "../../game/control-ropes.ts";
+import { ropeConfigPoints, controlRopeKey, ropePorts, type PendingControlRope, type Point } from "../../game/control-ropes.ts";
 import type { MachineRuntime } from "../../game/machine-runtime.ts";
 import type { GadgetInstanceConfig } from "../../engine/types.ts";
 
@@ -27,17 +28,19 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
   for (const rope of runtime.controlRopes.ropes) {
     const points = runtime.controlRopes.points(rope.definition) ?? rope.points;
     const target = machine.body(rope.definition.targetId);
-    if (target && machine.state(rope.definition.targetId)?.type === "scissor") points[0] = bodyPoint(target, { x: 27 - rope.progress * 22, y: 27 });
+    const config=machine.config(rope.definition.targetId);
+    const handle=config&&localPort(config,rope.definition.targetPortId,"target");
+    if (target && config?.type === "scissor" && handle) points[0] = bodyPoint(target, {x:handle.local.x-rope.progress*22,y:handle.local.y});
     if (rope.triggered) {
       // The operated handle lets go; the free cable end hangs from its first guide.
       const pivot = points[1];
       strokeRope(ctx, [{ x: pivot.x + Math.sin(now / 180) * 8, y: pivot.y + 36 }, ...points.slice(1)], 10, true);
-    } else strokeRope(ctx, points, 8 * (1 - rope.progress), true, rope.blocked || selectedRope === rope.definition.targetId);
+    } else strokeRope(ctx, points, 8 * (1 - rope.progress), true, rope.blocked || selectedRope === controlRopeKey(rope.definition));
     if (rope.blocked && !rope.triggered) {
       ctx.save(); ctx.fillStyle = "#b53f2d"; ctx.font = "bold 13px system-ui";
       ctx.fillText("Seil blockiert – über eine Rolle um die Mauer führen", 215, 58); ctx.restore();
     }
-    for (const id of rope.definition.guides) {
+    for (const {gadgetId:id} of rope.definition.guides) {
       const body = machine.body(id); if (!body) continue;
       ctx.save(); ctx.translate(body.position.x, body.position.y);
       const source = points.at(-1)!;
@@ -61,11 +64,11 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
   if (!ropeMode || running) return;
   if (pending) {
     const target = machine.body(pending.targetId), type = machine.state(pending.targetId)?.type;
-    if (target && type) strokeRope(ctx, [bodyPoint(target, handleOffset(type)), ...pending.guides.flatMap(id => { const body = machine.body(id); return body ? [{ ...body.position }] : []; })], 8);
+    if (target && type) strokeRope(ctx, [...ropeConfigPoints({...pending,source:{gadgetId:pending.targetId,portId:pending.targetPortId}},configs).slice(0,-1)], 8);
   }
   for (const port of ropePorts(configs)) {
-    const connected = runtime.controlRopes.ropes.some(rope => rope.definition.targetId === port.gadgetId);
-    const active = pending?.targetId === port.gadgetId || pending?.guides.includes(port.gadgetId);
+    const connected = runtime.controlRopes.ropes.some(rope => rope.definition.targetId === port.gadgetId && rope.definition.targetPortId === port.portId);
+    const active = (pending?.targetId === port.gadgetId && pending.targetPortId === port.portId) || pending?.guides.some(guide=>guide.gadgetId===port.gadgetId&&guide.portId===port.portId);
     ctx.save(); ctx.fillStyle = active ? "#db9a25" : connected ? "#bd6241" : "#2f9b67";
     ctx.strokeStyle = "#fff6d7"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(port.x, port.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.font = "bold 10px system-ui"; ctx.fillStyle = "#4b2b17"; ctx.fillText(connected && port.kind === "target" ? "AUSWÄHLEN" : port.label, port.x + 13, port.y - 12); ctx.restore();

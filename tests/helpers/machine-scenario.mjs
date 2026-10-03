@@ -3,7 +3,7 @@ import {createSimulation} from "../../game/simulation-setup.ts";
 
 export const loadLevel=number=>JSON.parse(readFileSync(new URL(`../../levels/level-${number}.json`,import.meta.url),"utf8"));
 
-export function createScenario(level,placed=[],controlRopes=[],options={}){
+export function createScenario(level,placed=[],controlRopes=level.controlRopes??[],options={}){
   let won=false;
   const {machine,runtime}=createSimulation({
     level,

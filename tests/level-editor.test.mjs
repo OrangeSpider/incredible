@@ -43,7 +43,7 @@ test("player goals match only player parts, while preset placements keep stable 
   level.initialPlacements = [{ id: "my-cat", type: "cat", x: 100, y: 100 }, { id: "source", type: "generator", x: 200, y: 200 }];
   level.fixedGadgets = [{ id: "lamp", type: "socketLamp", x: 300, y: 200 }];
   level.inventory = [{ type: "cat", count: 2 }, { type: "wire", count: 1 }];
-  level.connections = [{ id: "preset", kind: "wire", sourceId: "source", targetId: "lamp" }];
+  level.connections = [{ id: "preset", kind: "wire", sourceId: "source", targetId: "lamp" , sourcePortId: "power", targetPortId: "socket" }];
   level.goal = { kind: "motion", selector: { id: "my-cat" }, minimumSpeed: .5 };
   const checked = validateLevel(level), placed = initialPlacements(checked);
   assert.equal(placedConfigId(placed[0]), "my-cat");
@@ -61,8 +61,8 @@ test("undo restores deleted gadgets together with their exact goals, ropes and w
   const level = newLevel();
   level.fixedGadgets = [{ id: "generator", type: "generator", x: 100, y: 100 }, { id: "lamp", type: "socketLamp", x: 300, y: 100 }, { id: "scissor", type: "scissor", x: 200, y: 200 }, { id: "ball", type: "ball", x: 200, y: 300 }];
   level.goal = combineGoals([{ kind: "state", selector: { id: "generator" }, state: "running" }, { kind: "state", selector: { id: "lamp" }, state: "on" }]);
-  level.connections = [{ id: "wire", kind: "wire", sourceId: "generator", targetId: "lamp" }];
-  level.controlRopes = [{ targetId: "scissor", guides: [], source: { gadgetId: "ball", local: { x: 0, y: 0 } } }];
+  level.connections = [{ id: "wire", kind: "wire", sourceId: "generator", targetId: "lamp" , sourcePortId: "power", targetPortId: "socket" }];
+  level.controlRopes = [{ targetId: "scissor", targetPortId:"handle", guides: [], source: {gadgetId: "ball", portId:"pull"} }];
   let history = { past: [], present: validateLevel(level), future: [] };
   history = remember(history, removeGadget(history.present, "generator"));
   assert.equal(history.present.connections.length, 0);
@@ -145,7 +145,7 @@ test("button and socket fans activate independently", () => {
   for (let frame = 0; frame < 120; frame++) machine.step(16);
   assert.equal(machine.state("button").state, "running");
   assert.equal(machine.state("socket").state, "off");
-  machine.connections = [{ id: "wire", kind: "wire", sourceId: "generator", targetId: "socket" }];
+  machine.connections = [{ id: "wire", kind: "wire", sourceId: "generator", targetId: "socket" , sourcePortId: "power", targetPortId: "socket" }];
   machine.setState("generator", "running"); machine.step(16);
   assert.equal(machine.state("socket").state, "running");
   machine.destroy();
@@ -157,7 +157,7 @@ test("socket flashlight keeps a directed beam and an unlit candle can be ignited
   machine.addGadget({ id: "light", type: "socketFlashlight", x: 250, y: 200 });
   machine.addGadget({ id: "lens", type: "magnifier", x: 390, y: 200 });
   machine.addGadget({ id: "candle", type: "candle", x: 480, y: 250, state: "unlit" });
-  machine.connections = [{ id: "wire", kind: "wire", sourceId: "generator", targetId: "light" }];
+  machine.connections = [{ id: "wire", kind: "wire", sourceId: "generator", targetId: "light" , sourcePortId: "power", targetPortId: "socket" }];
   for (let frame = 0; frame < 90; frame++) machine.step(16);
   assert.equal(machine.state("light").state, "on");
   assert.equal(machine.mechanics.lights.find(light => light.id === "light").angle, 0);
@@ -171,5 +171,5 @@ test("new goal and rope validation rejects invalid dimensions, motion and dangli
   assert.throws(() => validateLevel({ ...level, goal: { kind: "area", selector: { id: "ball" }, x: 0, y: 0, width: 0, height: 10 } }), /dimensions/);
   assert.throws(() => validateLevel({ ...level, goal: { kind: "motion", selector: { id: "ball" }, minimumSpeed: 0 } }), /minimumSpeed/);
   assert.throws(() => validateLevel({ ...level, fixedGadgets: [{ ...level.fixedGadgets[0], x: NaN }] }), /coordinates/);
-  assert.throws(() => validateLevel({ ...level, controlRopes: [{ targetId: "missing", guides: [], source: { gadgetId: "ball", local: { x: 0, y: 0 } } }] }), /rope target/);
+  assert.throws(() => validateLevel({ ...level, controlRopes: [{ targetId: "missing", targetPortId:"handle", guides: [], source: {gadgetId: "ball", portId:"pull"} }] }), /rope target/);
 });

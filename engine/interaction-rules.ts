@@ -8,6 +8,8 @@ export type GadgetSelector={types?:GadgetType[];categories?:GadgetCategory[];tag
 
 export type InteractionRule={
   id:string;
+  /** Omitted: declarative effect registry. Spatial: gadget geometry; runtime: explicit level choreography. */
+  execution?:"spatial"|"runtime";
   source:GadgetSelector;
   target:GadgetSelector;
   trigger:"collision"|"proximity"|"connection"|"tension"|"continuous"|"state-change";
@@ -47,22 +49,22 @@ export const INTERACTION_RULES:InteractionRule[]=[
   {id:"target-zone",source:{categories:["dynamic"]},target:{tags:["goal-zone"]},trigger:"collision",effect:"goal-signal",description:"Ein passender Körper betritt einen sensorischen Zielbereich.",signal:"target.entered"},
   {id:"ramp-redirects",source:{tags:["falling-body"]},target:{types:["ramp"]},trigger:"collision",effect:"redirect",description:"Die Flächennormale und Reibung der Rampe lenken den Körper um.",direction:"contact-normal"},
   {id:"needle-pops-balloon",source:{tags:["balloon"]},target:{tags:["sharp"]},trigger:"collision",effect:"pop",description:"Eine Spitze durchdringt ausschließlich eine ballonartige Hülle.",signal:"balloon.popped",stateTarget:"source"},
-  {id:"fire-pops-balloon",source:{tags:["fire-source"]},target:{tags:["balloon"]},trigger:"collision",effect:"pop",description:"Direkter Flammenkontakt zerstört die Ballonhülle.",sourceStates:["burning"],signal:"balloon.popped"},
+  {id:"fire-pops-balloon",execution:"spatial",source:{tags:["fire-source"]},target:{tags:["balloon"]},trigger:"collision",effect:"pop",description:"Direkter Flammenkontakt zerstört die Ballonhülle.",sourceStates:["burning"],signal:"balloon.popped"},
   {id:"cat-mouse",source:{tags:["cat"]},target:{tags:["prey"]},trigger:"proximity",effect:"flee",description:"Mogli flieht, wenn Joanne ungefähr auf gleicher Höhe ist.",maxVerticalDistance:35,maxDistance:700,direction:"opposite-target",signal:"mouse.fleeing"},
   {id:"fish-attracts-cat",source:{tags:["cat-attractor"]},target:{tags:["cat"]},trigger:"proximity",effect:"chase",description:"Joanne läuft zu einem sichtbaren, zappelnden Mr. Blue.",sourceStates:["flopping"],maxVerticalDistance:70,maxDistance:700,direction:"opposite-target",signal:"cat.chasing"},
   {id:"gear-mesh",source:{tags:["gear"]},target:{tags:["gear"]},trigger:"proximity",effect:"transfer-rotation",description:"Zahnräder im passenden Achsabstand drehen sich entgegengesetzt.",sourceStates:["running"],minDistance:70,maxDistance:98,direction:"clockwise-inverted",signal:"gear.connected"},
   {id:"rope-fixed-pulley",source:{tags:["tension-only"]},target:{tags:["fixed-pulley"]},trigger:"connection",effect:"transfer-tension",description:"Eine Festrolle lenkt Zugkraft um, ohne ihre Achse zu bewegen."},
   {id:"rope-moving-pulley",source:{tags:["tension-only"]},target:{tags:["moving-pulley"]},trigger:"tension",effect:"transfer-tension",description:"Tragende Seilabschnitte teilen Zugkraft und bewegen die lose Rolle."},
-  {id:"trampoline-bounce",source:{tags:["falling-body"]},target:{tags:["bounce-surface"]},trigger:"collision",effect:"bounce",description:"Der Impuls wird an der gedrehten Trampolinnormalen nach oben umgelenkt.",minImpactSpeed:1,direction:"contact-normal",impulseScale:1.5},
-  {id:"seesaw-impact",source:{tags:["falling-body"]},target:{tags:["seesaw"]},trigger:"collision",effect:"transfer-impulse",description:"Die getroffene Seite sinkt, die Gegenseite erhält einen entgegengesetzten Impuls.",minImpactSpeed:1,direction:"opposite-target",impulseScale:.65},
+  {id:"trampoline-bounce",source:{tags:["falling-body"]},target:{tags:["bounce-surface"]},trigger:"collision",effect:"bounce",description:"Der Impuls wird an der gedrehten Trampolinnormalen nach oben umgelenkt.",minImpactSpeed:1,requiresSourceAbove:true,direction:"contact-normal",impulseScale:1.5},
+  {id:"seesaw-impact",execution:"spatial",source:{tags:["falling-body"]},target:{tags:["seesaw"]},trigger:"collision",effect:"transfer-impulse",description:"Die getroffene Seite sinkt, die Gegenseite erhält einen entgegengesetzten Impuls.",minImpactSpeed:1,direction:"opposite-target",impulseScale:.65},
   {id:"impact-closes-scissor",source:{tags:["falling-body"]},target:{tags:["impact-closable"]},trigger:"collision",effect:"close",description:"Ein ausreichend schneller Aufprall von oben schließt die Schere.",minImpactSpeed:2.4,requiresSourceAbove:true,signal:"scissor.closed"},
   {id:"tension-closes-scissor",source:{tags:["tension-only"]},target:{tags:["rope-pullable"]},trigger:"tension",effect:"close",description:"Nur vom Griff weg gerichtete Seilspannung schließt die Schere.",direction:"source-motion",signal:"scissor.closed"},
-  {id:"scissor-cuts-tether",source:{types:["scissor"]},target:{tags:["balloon"]},trigger:"state-change",effect:"cut",description:"Die geschlossene Schere durchtrennt ausschließlich ihr zugeordnetes Ballonseil.",signal:"balloon.released"},
-  {id:"impact-breaks-glass",source:{tags:["falling-body"]},target:{tags:["breakable"]},trigger:"collision",effect:"break",description:"Ein harter Aufprall von oben zerbricht das Goldfischglas.",minImpactSpeed:4.5,requiresSourceAbove:true,signal:"fishBowl.broken"},
-  {id:"fire-ignites-fuse",source:{tags:["fire-source"]},target:{tags:["fuse"]},trigger:"collision",effect:"ignite",description:"Feuer startet den Abbrand genau am räumlichen Kontaktpunkt.",sourceStates:["burning"],signal:"fuse.ignited"},
-  {id:"fuse-ignites-fuse",source:{tags:["fuse"]},target:{tags:["fuse"]},trigger:"collision",effect:"ignite",description:"Eine brennende Lunte entzündet eine kreuzende Lunte am Kontaktpunkt.",sourceStates:["burning"]},
-  {id:"fuse-fires-cannon",source:{tags:["fuse"]},target:{tags:["fuse-target"]},trigger:"state-change",effect:"fire",description:"Erreicht die Flammenfront den Zündkanal, feuert die Kanone einmal.",signal:"cannon.fired"},
-  {id:"fire-ignites-rocket",source:{tags:["fire-source"]},target:{tags:["fire-trigger"]},trigger:"collision",effect:"ignite",description:"Berührt eine offene Flamme die Düse, beginnt die fest montierte Rakete zu zünden.",sourceStates:["burning"],signal:"rocket.ignited"},
+  {id:"scissor-cuts-tether",execution:"runtime",source:{types:["scissor"]},target:{tags:["balloon"]},trigger:"state-change",effect:"cut",description:"Die geschlossene Schere durchtrennt ausschließlich ihr zugeordnetes Ballonseil.",signal:"balloon.released"},
+  {id:"impact-breaks-glass",execution:"spatial",source:{tags:["falling-body"]},target:{tags:["breakable"]},trigger:"collision",effect:"break",description:"Ein harter Aufprall von oben zerbricht das Goldfischglas.",minImpactSpeed:4.5,requiresSourceAbove:true,signal:"fishBowl.broken"},
+  {id:"fire-ignites-fuse",execution:"spatial",source:{tags:["fire-source"]},target:{tags:["fuse"]},trigger:"collision",effect:"ignite",description:"Feuer startet den Abbrand genau am räumlichen Kontaktpunkt.",sourceStates:["burning"],signal:"fuse.ignited"},
+  {id:"fuse-ignites-fuse",execution:"spatial",source:{tags:["fuse"]},target:{tags:["fuse"]},trigger:"collision",effect:"ignite",description:"Eine brennende Lunte entzündet eine kreuzende Lunte am Kontaktpunkt.",sourceStates:["burning"]},
+  {id:"fuse-fires-cannon",execution:"spatial",source:{tags:["fuse"]},target:{tags:["fuse-target"]},trigger:"state-change",effect:"fire",description:"Erreicht die Flammenfront den Zündkanal, feuert die Kanone einmal.",signal:"cannon.fired"},
+  {id:"fire-ignites-rocket",execution:"spatial",source:{tags:["fire-source"]},target:{tags:["fire-trigger"]},trigger:"collision",effect:"ignite",description:"Berührt eine offene Flamme die Düse, beginnt die fest montierte Rakete zu zünden.",sourceStates:["burning"],signal:"rocket.ignited"},
   {id:"water-extinguishes",source:{tags:["water"]},target:{tags:["extinguishable"]},trigger:"collision",effect:"extinguish",description:"Wasser beendet Flamme oder Luntenabbrand am Kontaktpunkt.",signal:"fire.extinguished"},
   {id:"water-collects",source:{tags:["water"]},target:{categories:["container"]},trigger:"collision",effect:"collect",description:"Wasserpartikel können sich im offenen Innenraum eines Behälters sammeln."},
 ];

@@ -147,7 +147,7 @@ test("rocket flames respect wet wicks and cannot fire a cannon through its muzzl
 
 test("rocket exhaust also feeds the existing level fuse networks and fires their cannon once", () => {
   const level = newLevel();
-  level.systems = ["fuse-network"];
+  level.systems = [];
   level.fixedGadgets = [
     { id: "rocket", type: "rocket", x: 300, y: 400, state: "launching" },
     { id: "fuse", type: "fuse", x: 340, y: 330 },
@@ -155,7 +155,7 @@ test("rocket exhaust also feeds the existing level fuse networks and fires their
   ];
   const scenario = createScenario(level);
   scenario.step(260);
-  assert.equal(scenario.runtime.options.fuseNetwork.hasAnyBurned(scenario.runtime.state.fuseClock), true);
+  assert.equal(scenario.machine.mechanics.fuseSnapshot("fuse").samples.some(sample => sample.burned), true);
   assert.equal(scenario.machine.state("gun").state, "firing");
   assert.equal(Matter.Composite.allBodies(scenario.machine.world).filter(body => body.label === "cannonball").length, 1);
   scenario.runtime.dispose(); scenario.machine.destroy();

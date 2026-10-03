@@ -1,10 +1,10 @@
+import { validateConnections } from "./gadget-connections.ts";
 import Matter from "matter-js";
 import { bodyPoint } from "../engine/gadget-geometry.ts";
 import { MachinePhysicsEngine } from "../engine/physics-engine.ts";
 import { machinePlugin } from "../engine/body-factory.ts";
 import type { GadgetConnection, LevelDefinition, PlaceableGadgetType } from "../engine/types.ts";
 import { MachineRuntime } from "./machine-runtime.ts";
-import { FuseNetwork } from "./fuse.ts";
 import { analyzePulleyRoute, LEVEL_FIVE_INITIAL_WEIGHT_Y, ropeGeometry, type PulleyRouteKind, type RopePoint } from "./pulley.ts";
 import { placedConfigId, type PlacedGadget, type RopeNode } from "./simulation-types.ts";
 import type { ControlRope } from "./control-ropes.ts";
@@ -28,7 +28,7 @@ export type SimulationSetupOptions = {
   onWin: () => void;
 };
 /** Shared world and runtime preparation; drawing and clocks belong to callers. */
-export function createSimulation({ level, placed = [], connections, controlRopes = [], ropePath = [], running, onWin }: SimulationSetupOptions) {
+export function createSimulation({ level, placed = [], connections, controlRopes = level.controlRopes ?? [], ropePath = [], running, onWin }: SimulationSetupOptions) {
   const hasSystem = (system: string) => level.systems.includes(system);
   const machine = new MachinePhysicsEngine(level);
   machine.connections = structuredClone([...(connections ?? level.connections ?? [])]);
@@ -59,6 +59,7 @@ export function createSimulation({ level, placed = [], connections, controlRopes
     if (body)
       body.plugin = { ...body.plugin, placedId: p.id };
   }
+  validateConnections(machine.connections,machine.entities().map(entity=>machine.config(entity.id)!));
   const cat = machine.bodiesByType("cat")[0] ?? null;
   const balloon = machine.bodiesByType("balloon").find(body => body.label === "levelBalloon") ?? null;
   const waterBodies = machine.bodiesByType("water");
@@ -66,9 +67,8 @@ export function createSimulation({ level, placed = [], connections, controlRopes
   const hamsterWheelBody = machine.bodiesByType("hamsterWheel")[0] ?? null;
   const conveyorBody = machine.bodiesByType("conveyor")[0] ?? null;
   const rocketBodies = machine.bodiesByType("rocket");
-  const driveBelt = placed.find(p => p.type === "belt") ?? null;
   const wheelId = hamsterWheelBody && machinePlugin(hamsterWheelBody)?.instanceId, conveyorId = conveyorBody && machinePlugin(conveyorBody)?.instanceId;
-  const beltConnected = !!driveBelt || machine.connections.some(connection => connection.kind === "belt" && ((connection.sourceId === wheelId && connection.targetId === conveyorId) || (connection.sourceId === conveyorId && connection.targetId === wheelId)));
+  const beltConnected = machine.connections.some(connection => connection.kind === "belt" && ((connection.sourceId === wheelId && connection.targetId === conveyorId) || (connection.sourceId === conveyorId && connection.targetId === wheelId)));
   const bodyByPlacedId = new Map<number, Matter.Body>();
   for (const body of Matter.Composite.allBodies(engine.world)) {
     const placedId = body.plugin?.placedId;
@@ -122,15 +122,7 @@ export function createSimulation({ level, placed = [], connections, controlRopes
     }
   }
   const gearsConnected = gearBodies.some(body => body.label === "gearTarget" && gearDepth.has(body.id));
-  const cannonBody = Matter.Composite.allBodies(engine.world).find(body => body.label === "cannon") ?? null, fuseBodies = Matter.Composite.allBodies(engine.world).filter(body => body.label === "fuse");
-  const worldPoint = (body: Matter.Body, x: number, y: number) => bodyPoint(body, { x, y }), fuseId = (body: Matter.Body) => `fuse-${body.id}`, cannonFuseId = "cannon-fuse";
-  // Preserve the existing single-cannon fuse preparation until step 2.
-  const fuseNetwork = new FuseNetwork([
-    ...fuseBodies.map(body => ({ id: fuseId(body), start: worldPoint(body, -55, 0),
-      end: worldPoint(body, 55, 0), burnDurationMs: 1200 })),
-    ...(cannonBody ? [{ id: cannonFuseId, start: worldPoint(cannonBody, -18, -42),
-      end: worldPoint(cannonBody, -26, -17), burnDurationMs: 1300, samples: 14 }] : []),
-  ], 22, 105);
+  const cannonBody = Matter.Composite.allBodies(engine.world).find(body => body.label === "cannon") ?? null;
   const runtime = new MachineRuntime({
     level, machine, running, onWin, beltConnected,
     bodies: {
@@ -143,7 +135,7 @@ export function createSimulation({ level, placed = [], connections, controlRopes
     scissorConnections: [],
     controlRopes,
     tetheredBalloonIds: tetheredBalloonConfigs.map(gadget => gadget.id),
-    fuseNetwork, fuseId, cannonFuseId, gearsConnected,
+    gearsConnected,
     rope: {
       fixed: routeFixed, moving: routeMoving, placedBall, initialMovingPositions,
       initialBlockPosition, initialWeightY, ready: ropeReady, restLength: restRopeLength,

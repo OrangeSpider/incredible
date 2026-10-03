@@ -61,7 +61,7 @@ export function removeGadget(level: LevelDefinition, id: string): LevelDefinitio
   return { ...level, fixedGadgets: level.fixedGadgets.filter(gadget => gadget.id !== id),
     initialPlacements: (level.initialPlacements ?? []).filter(gadget => gadget.id !== id),
     connections: (level.connections ?? []).filter(connection => connection.sourceId !== id && connection.targetId !== id),
-    controlRopes: (level.controlRopes ?? []).filter(rope => rope.targetId !== id && rope.source.gadgetId !== id && !rope.guides.includes(id)),
+    controlRopes: (level.controlRopes ?? []).filter(rope => rope.targetId !== id && rope.source.gadgetId !== id && !rope.guides.some(guide=>guide.gadgetId===id)),
     goal: "kind" in level.goal ? prune(level.goal) ?? structuredClone(UNSET_GOAL) : level.goal };
 }
 

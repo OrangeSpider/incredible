@@ -37,13 +37,12 @@ test("both conveyor wheels retain their transformed endpoints through export, va
   const machine = new MachinePhysicsEngine(level);
   assert.equal(level.connections[1].sourcePortId, "right");
   assert.deepEqual(machine.mechanics.connectionPoints(second.id), [right, generatorPort]);
-  const legacy = { id: "old", kind: "belt", sourceId: "wheel", targetId: "conveyor" };
-  assert.deepEqual(connectionPorts(legacy, ports), [wheelPort, left]);
-  assert.equal(connectPorts(left, wheelPort, "belt", [legacy], "duplicate"), null);
-  const otherWheel = connectPorts(wheelPort, right, "belt", [legacy], "other-wheel");
-  assert.ok(otherWheel);
-  assert.equal(validateLevel({ ...level, connections: [legacy, otherWheel] }).connections.length, 2);
-  assert.throws(() => validateLevel({ ...level, connections: [legacy, first] }), /Duplicate connection/);
+  const missing = { id: "old", kind: "belt", sourceId: "wheel", targetId: "conveyor" };
+  assert.deepEqual(connectionPorts(missing, ports), []);
+  assert.throws(()=>validateLevel({...level,connections:[missing]}), /connection port/);
+  assert.equal(connectPorts(left,wheelPort,"belt",[first],"duplicate"),null);
+  assert.ok(connectPorts(wheelPort,right,"belt",[first],"other-wheel"));
+  assert.throws(()=>validateLevel({...level,connections:[first,{...first,id:"duplicate"}]}),/Duplicate connection/);
   assert.throws(() => validateLevel({ ...level, connections: [{ ...second, sourcePortId: "missing" }] }), /Invalid connection/);
   machine.destroy();
 });
@@ -53,7 +52,7 @@ test("either conveyor wheel transfers drive through the other wheel to a generat
     const configs = [{ id: "wheel", type: "hamsterWheel", x: 100, y: 100, state: "running" }, { id: "conveyor", type: "conveyor", x: 420, y: 300 }, { id: "gen", type: "generator", x: 730, y: 100 }, { id: "lamp", type: "socketLamp", x: 800, y: 400 }];
     const machine = machineWith(configs), ports = gadgetPorts(configs);
     const port = (id, portId = "drive") => ports.find(port => port.gadgetId === id && port.portId === portId);
-    machine.connections = [connectPorts(port("conveyor", inputPort), port("wheel"), "belt", [], "input"), connectPorts(port("gen"), port("conveyor", inputPort === "left" ? "right" : "left"), "belt", [], "output"), { id: "wire", kind: "wire", sourceId: "gen", targetId: "lamp" }];
+    machine.connections = [connectPorts(port("conveyor", inputPort), port("wheel"), "belt", [], "input"), connectPorts(port("gen"), port("conveyor", inputPort === "left" ? "right" : "left"), "belt", [], "output"), { id: "wire", kind: "wire", sourceId: "gen", targetId: "lamp" , sourcePortId: "power", targetPortId: "socket" }];
     tick(machine);
     assert.equal(machine.state("conveyor").state, "running");
     assert.equal(machine.state("gen").state, "running");
@@ -68,7 +67,7 @@ test("either conveyor wheel transfers drive through the other wheel to a generat
 
 test("a belt-powered generator stops on lost wind or disconnection and restarts on reconnection", () => {
   const machine = machineWith([{ id: "fan", type: "fan", x: 100, y: 100 }, { id: "wind", type: "windmill", x: 250, y: 100 }, { id: "gen", type: "generator", x: 550, y: 100 }, { id: "lamp", type: "socketLamp", x: 750, y: 100 }]);
-  const belt = { id: "belt", kind: "belt", sourceId: "gen", targetId: "wind" }, wire = { id: "wire", kind: "wire", sourceId: "gen", targetId: "lamp" };
+  const belt = { id: "belt", kind: "belt", sourceId: "gen", targetId: "wind" , sourcePortId: "drive", targetPortId: "drive" }, wire = { id: "wire", kind: "wire", sourceId: "gen", targetId: "lamp" , sourcePortId: "power", targetPortId: "socket" };
   machine.connections = [belt, wire]; tick(machine);
   assert.equal(machine.state("gen").state, "running"); assert.equal(machine.state("lamp").state, "on");
   machine.setState("fan", "off"); tick(machine);
@@ -84,8 +83,8 @@ test("a belt-powered generator stops on lost wind or disconnection and restarts 
 
 test("switching a generator on while belt-driven keeps it running after its belt is removed", () => {
   const machine = machineWith([{ id: "wheel", type: "hamsterWheel", x: 100, y: 100, state: "running" }, { id: "gen", type: "generator", x: 400, y: 100 }, { id: "lamp", type: "socketLamp", x: 750, y: 100 }, { id: "ball", type: "ball", x: 320, y: 100 }]);
-  const wire = { id: "wire", kind: "wire", sourceId: "gen", targetId: "lamp" };
-  machine.connections = [{ id: "belt", kind: "belt", sourceId: "wheel", targetId: "gen" }, wire]; tick(machine);
+  const wire = { id: "wire", kind: "wire", sourceId: "gen", targetId: "lamp" , sourcePortId: "power", targetPortId: "socket" };
+  machine.connections = [{ id: "belt", kind: "belt", sourceId: "wheel", targetId: "gen" , sourcePortId: "drive", targetPortId: "drive" }, wire]; tick(machine);
   Matter.Body.setVelocity(machine.body("ball"), { x: 4, y: 0 }); tick(machine, 12);
   assert.equal(machine.signal("generator.started.gen"), true);
   machine.connections = [wire]; tick(machine);

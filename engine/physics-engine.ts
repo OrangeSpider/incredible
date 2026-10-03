@@ -1,3 +1,4 @@
+import { validateConnections, sameConnection } from "../game/gadget-connections.ts";
 import Matter from "matter-js";
 import {createGadgetBody,machinePlugin} from "./body-factory.ts";
 import {getGadgetDefinition} from "./gadget-catalog.ts";
@@ -32,7 +33,15 @@ export class MachinePhysicsEngine{
   readonly effects:EffectRegistry;
   readonly behaviors:StepBehaviorRegistry;
   readonly mechanics:GadgetMechanics;
-  connections:GadgetConnection[]=[];
+  private connectionDefinitions:GadgetConnection[]=[];
+  get connections(){return this.connectionDefinitions}
+  set connections(connections:GadgetConnection[]){
+    for(const connection of connections){
+      if(!connection.sourcePortId||!connection.targetPortId)throw new Error(`Invalid connection port: ${connection.id}`);
+      if(connections.some(other=>other!==connection&&(other.id===connection.id||sameConnection(other,connection))))throw new Error(`Duplicate connection: ${connection.id}`);
+    }
+    this.connectionDefinitions=connections;
+  }
 
   constructor(
     level?:LevelDefinition,
@@ -41,7 +50,7 @@ export class MachinePhysicsEngine{
   ){
     this.effects=effects;
     this.behaviors=behaviors;
-    this.mechanics=new GadgetMechanics(this,level?.systems.includes("fuse-network"));
+    this.mechanics=new GadgetMechanics(this);
     Matter.Events.on(this.matter,"collisionStart",event=>event.pairs.forEach(pair=>{
       this.processCollision(pair.bodyA,pair.bodyB,pair.collision.normal);
       // A container may break during collisionStart, before Matter solves this pair.
@@ -51,6 +60,7 @@ export class MachinePhysicsEngine{
   }
 
   loadLevel(level:LevelDefinition){
+    validateConnections(level.connections??[],[...level.fixedGadgets,...(level.initialPlacements??[])]);
     this.connections=structuredClone(level.connections??[]);
     for(const gadget of level.fixedGadgets)this.addGadget(gadget);
   }
@@ -136,7 +146,7 @@ export class MachinePhysicsEngine{
     const a=this.bodyEntries.get(bodyA.id),b=this.bodyEntries.get(bodyB.id);if(!a||!b)return;
     this.recordEvent({name:"contact",sourceId:a.config.id,targetId:b.config.id});
     const relativeVelocity={x:bodyA.velocity.x-bodyB.velocity.x,y:bodyA.velocity.y-bodyB.velocity.y},impactSpeed=Math.max(bodyA.speed,bodyB.speed,Math.hypot(relativeVelocity.x,relativeVelocity.y));
-    for(const interaction of resolveInteractions(a.config.type,b.config.type,"collision",{impactSpeed,sourceX:bodyA.position.x,sourceY:bodyA.position.y,targetX:bodyB.position.x,targetY:bodyB.position.y,sourceState:a.state.state,targetState:b.state.state,relativeVelocity,collisionNormal:normal})) { if (["fire-ignites-rocket", "fire-pops-balloon", "fire-ignites-fuse", "impact-breaks-glass"].includes(interaction.rule.id)) continue; this.applyInteraction(interaction,a,b,bodyA,bodyB); }
+    for(const interaction of resolveInteractions(a.config.type,b.config.type,"collision",{impactSpeed,sourceX:bodyA.position.x,sourceY:bodyA.position.y,targetX:bodyB.position.x,targetY:bodyB.position.y,sourceState:a.state.state,targetState:b.state.state,relativeVelocity,collisionNormal:normal})) { if (interaction.rule.execution !== undefined) continue; this.applyInteraction(interaction,a,b,bodyA,bodyB); }
   }
 
   resolve(sourceId:string,targetId:string,trigger:"proximity"|"connection"|"tension"|"continuous"|"state-change",kinematics?:Partial<{impactSpeed:number;relativeVelocity:{x:number;y:number}}>) {
@@ -148,6 +158,7 @@ export class MachinePhysicsEngine{
   }
 
   private applyInteraction(interaction:ResolvedInteraction,a:RuntimeEntry,b:RuntimeEntry,bodyA:Matter.Body|null,bodyB:Matter.Body|null){
+    if (interaction.rule.execution !== undefined) return;
     const source=interaction.reversed?b:a,target=interaction.reversed?a:b;
     this.effects.apply(interaction.rule.effect,{
       interaction,

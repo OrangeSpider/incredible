@@ -2,10 +2,10 @@
 export const RUNTIME_SYSTEM_IDS = [
   "hamster-drive", "conveyor", "animal-support", "buoyancy", "fire", "fan-airflow",
   "trampoline", "pulley-rope", "rope-rendering", "sharp-objects", "cat-mouse",
-  "gear-network", "fuse-network", "cannon", "bucket-water", "water-collisions",
+  "gear-network", "cannon", "bucket-water", "water-collisions",
   "seesaw", "catapult", "breakable-container", "fish-release", "cat-fish",
   "scissors", "tension-rope", "belt-drive", "rocket-launch", "fire-contact",
-  "single-scissor", "magnetic-field", "snap-gate", "seesaw-launch",
+  "magnetic-field", "snap-gate", "seesaw-launch",
 ] as const;
 
 export type RuntimeSystemId = typeof RUNTIME_SYSTEM_IDS[number];

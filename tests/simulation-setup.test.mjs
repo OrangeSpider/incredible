@@ -52,7 +52,7 @@ test("test helper uses registered bucket water and honors a missing floor", t =>
 });
 
 test("connections prepare the belt runtime and explicit empty connections override the level", t => {
-  const connections = [{id: "belt", kind: "belt", sourceId: "wheel", targetId: "conveyor"}];
+  const connections = [{id: "belt", kind: "belt", sourceId: "wheel", targetId: "conveyor", sourcePortId: "drive", targetPortId: "left" }];
   const scene = level({fixedGadgets: [{id: "wheel", type: "hamsterWheel", x: 100, y: 100},
     {id: "conveyor", type: "conveyor", x: 300, y: 300}], connections});
   const inherited = setup(t, {level: scene});
@@ -88,7 +88,7 @@ test("shared setup prepares live load rope geometry and initial weight position"
 });
 
 test("shared setup passes control ropes with placement IDs to the mechanism", t => {
-  const controlRopes = [{targetId: "cutter", guides: ["placed-7"], source: {gadgetId: "placed-8", local: {x: 0, y: 0}}}];
+  const controlRopes = [{targetId: "cutter", targetPortId:"handle", guides: [{gadgetId:"placed-7",portId:"guide"}], source: {gadgetId: "placed-8", portId:"pull"}}];
   const {runtime, machine} = setup(t, {level: level({fixedGadgets: [{id: "cutter", type: "scissor", x: 100, y: 100}]}),
     placed: [part(7, "pulley", 200, 100), part(8, "ball", 200, 300)], controlRopes});
   assert.deepEqual(runtime.options.controlRopes, controlRopes);
@@ -103,7 +103,7 @@ test("placement physics overrides and preview mouse state remain unchanged", t =
   assert.equal(machine.body("placed-2").isStatic, false);
 });
 
-test("shared setup preserves gear connectivity and the existing cannon fuse path", t => {
+test("shared setup prepares gear connectivity and per-instance cannon fuses", t => {
   const {machine, runtime, gearDepth} = setup(t, {level: level({fixedGadgets: [
     {id: "source", type: "gear", collisionLabel: "gearSource", x: 100, y: 100},
     {id: "middle", type: "gear", collisionLabel: "gear", x: 184, y: 100},
@@ -114,7 +114,8 @@ test("shared setup preserves gear connectivity and the existing cannon fuse path
   assert.equal(runtime.options.gearsConnected, true);
   assert.equal(gearDepth.get(machine.body("target").id), 2);
   assert.equal(runtime.options.bodies.cannon, machine.body("cannon"));
-  const fuse = runtime.options.fuseNetwork.snapshot(runtime.options.fuseId(machine.body("placed-10")), 0);
+  const fuse = machine.mechanics.fuseSnapshot("placed-10");
   assert.ok(fuse.samples.length > 0);
-  assert.equal(runtime.options.cannonFuseId, "cannon-fuse");
+  assert.equal(machine.mechanics.fuseSnapshot("cannon:fuse").samples.length, 14);
+  assert.equal(machine.mechanics.fuseSnapshot("second-cannon:fuse").samples.length, 14);
 });

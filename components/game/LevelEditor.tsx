@@ -8,7 +8,7 @@ import type { GadgetConnection, GadgetInstanceConfig, GadgetType, GoalSelector, 
 import { combineGoals, goalList, hitGadget, newLevel, rectangleGoal, redo, remember, removeGadget, STATE_LABELS, undo, updateGadget, type LevelHistory } from "@/levels/authoring";
 import { downloadLevel, pickLevelDirectory, readLevelDirectory, readLevelFiles, supportsLevelFolders, writeLevelFile, type LevelDirectory, type LevelFile } from "@/levels/file-storage";
 import { connectPorts, connectionPorts, gadgetPortKey, distanceToPath, gadgetPorts, type GadgetPort } from "@/game/gadget-connections";
-import { advanceRopeDraft, ropePorts, type PendingControlRope } from "@/game/control-ropes";
+import { ropeConfigPoints, controlRopeKey, advanceRopeDraft, ropePorts, type PendingControlRope } from "@/game/control-ropes";
 import GameCanvas from "./GameCanvas";
 import GoalEditor from "./GoalEditor";
 import GoalOverlay from "./GoalOverlay";
@@ -77,7 +77,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
   const remove = useCallback(() => {
     if (selectedId) change(removeGadget(draft, selectedId));
     else if (selectedConnection) change({ ...draft, connections: (draft.connections ?? []).filter(connection => connection.id !== selectedConnection) });
-    else if (selectedRope) change({ ...draft, controlRopes: (draft.controlRopes ?? []).filter(rope => rope.targetId !== selectedRope) });
+    else if (selectedRope) change({ ...draft, controlRopes: (draft.controlRopes ?? []).filter(rope => controlRopeKey(rope) !== selectedRope) });
     setSelectedId(null); setSelectedConnection(null); setSelectedRope(null);
   }, [change, draft, selectedId, selectedConnection, selectedRope]);
   useEffect(() => {
@@ -114,7 +114,7 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
       if (!port) { setMessage("Klicke einen Griff, optional Umlenkrollen und zuletzt einen Zugpunkt."); return; }
       const next = advanceRopeDraft(pendingRope, port, draft.controlRopes ?? [], Infinity);
       setPendingRope(next.pending);
-      if (next.connection) { change({ ...draft, systems: [...new Set([...draft.systems, "tension-rope"])], controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(next.connection.targetId); if (!event.shiftKey) setTool(null); }
+      if (next.connection) { change({ ...draft, systems: [...new Set([...draft.systems, "tension-rope"])], controlRopes: [...(draft.controlRopes ?? []), next.connection] }); setSelectedRope(controlRopeKey(next.connection)); if (!event.shiftKey) setTool(null); }
       return;
     }
     if (tool === "wire" || tool === "belt") {
@@ -144,10 +144,10 @@ export default function LevelEditor({ level, placed, connections, onApply, onClo
     const connection = (draft.connections ?? []).find(connection => distanceToPath(at, connectionPorts(connection, ports)) < 12);
     if (connection) setSelectedConnection(connection.id);
     const rope = (draft.controlRopes ?? []).find(rope => {
-      const path = [rope.targetId, ...rope.guides, rope.source.gadgetId].flatMap(id => gadgets.filter(item => item.id === id));
+      const path = ropeConfigPoints(rope,gadgets);
       return distanceToPath(at, path) < 12;
     });
-    if (rope) { setSelectedRope(rope.targetId); setSelectedConnection(null); }
+    if (rope) { setSelectedRope(controlRopeKey(rope)); setSelectedConnection(null); }
   };
   const pointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const at = point(event);

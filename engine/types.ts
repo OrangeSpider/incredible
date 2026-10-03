@@ -59,7 +59,11 @@ export type CanvasAnimation={
 
 export type GadgetAnimation=SpriteAnimation|CanvasAnimation;
 
+export type PortReference={gadgetId:string;portId:string};
+export type PortDefinition={id:string;kind:"power"|"socket"|"drive"|"target"|"guide"|"source";local:{x:number;y:number};label:string;radius?:number};
+
 export type GadgetDefinition={
+  ports?:(config:GadgetInstanceConfig)=>PortDefinition[];
   paletteGroup?:string;
   resizeAxis?:"x"|"y";
   flippable?:boolean;
@@ -100,8 +104,8 @@ export type GadgetInstanceConfig={
 
 export type InventoryEntry={type:PlaceableGadgetType;count:number};
 
-export type GadgetConnection={id:string;kind:"wire"|"belt";sourceId:string;targetId:string;sourcePortId?:string;targetPortId?:string};
-export type ControlRopeConfig={targetId:string;guides:string[];source:{gadgetId:string;local:{x:number;y:number}}};
+export type GadgetConnection={id:string;kind:"wire"|"belt";sourceId:string;targetId:string;sourcePortId:string;targetPortId:string};
+export type ControlRopeConfig={targetId:string;targetPortId:string;guides:PortReference[];source:PortReference};
 
 export type LegacyGoalSpec={
   mode:"event"|"all"|"any"|"state"|"position";

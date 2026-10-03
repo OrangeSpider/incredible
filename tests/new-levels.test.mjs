@@ -48,7 +48,7 @@ test("level 19 reference seesaw opens the gate before the payload reaches the ba
 
 test("level 20 reference fuse and magnet open Mogli's escape route",()=>{
   const scenario=createScenario(loadLevel(20),[
-    ...fuseRun,{type:"magnet",x:600,y:160,rotation:0},
+    ...fuseRun,{type:"magnet",x:600,y:180,rotation:0},
   ]);
   scenario.step(1100);
   assert.equal(scenario.machine.state("snap-gate")?.state,"open");

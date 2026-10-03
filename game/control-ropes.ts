@@ -1,13 +1,15 @@
-import type { GadgetInstanceConfig, GadgetType } from "../engine/types.ts";
+import { instancePorts, localPort, portKey } from "../engine/gadget-ports.ts";
+import type { GadgetInstanceConfig, ControlRopeConfig, PortReference } from "../engine/types.ts";
 import type { MachinePhysicsEngine } from "../engine/physics-engine.ts";
 
-import { bodyPoint, localPoint } from "../engine/gadget-geometry.ts";
+import { bodyPoint } from "../engine/gadget-geometry.ts";
 
 export type Point = { x: number; y: number };
-export type RopeAttachment = { gadgetId: string; local: Point };
-export type ControlRope = { targetId: string; guides: string[]; source: RopeAttachment };
-export type PendingControlRope = { targetId: string; guides: string[] };
-export type RopePort = RopeAttachment & Point & { kind: "target" | "guide" | "source"; label: string };
+export type RopeAttachment = PortReference;
+export type ControlRope = ControlRopeConfig;
+export type PendingControlRope = Omit<ControlRope,"source">;
+export type RopePort = RopeAttachment & Point & { local: Point; kind: "target" | "guide" | "source"; label: string };
+export function controlRopeKey(rope:Pick<ControlRope,"targetId"|"targetPortId">):string { return portKey({gadgetId:rope.targetId,portId:rope.targetPortId}); }
 export const HANDLE_TRAVEL = 12;
 export const ROPE_SLACK = 3;
 
@@ -15,36 +17,45 @@ export function attachmentPoint(position: Point, angle: number, local: Point): P
   return { x: position.x + local.x * Math.cos(angle) - local.y * Math.sin(angle), y: position.y + local.x * Math.sin(angle) + local.y * Math.cos(angle) };
 }
 
-export function handleOffset(type: GadgetType): Point {
-  return type === "scissor" ? { x: 27, y: 27 } : { x: 16, y: 0 };
-}
-
-/** Shared by hit testing and drawing, including the two rotating lever ends. */
+/** Shared local definitions drive hit testing, drawing and simulation. */
 export function ropePorts(gadgets: readonly GadgetInstanceConfig[]): RopePort[] {
-  return gadgets.flatMap(gadget => {
-    const ports: Array<{ local: Point; kind: RopePort["kind"]; label: string }> = [];
-    if (gadget.type === "scissor" || gadget.type === "snapGate") ports.push({ local: handleOffset(gadget.type), kind: "target", label: gadget.type === "scissor" ? "GRIFF" : "RIEGEL" });
-    else if (gadget.type === "pulley") ports.push({ local: { x: 0, y: 0 }, kind: "guide", label: "ROLLE" });
-    else if (gadget.type === "seesaw") {
-      const end = Number(gadget.physics?.width ?? 232.5) / 2 - 12;
-      for (const side of [-1, 1]) ports.push({ local: { x: side * end, y: 0 }, kind: "source", label: side < 0 ? "LINKES ENDE" : "RECHTES ENDE" });
-    } else if (["ball", "tennisBall", "weight", "balloon", "payloadBall"].includes(gadget.type)) ports.push({ local: { x: 0, y: gadget.type === "balloon" ? 27 : 0 }, kind: "source", label: "ZUGPUNKT" });
-    return ports.map(port => ({ ...port, gadgetId: gadget.id, ...localPoint(gadget, port.local) }));
-  });
+  return instancePorts(gadgets).filter((port):port is RopePort=>port.kind==="target"||port.kind==="guide"||port.kind==="source");
+}
+export function ropeConfigPoints(rope:ControlRope, configs:readonly GadgetInstanceConfig[]):Point[] {
+  const ports=ropePorts(configs);
+  const refs=[{gadgetId:rope.targetId,portId:rope.targetPortId},...rope.guides,rope.source];
+  const selected=refs.map(ref=>ports.find(port=>port.gadgetId===ref.gadgetId&&port.portId===ref.portId));
+  return selected.every(port=>port)?selected.map(port=>({x:port!.x,y:port!.y})):[];
 }
 
 export function advanceRopeDraft(pending: PendingControlRope | null, port: RopePort, ropes: readonly ControlRope[], limit: number): { pending: PendingControlRope | null; connection?: ControlRope } {
   if (port.kind === "target") {
-    if (ropes.length >= limit || ropes.some(rope => rope.targetId === port.gadgetId)) return { pending };
-    return { pending: { targetId: port.gadgetId, guides: [] } };
+    if (ropes.length >= limit || ropes.some(rope => rope.targetId === port.gadgetId && rope.targetPortId === port.portId)) return { pending };
+    return { pending: { targetId: port.gadgetId, targetPortId:port.portId, guides: [] } };
   }
   if (!pending) return { pending };
-  if (port.kind === "guide") return { pending: pending.guides.includes(port.gadgetId) ? pending : { ...pending, guides: [...pending.guides, port.gadgetId] } };
-  return { pending: null, connection: { ...pending, source: { gadgetId: port.gadgetId, local: { ...port.local } } } };
+  if (port.kind === "guide") return { pending: pending.guides.some(guide=>guide.gadgetId===port.gadgetId&&guide.portId===port.portId) ? pending : { ...pending, guides: [...pending.guides, {gadgetId:port.gadgetId,portId:port.portId}] } };
+  return { pending: null, connection: { ...pending, source: { gadgetId: port.gadgetId, portId:port.portId } } };
 }
 
 export function ropeUsesGadget(rope: ControlRope, id: string) {
-  return rope.targetId === id || rope.source.gadgetId === id || rope.guides.includes(id);
+  return rope.targetId === id || rope.source.gadgetId === id || rope.guides.some(guide=>guide.gadgetId===id);
+}
+
+export function validateControlRopes(ropes: readonly ControlRope[], configs: readonly GadgetInstanceConfig[]): void {
+  const ports = ropePorts(configs), targets = new Set<string>();
+  for (const rope of ropes) {
+    if (!rope || !rope.targetId || !rope.targetPortId || !Array.isArray(rope.guides) || !rope.source?.gadgetId || !rope.source.portId) throw new Error("Invalid control rope ports");
+    const targetKey = controlRopeKey(rope);
+    if (!ports.some(port => port.gadgetId === rope.targetId && port.portId === rope.targetPortId && port.kind === "target") || targets.has(targetKey)) throw new Error(`Invalid or duplicate rope target: ${rope.targetId}`);
+    if (!ports.some(port => port.gadgetId === rope.source.gadgetId && port.portId === rope.source.portId && port.kind === "source")) throw new Error("Invalid control rope ports: source");
+    const guides = new Set<string>();
+    for (const guide of rope.guides) {
+      if (!guide || !ports.some(port => port.gadgetId === guide.gadgetId && port.portId === guide.portId && port.kind === "guide") || guides.has(portKey(guide))) throw new Error("Invalid rope guides");
+      guides.add(portKey(guide));
+    }
+    targets.add(targetKey);
+  }
 }
 
 function pathLength(points: readonly Point[]) {
@@ -66,9 +77,11 @@ export class ControlRopeMechanism {
   readonly ropes: ControlRopeState[];
   constructor(privateMachine: MachinePhysicsEngine, definitions: readonly ControlRope[]) {
     this.machine = privateMachine;
+    validateControlRopes(definitions, privateMachine.entities().map(entity => privateMachine.config(entity.id)!));
     this.ropes = definitions.flatMap(definition => {
       const points = this.points(definition);
-      return points ? [{ definition, points, restLength: pathLength(points) + ROPE_SLACK, progress: 0, triggered: false, blocked: this.blocked(points) }] : [];
+      if(!points) throw new Error("Invalid control rope ports");
+      return [{ definition, points, restLength: pathLength(points) + ROPE_SLACK, progress: 0, triggered: false, blocked: this.blocked(points) }];
     });
   }
   private readonly machine: MachinePhysicsEngine;
@@ -79,12 +92,13 @@ export class ControlRopeMechanism {
   }
 
   points(definition: ControlRope): Point[] | null {
-    const target = this.machine.body(definition.targetId), source = this.machine.body(definition.source.gadgetId);
-    const type = this.machine.state(definition.targetId)?.type;
-    if (!target || !source || !type) return null;
-    const guides = definition.guides.map(id => this.machine.body(id));
-    if (guides.some(body => !body)) return null;
-    return [bodyPoint(target, handleOffset(type)), ...guides.map(body => ({ ...body!.position })), bodyPoint(source, definition.source.local)];
+    const refs=[{gadgetId:definition.targetId,portId:definition.targetPortId,kind:"target" as const},...definition.guides.map(guide=>({...guide,kind:"guide" as const})),{...definition.source,kind:"source" as const}];
+    const points=refs.map(ref=>{
+      const config=this.machine.config(ref.gadgetId),body=this.machine.body(ref.gadgetId);
+      const port=config&&localPort(config,ref.portId,ref.kind);
+      return body&&port?bodyPoint(body,port.local):null;
+    });
+    return points.every(point=>point)?points as Point[]:null;
   }
 
   step(trigger: (targetId: string) => void) {

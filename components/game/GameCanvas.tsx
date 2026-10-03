@@ -1,3 +1,5 @@
+import { localPort } from "@/engine/gadget-ports";
+import { drawDriveWheel } from "@/game/drive";
 "use client";
 
 import { bodyPoint } from "@/engine/gadget-geometry";
@@ -12,7 +14,6 @@ import {mouseSpriteFrame} from "@/game/mouse";
 import {FISH_REVEAL_DELAY_MS} from "@/game/fish";
 import type { PendingControlRope } from "@/game/control-ropes";
 import { drawControlRopes } from "./control-rope-renderer";
-import {conveyorWheelCenters,drawDriveBelt,driveBeltGeometry,drawDriveWheel} from "@/game/drive";
 import {rocketVisual} from "@/game/rocket";
 import { machinePlugin } from "@/engine/body-factory";
 import type { LevelDefinition, PlaceableGadgetType } from "@/engine/types";
@@ -99,14 +100,11 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
     });
     const engine = machine.matter;
     const W = 900, H = 520;
-    const {bucket: bucketBody, seesaw: seesawBody, hamsterWheel: hamsterWheelBody,
+    const {bucket: bucketBody, seesaw: seesawBody,
       conveyor: conveyorBody, water: waterBodies, rockets: rocketBodies, weight, scissorBalloons} = runtime.options.bodies;
-    const {fuseNetwork, fuseId, cannonFuseId, beltConnected, gearsConnected} = runtime.options;
+    const {beltConnected, gearsConnected} = runtime.options;
     const {moving: routeMoving, physicsPoints} = runtime.options.rope;
     const fallingCandle = machine.body("falling-candle");
-    const conveyorConfig = level.fixedGadgets.find(gadget => gadget.type === "conveyor");
-    const conveyorWidth = Number(conveyorConfig?.physics?.width ?? 270);
-    const driveBelt = placed.find(p => p.type === "belt") ?? null;
     let raf=0,last=performance.now();
     const render = (now:number) => {
       const dt = Math.min(32, now-last); last=now;
@@ -114,20 +112,18 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
       const {
         motor, balloonPopped, mouseFleeAt, catStartledAt, catImpactMode,
         catFallStartedAt, catOnPlatformAt, fishBowlBrokenAt, fishChaseAt,
-        fuseClock, fuseIgnited, fuseReady, fuseExtinguishedAt,
-        cannonFiredAt, candleExtinguished,
+        candleExtinguished,
       } = runtime.state;
+      const states = machine.allStates();
+      const fuseIgnited = states.some(state => state.type === "fuse" && ["burning", "burned"].includes(state.state));
+      const fuseReady = states.some(state => state.type === "cannon" && state.state === "fuseBurning");
+      const fuseExtinguished = states.some(state => state.type === "fuse" && state.state === "extinguished");
+      const cannonFired = states.some(state => state.type === "cannon" && state.state === "firing");
       const fishVisible = runtime.state.fishReleased;
-      const {wetFuseIds, scissorClosedAt, rocketIgnitedAt} = runtime;
+      const {scissorClosedAt, rocketIgnitedAt} = runtime;
       ctx.clearRect(0,0,W,H); ctx.fillStyle="#f4e5c0";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="rgba(66,94,96,.11)";ctx.lineWidth=1; for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()} for(let y=0;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
       if (level.floor !== false) { ctx.fillStyle="#98612e";ctx.fillRect(0,480,W,40); }
-      if(conveyorBody&&hamsterWheelBody&&hasSystem("conveyor")){
-        const conveyorRunning=motor&&beltConnected;
-        const sourcePort=bodyPoint(hamsterWheelBody,{x:55,y:13}),targetPort=bodyPoint(conveyorBody,conveyorWheelCenters(0,0,conveyorWidth)[0]);
-        if(driveBelt)drawDriveBelt(ctx,driveBeltGeometry(sourcePort,targetPort,18,22),now,conveyorRunning);
-        if(driveBelt&&selectedId===driveBelt.id&&!running){const center={x:(sourcePort.x+targetPort.x)/2,y:(sourcePort.y+targetPort.y)/2};ctx.save();ctx.strokeStyle="#e5392c";ctx.lineWidth=3;ctx.setLineDash([7,5]);ctx.strokeRect(center.x-49,center.y-24,98,48);ctx.setLineDash([]);ctx.fillStyle="#fff4cf";ctx.fillRect(center.x-35,center.y-12,70,22);ctx.fillStyle="#4b2b17";ctx.font="bold 11px system-ui";ctx.textAlign="center";ctx.fillText("RIEMEN",center.x,center.y+4);ctx.restore()}
-      }
       const sceneFrame: ScenePresentationFrame = {
         ctx, now, running, level,
         sprites: { fire: drawFireSprite, water: drawWaterSprite, fallbackFlame: drawFallbackFlame },
@@ -135,7 +131,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
           beltConnected, motor, balloonPopped,
           mouseFleeing: !!mouseFleeAt,
           gearsConnected,
-          fuseIgnited, fuseExtinguished: !!fuseExtinguishedAt, fuseReady,
+          fuseIgnited, fuseExtinguished, fuseReady,
           candleExtinguished, bucketPlaced: !!bucketBody, seesawPlaced: !!seesawBody,
           catStartled: !!catStartledAt, catImpactMode, catOnPlatform: !!catOnPlatformAt,
           fishBowlBroken: !!fishBowlBrokenAt, fishVisible, fishChasing: !!fishChaseAt,
@@ -145,7 +141,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
           singleScissorClosed: machine.state("cutter")?.state === "closed",
           gateOpen: machine.state("snap-gate")?.state === "open",
           magnetRunning: machine.allStates().some(state => state.type === "magnet" && state.state === "running"),
-          cannonFired: !!cannonFiredAt,
+          cannonFired,
         },
         pulley: {
           anchor: ROPE_ANCHOR, path: ropePath,
@@ -231,8 +227,8 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
           ctx.strokeStyle="#a86a32";ctx.lineWidth=5;ctx.beginPath();ctx.arc(-19,20,10,0,Math.PI*2);ctx.arc(19,20,10,0,Math.PI*2);ctx.stroke();
           ctx.fillStyle="#e1b84d";ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fill();
         }
-        if(b.label==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42);const fuse=fuseNetwork.snapshot(cannonFuseId,fuseClock),point=(t:number)=>({x:-18+(-26+18)*t,y:-42+(-17+42)*t});ctx.lineWidth=5;ctx.lineCap="round";for(let index=0;index<fuse.samples.length-1;index++){const from=point(fuse.samples[index].t),to=point(fuse.samples[index+1].t);ctx.strokeStyle=fuse.samples[index].burned?"#a29a8d":"#49382a";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}if(!fuseExtinguishedAt)for(const t of fuse.flames){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y,34,34))drawFallbackFlame(flame.x,flame.y,now,.55)}if(cannonFiredAt&&now-cannonFiredAt<520){const flashFrame=Math.min(5,Math.floor((now-cannonFiredAt)/87));if(!drawFireSprite(2,flashFrame,70,0,105,78))drawFallbackFlame(67,0,now,1.5)}}
-        if(b.label==="fuse"){const fuse=(gadgetId?machine.mechanics.fuseSnapshot(gadgetId):undefined)??fuseNetwork.snapshot(fuseId(b),fuseClock),point=(t:number)=>({x:-55+110*t,y:16*t*(1-t)});ctx.lineWidth=7;ctx.lineCap="round";for(let index=0;index<fuse.samples.length-1;index++){const from=point(fuse.samples[index].t),to=point(fuse.samples[index+1].t);ctx.strokeStyle=fuse.samples[index].burned?"#a29a8d":"#4f3d2b";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}if(!fuseExtinguishedAt)for(const t of fuse.flames){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y-3,34,34))drawFallbackFlame(flame.x,flame.y-3,now,.55)}if(wetFuseIds.has(b.id)){ctx.strokeStyle="#2ca7d8";ctx.lineWidth=3;ctx.setLineDash([3,7]);ctx.beginPath();ctx.moveTo(-50,-4);ctx.lineTo(50,4);ctx.stroke();ctx.setLineDash([])}}
+        if(b.label==="cannon"){ctx.fillStyle="#263d43";ctx.fillRect(-42,-16,82,32);ctx.fillStyle="#b26a29";ctx.beginPath();ctx.arc(-18,25,18,0,Math.PI*2);ctx.fill();ctx.fillStyle="#263d43";ctx.fillRect(32,-21,20,42);const fuse=machine.mechanics.fuseSnapshot(`${gadgetId}:fuse`),samples=fuse?.samples ?? [],point=(t:number)=>({x:-18+(-26+18)*t,y:-42+(-17+42)*t});ctx.lineWidth=5;ctx.lineCap="round";for(let index=0;index<samples.length-1;index++){const from=point(samples[index].t),to=point(samples[index+1].t);ctx.strokeStyle=samples[index].burned?"#a29a8d":"#49382a";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}for(const t of fuse?.flames ?? []){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y,34,34))drawFallbackFlame(flame.x,flame.y,now,.55)}if(gadgetId && machine.state(gadgetId)?.state==="firing" && (machine.stateAgeMs(gadgetId)??Infinity)<520){const flashFrame=Math.min(5,Math.floor((machine.stateAgeMs(gadgetId)??0)/87));if(!drawFireSprite(2,flashFrame,70,0,105,78))drawFallbackFlame(67,0,now,1.5)}}
+        if(b.label==="fuse"){const fuse=machine.mechanics.fuseSnapshot(gadgetId!),samples=fuse?.samples ?? [],point=(t:number)=>({x:-55+110*t,y:16*t*(1-t)});ctx.lineWidth=7;ctx.lineCap="round";for(let index=0;index<samples.length-1;index++){const from=point(samples[index].t),to=point(samples[index+1].t);ctx.strokeStyle=samples[index].burned?"#a29a8d":"#4f3d2b";ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()}for(const t of fuse?.flames ?? []){const flame=point(t);if(!drawFireSprite(1,Math.floor(now/80)%6,flame.x,flame.y-3,34,34))drawFallbackFlame(flame.x,flame.y-3,now,.55)}if(gadgetId && machine.state(gadgetId)?.state==="extinguished"){ctx.strokeStyle="#2ca7d8";ctx.lineWidth=3;ctx.setLineDash([3,7]);ctx.beginPath();ctx.moveTo(-50,-4);ctx.lineTo(50,4);ctx.stroke();ctx.setLineDash([])}}
         if(b.label==="bucket"){
           ctx.fillStyle="rgba(76,141,168,.14)";
           ctx.beginPath();ctx.moveTo(-38,-28);ctx.lineTo(38,-28);ctx.lineTo(29,32);ctx.lineTo(-29,32);ctx.closePath();ctx.fill();
@@ -246,7 +242,7 @@ export default function GameCanvas({ level, placed, ropePath, scissorRopes, pend
         if(gadgetConfig?.type==="rocket"){const id=machinePlugin(b)?.instanceId,state=id?(machine.state(id)?.state??"mounted"):"mounted",age=id?(machine.stateAgeMs(id)??0):0,started=state==="burning"?now-age:state==="launching"?now-age-520:state==="launched"?now-age-1780:undefined,visual=rocketVisual(state,started,now);if(visual.visible&&!drawRocketSprite(visual.row,visual.frame,0,visual.offsetY,visual.size)){ctx.fillStyle="#d94d32";ctx.beginPath();ctx.moveTo(0,-55+visual.offsetY);ctx.lineTo(-24,18+visual.offsetY);ctx.lineTo(24,18+visual.offsetY);ctx.closePath();ctx.fill()}if(visual.smokeOpacity>0){ctx.save();ctx.globalAlpha=visual.smokeOpacity;ctx.fillStyle="#d8d2c7";for(let puff=0;puff<7;puff++){const angle=puff/7*Math.PI*2,radius=9+(puff%3)*3;ctx.beginPath();ctx.arc(Math.cos(angle+now*.001)*22,55+Math.sin(angle)*10,radius,0,Math.PI*2);ctx.fill()}ctx.restore()}}
         if(b.label==="seesawPayload"){ctx.fillStyle="#c73b2e";ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();ctx.fillStyle="#f4c64e";ctx.beginPath();ctx.arc(-5,-5,4,0,Math.PI*2);ctx.fill()}
         }
-        if(gadgetConfig?.type === "hamsterWheel")drawDriveWheel(ctx,{x:55,y:13},14,running&&machine.state(gadgetId!)?.state==="running"?now*.008:0);
+        if(gadgetConfig?.type === "hamsterWheel"){const port=localPort(gadgetConfig,"drive","drive");if(port)drawDriveWheel(ctx,port.local,14,running&&machine.state(gadgetId!)?.state==="running"?now*.008:0);}
         ctx.restore();
       }
       if (hasSystem("tension-rope")) drawControlRopes(ctx, runtime, [

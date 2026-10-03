@@ -62,11 +62,21 @@ Die neuen Gadgets werden wie vorhandene Bauteile in `fixedGadgets`, `inventory` 
 
 ```json
 "connections": [
-  { "id": "power-lamp", "kind": "wire", "sourceId": "generator", "targetId": "lamp" },
-  { "id": "wind-drive", "kind": "belt", "sourceId": "windmill", "targetId": "conveyor" }
+  { "id": "power-lamp", "kind": "wire", "sourceId": "generator", "sourcePortId": "power", "targetId": "lamp", "targetPortId": "socket" },
+  { "id": "wind-drive", "kind": "belt", "sourceId": "windmill", "sourcePortId": "drive", "targetId": "conveyor", "targetPortId": "left" }
 ]
 ```
 
 Die referenzierten IDs müssen zu vorhandenen Gadgets mit passenden Anschlüssen gehören. Der Validator verwirft falsche Anschlüsse, fehlende IDs und doppelte Verbindungen. Ziele können Zustände (`on`, `running`, `exploded`, `spent`) oder Signale wie `heat.ignited.<id>` und `tnt.exploded.<id>` prüfen.
 
 Die Referenzlösungen in `tests/gadgets.test.mjs` prüfen alle elf Mini-Levels einschließlich fehlender Bauteile, falscher Treffer, unterbrochener Stromversorgung und mehrerer Simulationsraten. Die vorhandenen Physik- und Leveltests prüfen weiterhin die älteren Mechaniken. Level 16 bleibt mit schwächerem Wind lösbar; die Referenzlösung richtet den Ventilator dafür etwas flacher aus.
+
+Steuerseile speichern ebenfalls Anschlussidentitäten statt lokaler Koordinaten:
+
+```json
+"controlRopes": [
+  { "targetId": "gate", "targetPortId": "handle", "guides": [{ "gadgetId": "pulley", "portId": "guide" }], "source": { "gadgetId": "basketball", "portId": "pull" } }
+]
+```
+
+`engine/gadget-ports.ts` löst die im Gadget-Katalog beschriebenen lokalen Punkte bei jeder Verwendung auf. `rope-end` stellt automatisch `pull` bereit; besondere Geometrien und mehrere benannte Anschlüsse werden über `ports` in der Gadget-Definition angegeben. Fehlende Anschluss-IDs werden abgewiesen. Riemen verbinden zwei `drive`-Ports, Stromleitungen führen von `power` nach `socket`, Steuerseile führen von `handle` über Rollen zum Zugpunkt. Rotation, Spiegelung und Größenänderung erhalten die gespeicherte Anschlussidentität.

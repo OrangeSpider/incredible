@@ -11,14 +11,14 @@ import { createScenario, loadLevel } from "./helpers/machine-scenario.mjs";
 const solutions = [
   [25, [{type:"basketball",x:350,y:160}]],
   [26, [{type:"basketball",x:406,y:160}]],
-  [27, [{type:"ball",x:260,y:160}], [{id:"wire",kind:"wire",sourceId:"generator",targetId:"lamp"}]],
-  [28, [{type:"ball",x:220,y:160}], [{id:"wire",kind:"wire",sourceId:"generator",targetId:"fan"}]],
+  [27, [{type:"ball",x:260,y:160}], [{id:"wire",kind:"wire",sourceId:"generator",targetId:"lamp", sourcePortId: "power", targetPortId: "socket" }]],
+  [28, [{type:"ball",x:220,y:160}], [{id:"wire",kind:"wire",sourceId:"generator",targetId:"fan", sourcePortId: "power", targetPortId: "socket" }]],
   [29, [{type:"magnifier",x:490,y:300}]],
   [30, [{type:"magnifier",x:490,y:300}]],
   [31, [{type:"basketball",x:340,y:130}]],
   [32, [{type:"tnt",x:288,y:328}]],
   [33, [{type:"tnt",x:408,y:368},{type:"ball",x:350,y:130}]],
-  [34, [{type:"windmill",x:420,y:300}], [{id:"belt",kind:"belt",sourceId:"placed-0",targetId:"target"}]],
+  [34, [{type:"windmill",x:420,y:300}], [{id:"belt",kind:"belt",sourceId:"placed-0",targetId:"target", sourcePortId: "drive", targetPortId: "drive" }]],
   [35, [{type:"ramp",x:280,y:330,rotation:.3}]],
 ];
 
@@ -55,7 +55,7 @@ const tick = (machine, frames = 120) => { for (let i = 0; i < frames; i++) machi
 
 test("electric sockets require a running connected generator and lose power on disconnection", () => {
   const machine = machineWith([{id:"gen",type:"generator",x:0,y:0}, {id:"lamp",type:"socketLamp",x:200,y:0}, {id:"fan",type:"socketFan",x:300,y:0}]);
-  machine.connections = [{id:"a",kind:"wire",sourceId:"gen",targetId:"lamp"}, {id:"b",kind:"wire",sourceId:"gen",targetId:"fan"}];
+  machine.connections = [{id:"a",kind:"wire",sourceId:"gen",targetId:"lamp", sourcePortId: "power", targetPortId: "socket" }, {id:"b",kind:"wire",sourceId:"gen",targetId:"fan", sourcePortId: "power", targetPortId: "socket" }];
   tick(machine, 1); assert.equal(machine.state("lamp").state, "off");
   machine.setState("gen", "running"); tick(machine, 1);
   assert.equal(machine.state("lamp").state, "on"); assert.equal(machine.state("fan").state, "running");
@@ -116,7 +116,7 @@ test("one glove punch hits its target once and a second rear impact cannot retri
 test("wind and a belt are both needed; blocking wind stops the target drive", () => {
   const machine = machineWith([{id:"fan",type:"fan",x:100,y:100}, {id:"wind",type:"windmill",x:250,y:100}, {id:"gear",type:"gearTarget",x:500,y:100}]);
   tick(machine, 1); assert.equal(machine.state("wind").state, "running"); assert.equal(machine.state("gear").state, "idle");
-  machine.connections = [{id:"belt",kind:"belt",sourceId:"wind",targetId:"gear"}]; tick(machine, 1); assert.equal(machine.state("gear").state, "running");
+  machine.connections = [{id:"belt",kind:"belt",sourceId:"wind",targetId:"gear", sourcePortId: "drive", targetPortId: "drive" }]; tick(machine, 1); assert.equal(machine.state("gear").state, "running");
   assert.ok(machine.body("gear").angularVelocity > 0);
   machine.addGadget({id:"wall",type:"stoneWall",x:180,y:100}); tick(machine, 1);
   assert.equal(machine.state("wind").state, "idle"); assert.equal(machine.state("gear").state, "idle");
@@ -126,7 +126,7 @@ test("wind and a belt are both needed; blocking wind stops the target drive", ()
 test("a wind-driven conveyor transports a resting ball without a hamster wheel", () => {
   const machine = new MachinePhysicsEngine();
   for (const config of [{id:"fan",type:"fan",x:100,y:100}, {id:"wind",type:"windmill",x:250,y:100}, {id:"belt",type:"conveyor",x:500,y:320}, {id:"ball",type:"basketball",x:470,y:289}]) machine.addGadget(config);
-  machine.connections = [{id:"drive",kind:"belt",sourceId:"wind",targetId:"belt"}];
+  machine.connections = [{id:"drive",kind:"belt",sourceId:"wind",targetId:"belt", sourcePortId: "drive", targetPortId: "left" }];
   tick(machine, 20); assert.equal(machine.state("belt").state, "running"); assert.ok(machine.body("ball").position.x > 500);
   machine.setState("fan","off"); tick(machine,1); assert.equal(machine.state("belt").state,"idle");
 });
@@ -152,7 +152,7 @@ test("connections have compatible rotated ports, reject duplicates and remain se
   assert.equal(connectPorts(ports[0],ports[1],"wire",[wire],"duplicate"),null);
   assert.equal(connectPorts(ports[0],ports[1],"belt",[],"wrong"),null);
   assert.ok(distanceToPath({x:190,y:129},ports) < 10);
-  const valid = {...loadLevel(27),connections:[{id:"wire",kind:"wire",sourceId:"generator",targetId:"lamp"}]};
+  const valid = {...loadLevel(27),connections:[{id:"wire",kind:"wire",sourceId:"generator",targetId:"lamp", sourcePortId: "power", targetPortId: "socket" }]};
   assert.deepEqual(validateLevel(valid).connections,valid.connections);
   assert.throws(()=>validateLevel({...valid,connections:[{...valid.connections[0],targetId:"missing"}]}),/Invalid connection/);
   assert.throws(()=>validateLevel({...valid,connections:[...valid.connections,{...valid.connections[0],id:"other"}]}),/Duplicate connection/);

@@ -5,7 +5,7 @@ import { createScenario, loadLevel } from "./helpers/machine-scenario.mjs";
 import { advanceRopeDraft, attachmentPoint, ropePorts, ropeUsesGadget, ropePathBlocked } from "../game/control-ropes.ts";
 import { LEVELS } from "../levels/catalog.ts";
 
-const cable = (targetId, sourceId, guides = [], local = { x: 0, y: 0 }) => ({ targetId, guides, source: { gadgetId: sourceId, local } });
+const cable = (targetId, sourceId, guides = [], local = { x: 0, y: 0 }) => ({ targetId, targetPortId:"handle", guides:guides.map(gadgetId=>({gadgetId,portId:"guide"})), source: { gadgetId: sourceId, portId:local.x ? (local.x<0?"left":"right") : "pull" } });
 const sourceEnd = { x: 104.25, y: 0 };
 const solutions = [
   { number: 14, placed: [{ type: "seesaw", x: 210, y: 410 }, { type: "pulley", x: 315, y: 445 }],

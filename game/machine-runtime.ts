@@ -1,5 +1,4 @@
 import Matter from "matter-js";
-import { FuseNetwork } from "./fuse.ts";
 import type { RopePoint } from "./pulley.ts";
 import { machinePlugin } from "../engine/body-factory.ts";
 import type { LevelDefinition } from "../engine/types.ts";
@@ -37,9 +36,6 @@ export type MachineRuntimeOptions = {
   scissorConnections: readonly ScissorConnection[];
   controlRopes?: readonly ControlRope[];
   tetheredBalloonIds: readonly string[];
-  fuseNetwork: FuseNetwork;
-  fuseId: (body: Matter.Body) => string;
-  cannonFuseId: string;
   gearsConnected: boolean;
   rope: {
     fixed: readonly Matter.Body[];
@@ -69,12 +65,6 @@ export type RuntimeState = {
   fishFlopAt: number;
   fishChaseAt: number;
   gearTurnAt: number;
-  fuseClock: number;
-  fuseIgnited: boolean;
-  fuseReady: boolean;
-  fuseExtinguishedAt: number;
-  cannonFired: boolean;
-  cannonFiredAt: number;
   cannonHitAt: number;
   candleWetHits: number;
   candleExtinguished: boolean;
@@ -111,8 +101,8 @@ export class MachineRuntime {
       motor: false, motorStartedAt: 0, driveTransferred: false, balloonPopped: false,
       mouseFleeAt: 0, catStartledAt: 0, catImpactMode: "none", catFallStartedAt: 0,
       catOnPlatformAt: 0, fishBowlBrokenAt: 0, fishReleased: false, fishFlopAt: 0,
-      fishChaseAt: 0, gearTurnAt: 0, fuseClock: 0, fuseIgnited: false, fuseReady: false,
-      fuseExtinguishedAt: 0, cannonFired: false, cannonFiredAt: 0, cannonHitAt: 0,
+      fishChaseAt: 0, gearTurnAt: 0,
+      cannonHitAt: 0,
       candleWetHits: 0, candleExtinguished: false, candleExtinguishedAt: 0,
       bucketTipAt: 0, seesawHitAt: 0, blockPosition: { ...options.rope.initialBlockPosition },
       pulleyTurn: 0, won: false,

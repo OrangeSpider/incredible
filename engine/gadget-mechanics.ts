@@ -3,8 +3,9 @@ import type { MachinePhysicsEngine } from "./physics-engine.ts";
 import { GADGET_CATALOG } from "./gadget-catalog.ts";
 import { machinePlugin } from "./body-factory.ts";
 import { type Point } from "../game/control-ropes.ts";
-import { gadgetPorts, connectionPorts } from "../game/gadget-connections.ts";
+import { gadgetPorts, connectionPorts, validateConnections } from "../game/gadget-connections.ts";
 import { airflowAt, AIRFLOW_ACCELERATION } from "../game/airflow.ts";
+import { applySeesawImpact, limitSeesawRotation } from "../game/seesaw.ts";
 import { FuseNetwork } from "../game/fuse.ts";
 import { bodyPoint, bodyVector, bodyTransform, inversePoint, candleFlameLocal, rocketNozzleLocal } from "./gadget-geometry.ts";
 import { FISH_REVEAL_DELAY_MS } from "../game/fish.ts";
@@ -26,7 +27,6 @@ export class GadgetMechanics {
   private readonly velocities = new Map<number, Point>();
   private network: FuseNetwork | null = null;
   private fuseIds = "";
-  private readonly managedFuses: boolean;
   private readonly bowlFish = new Map<string, string>();
   private readonly rocketStarted = new Map<string, number>();
   private readonly fishFlop = new Map<string, number>();
@@ -64,7 +64,7 @@ export class GadgetMechanics {
     }
   }
 
-  constructor(machine: MachinePhysicsEngine, legacyFuses = false) { this.machine = machine; this.managedFuses = !legacyFuses; }
+  constructor(machine: MachinePhysicsEngine) { this.machine = machine; }
 
   private obstacles() {
     return this.machine.entities().filter(entity => ["stoneWall", "woodWall", "steelBeam", "ramp"].includes(entity.type)).flatMap(entity => {
@@ -95,6 +95,7 @@ export class GadgetMechanics {
       const plugin = machinePlugin(device); if (!plugin || impact.isStatic || impact.isSensor) continue;
       const state = this.machine.state(plugin.instanceId)!;
       const movement = this.velocities.get(impact.id) ?? impact.velocity;
+      if (plugin.type === "seesaw" && GADGET_CATALOG[machinePlugin(impact)?.type ?? "water"].tags.includes("falling-body") && Math.hypot(movement.x, movement.y) >= 1) applySeesawImpact(this.machine.matter, device, impact);
       const speed = Math.max(impact.speed, Math.hypot(movement.x, movement.y));
       if (plugin.type === "fishBowl" && state.state === "intact" && impact.position.y < device.position.y && movement.y >= 4.5) {
         this.breakBowl(device);
@@ -134,7 +135,9 @@ export class GadgetMechanics {
 
   beforeStep(dt: number) {
     this.containers();
+    for (const plank of this.machine.bodiesByType("seesaw")) limitSeesawRotation(plank);
     const machine = this.machine, entities = machine.entities(), obstacles = this.obstacles();
+    validateConnections(machine.connections,entities.map(entity=>machine.config(entity.id)!));
     for (const entity of entities.filter(entity => entity.type === "generator")) {
       const state = machine.state(entity.id)!;
       if (state.state === "running" && !this.beltDriven.has(entity.id)) state.properties.switchedOn = true;
@@ -243,7 +246,7 @@ export class GadgetMechanics {
     for (const id of this.heat.keys()) if (!heated.has(id)) this.heat.delete(id);
   }
 
-  fuseSnapshot(id: string) { return this.managedFuses ? this.network?.snapshot(id, this.machine.timeMs) : undefined; }
+  fuseSnapshot(id: string) { this.prepareFuses(); return this.network!.snapshot(id, this.machine.timeMs); }
 
   private advanceRockets(dt: number) {
     const machine = this.machine;
@@ -265,23 +268,18 @@ export class GadgetMechanics {
     }
   }
 
+  private prepareFuses() {
+    const machine = this.machine, fuses = machine.bodiesByType("fuse"), cannons = machine.bodiesByType("cannon"), ids = [...fuses, ...cannons].map(body => machinePlugin(body)!.instanceId).join("|");
+    if (!this.network || ids !== this.fuseIds) {
+      this.fuseIds = ids;
+      this.network = new FuseNetwork([...fuses.map(body => ({ id: machinePlugin(body)!.instanceId, start: local(body, { x: -55, y: 0 }), end: local(body, { x: 55, y: 0 }), burnDurationMs: 1200 })), ...cannons.map(body => ({ id: `${machinePlugin(body)!.instanceId}:fuse`, start: local(body, {x:-18,y:-42}), end: local(body, {x:-26,y:-17}), burnDurationMs:1300, samples:14 }))], 22, 105);
+    }
+  }
+
   private fire(dt: number) {
     this.advanceRockets(dt);
-    const machine = this.machine, fuses = machine.bodiesByType("fuse"), cannons = this.managedFuses ? machine.bodiesByType("cannon") : [], ids = [...fuses, ...cannons].map(body => machinePlugin(body)!.instanceId).join("|");
-    if (this.managedFuses && ids !== this.fuseIds) {
-      this.fuseIds = ids;
-      this.network = new FuseNetwork([...fuses.map(body => ({ id: machinePlugin(body)!.instanceId, start: local(body, { x: -55, y: 0 }), end: local(body, { x: 55, y: 0 }), burnDurationMs: 1200 })), ...cannons.map(body => ({ id: `${machinePlugin(body)!.instanceId}:fuse`, start: local(body, {x:-18,y:-42}), end: local(body, {x:-26,y:-17}), burnDurationMs:1300 }))], 14, 105);
-    }
-    if (this.network) for (const cannon of cannons) {
-      const id = machinePlugin(cannon)!.instanceId, fuse = this.network.snapshot(`${id}:fuse`, machine.timeMs);
-      if (fuse.samples.some(sample => sample.burned) && !this.cannonShots.has(id)) machine.setState(id, "fuseBurning");
-      if (this.network.hasBurnedEnd(`${id}:fuse`, machine.timeMs) && !this.cannonShots.has(id)) {
-        this.cannonShots.add(id); machine.setState(id, "firing"); machine.setSignal("cannon.fired");
-        const direction = bodyVector(cannon, {x:1,y:0}), position = local(cannon, {x:58,y:0});
-        const shot = machine.addGadget({ id:`${id}:shot`, type:"cannonball", ...position })!;
-        Matter.Body.setVelocity(shot, {x:direction.x*14,y:direction.y*14});
-      }
-    }
+    this.prepareFuses();
+    const machine = this.machine, fuses = machine.bodiesByType("fuse"), cannons = machine.bodiesByType("cannon");
     const flames: Point[] = [...this.rocketFlames, ...machine.bodiesByType("candle").filter(body => machine.state(machinePlugin(body)!.instanceId)?.state === "burning").map(body => local(body, candleFlameLocal(machine.config(machinePlugin(body)!.instanceId)!)))];
     for (const body of machine.bodiesByType("detonator")) {
       const id = machinePlugin(body)!.instanceId;
@@ -299,6 +297,17 @@ export class GadgetMechanics {
         const id = machinePlugin(body)!.instanceId, snapshot = this.network.snapshot(id, machine.timeMs);
         if (snapshot.samples.some(sample => sample.burned) && machine.state(id)?.state !== "extinguished") machine.setState(id, snapshot.samples.every(sample => sample.burned) && snapshot.flames.length === 0 ? "burned" : "burning");
         for (const t of snapshot.flames) flames.push(local(body, { x: -55 + 110 * t, y: 0 }));
+      }
+    }
+    if (this.network) for (const cannon of cannons) {
+      const id = machinePlugin(cannon)!.instanceId, fuse = this.network.snapshot(`${id}:fuse`, machine.timeMs);
+      machine.state(id)!.properties.fuseProgress = fuse.samples.filter(sample => sample.burned).length / fuse.samples.length;
+      if (fuse.samples.some(sample => sample.burned) && !this.cannonShots.has(id)) machine.setState(id, "fuseBurning");
+      if (this.network.hasBurnedEnd(`${id}:fuse`, machine.timeMs) && !this.cannonShots.has(id)) {
+        this.cannonShots.add(id); machine.state(id)!.properties.firedAt = machine.timeMs; machine.setState(id, "firing"); machine.setSignal("cannon.fired"); machine.setSignal(`cannon.fired.${id}`);
+        const direction = bodyVector(cannon, {x:1,y:0}), position = local(cannon, {x:58,y:0});
+        const shot = machine.addGadget({ id:`${id}:shot`, type:"cannonball", ...position })!;
+        Matter.Body.setVelocity(shot, {x:direction.x*14,y:direction.y*14});
       }
     }
     for (const candle of machine.bodiesByType("candle")) {
