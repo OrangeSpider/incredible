@@ -52,6 +52,8 @@ test("hamster wheel separates its fixed housing from Louis' six-frame run cycle"
   assert.match(source,/hamster-running-sprites\.png/);
   assert.deepEqual([...housing.subarray(0,8)],[137,80,78,71,13,10,26,10],"housing asset must be a PNG");
   assert.deepEqual([...runner.subarray(0,8)],[137,80,78,71,13,10,26,10],"runner asset must be a PNG");
+  assert.equal(housing.readUInt32BE(16),256);
+  assert.equal(housing.readUInt32BE(20),256,"the housing asset must contain exactly one square frame");
   assert.equal(runner.readUInt32BE(16)/3,runner.readUInt32BE(20)/2,"the 3x2 runner sheet must contain six square animation cells");
   assert.equal(runner[25],6,"the runner sheet must use RGBA pixels with transparency");
 });
