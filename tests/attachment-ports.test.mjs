@@ -69,6 +69,34 @@ test("editor ropes can start at either seesaw end and finish at a handle", () =>
   assert.doesNotThrow(()=>validateLevel({...newLevel(),fixedGadgets:gadgets,controlRopes:[completed.connection]}));
 });
 
+test("editor ropes connect two pull points through fixed or moving pulleys", t => {
+  const gadgets=[
+    {id:"lever",type:"seesaw",x:180,y:240},
+    {id:"fixed",type:"pulley",x:340,y:180},
+    {id:"moving",type:"movingPulley",x:460,y:260},
+    {id:"ball",type:"ball",x:620,y:300},
+  ];
+  const ports=ropePorts(gadgets),at=(id,portId)=>ports.find(port=>port.gadgetId===id&&port.portId===portId);
+  assert.equal(at("moving","guide").kind,"guide");
+  let pending=advanceRopeDraft(null,at("lever","left"),[],1).pending;
+  pending=advanceRopeDraft(pending,at("fixed","guide"),[],1).pending;
+  pending=advanceRopeDraft(pending,at("moving","guide"),[],1).pending;
+  const completed=advanceRopeDraft(pending,at("ball","pull"),[],1);
+  assert.equal(completed.pending,null);
+  assert.deepEqual(completed.connection,{
+    targetId:"lever",targetPortId:"left",
+    guides:[{gadgetId:"fixed",portId:"guide"},{gadgetId:"moving",portId:"guide"}],
+    source:{gadgetId:"ball",portId:"pull"},
+  });
+  const level=validateLevel({...newLevel(),fixedGadgets:gadgets,controlRopes:[completed.connection]});
+  const {machine,runtime}=setup(t,level);
+  const ball=machine.body("ball"),lever=machine.body("lever");
+  Matter.Body.translate(ball,{x:0,y:20});
+  runtime.controlRopes.step(()=>assert.fail("a passive rope must not operate a handle"));
+  assert.ok(ball.force.y<0,"the stretched rope pulls the bowling ball back toward its route");
+  assert.notEqual(lever.torque,0,"the same tension reaches the selected seesaw end");
+});
+
 test("all named drive ports stay distinct, including delimiter characters in identities", t => {
   const original=GADGET_CATALOG.windmill.ports;
   t.after(()=>{GADGET_CATALOG.windmill.ports=original});

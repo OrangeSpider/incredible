@@ -31,11 +31,9 @@ export function drawControlRopes(ctx: CanvasRenderingContext2D, runtime: Machine
     const config=machine.config(rope.definition.targetId);
     const handle=config&&localPort(config,rope.definition.targetPortId,"target");
     if (target && config?.type === "scissor" && handle) points[0] = bodyPoint(target, {x:handle.local.x-rope.progress*22,y:handle.local.y});
-    if (rope.triggered) {
-      // The operated handle lets go; the free cable end hangs from its first guide.
-      const pivot = points[1];
-      strokeRope(ctx, [{ x: pivot.x + Math.sin(now / 180) * 8, y: pivot.y + 36 }, ...points.slice(1)], 10, true);
-    } else strokeRope(ctx, points, 8 * (1 - rope.progress), true, rope.blocked || selectedRope === controlRopeKey(rope.definition));
+    // A control rope stays attached after operating its handle. The moved handle
+    // merely gives the rope some slack; no segment is discarded from the route.
+    strokeRope(ctx, points, rope.triggered ? 8 : 8 * (1 - rope.progress), true, rope.blocked || selectedRope === controlRopeKey(rope.definition));
     if (rope.blocked && !rope.triggered) {
       ctx.save(); ctx.fillStyle = "#b53f2d"; ctx.font = "bold 13px system-ui";
       ctx.fillText("Seil blockiert – über eine Rolle um die Mauer führen", 215, 58); ctx.restore();

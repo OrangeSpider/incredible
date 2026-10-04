@@ -1,6 +1,7 @@
 import { instancePorts, localPort, portKey } from "../engine/gadget-ports.ts";
 import type { GadgetInstanceConfig, ControlRopeConfig, PortReference } from "../engine/types.ts";
 import type { MachinePhysicsEngine } from "../engine/physics-engine.ts";
+import Matter from "matter-js";
 
 import { bodyPoint } from "../engine/gadget-geometry.ts";
 
@@ -57,7 +58,11 @@ export function advanceRopeDraft(pending: PendingControlRope | null, port: RopeP
   }
   if (!pending) return port.kind==="source"?{pending:{source:{gadgetId:port.gadgetId,portId:port.portId},guides:[]}}:{ pending };
   if (port.kind === "guide") return { pending: pending.guides.some(guide=>guide.gadgetId===port.gadgetId&&guide.portId===port.portId) ? pending : { ...pending, guides: [...pending.guides, {gadgetId:port.gadgetId,portId:port.portId}] } };
-  if("source" in pending)return {pending:{source:{gadgetId:port.gadgetId,portId:port.portId},guides:pending.guides}};
+  if("source" in pending){
+    if(pending.source.gadgetId===port.gadgetId&&pending.source.portId===port.portId)return {pending};
+    if(ropes.length>=limit||ropes.some(rope=>rope.targetId===pending.source.gadgetId&&rope.targetPortId===pending.source.portId))return {pending};
+    return {pending:null,connection:{targetId:pending.source.gadgetId,targetPortId:pending.source.portId,guides:pending.guides,source:{gadgetId:port.gadgetId,portId:port.portId}}};
+  }
   return { pending: null, connection: { ...pending, source: { gadgetId: port.gadgetId, portId:port.portId } } };
 }
 
@@ -70,8 +75,9 @@ export function validateControlRopes(ropes: readonly ControlRope[], configs: rea
   for (const rope of ropes) {
     if (!rope || !rope.targetId || !rope.targetPortId || !Array.isArray(rope.guides) || !rope.source?.gadgetId || !rope.source.portId) throw new Error("Invalid control rope ports");
     const targetKey = controlRopeKey(rope);
-    if (!ports.some(port => port.gadgetId === rope.targetId && port.portId === rope.targetPortId && port.kind === "target") || targets.has(targetKey)) throw new Error(`Invalid or duplicate rope target: ${rope.targetId}`);
+    if (!ports.some(port => port.gadgetId === rope.targetId && port.portId === rope.targetPortId && (port.kind === "target" || port.kind === "source")) || targets.has(targetKey)) throw new Error(`Invalid or duplicate rope target: ${rope.targetId}`);
     if (!ports.some(port => port.gadgetId === rope.source.gadgetId && port.portId === rope.source.portId && port.kind === "source")) throw new Error("Invalid control rope ports: source");
+    if (rope.targetId === rope.source.gadgetId && rope.targetPortId === rope.source.portId) throw new Error("Invalid control rope ports: identical endpoints");
     const guides = new Set<string>();
     for (const guide of rope.guides) {
       if (!guide || !ports.some(port => port.gadgetId === guide.gadgetId && port.portId === guide.portId && port.kind === "guide") || guides.has(portKey(guide))) throw new Error("Invalid rope guides");
@@ -93,7 +99,7 @@ export function ropePathBlocked(points: readonly Point[], polygons: readonly (re
   })));
 }
 
-export type ControlRopeState = { definition: ControlRope; restLength: number; progress: number; triggered: boolean; blocked: boolean; points: Point[] };
+export type ControlRopeState = { definition: ControlRope; restLength: number; progress: number; triggered: boolean; blocked: boolean; actionable: boolean; points: Point[] };
 
 /** A control cable pays out the handle travel, then releases its latch. It cannot push. */
 export class ControlRopeMechanism {
@@ -104,10 +110,18 @@ export class ControlRopeMechanism {
     this.ropes = definitions.flatMap(definition => {
       const points = this.points(definition);
       if(!points) throw new Error("Invalid control rope ports");
-      return [{ definition, points, restLength: pathLength(points) + ROPE_SLACK, progress: 0, triggered: false, blocked: this.blocked(points) }];
+      return [{ definition, points, restLength: pathLength(points) + ROPE_SLACK, progress: 0, triggered: false, blocked: this.blocked(points), actionable: this.targetKind(definition)==="target" }];
     });
   }
   private readonly machine: MachinePhysicsEngine;
+
+  private targetKind(definition:ControlRope):"target"|"source"|null {
+    const config=this.machine.config(definition.targetId);
+    if(!config)return null;
+    if(localPort(config,definition.targetPortId,"target"))return "target";
+    if(localPort(config,definition.targetPortId,"source"))return "source";
+    return null;
+  }
 
   private blocked(points: Point[]) {
     const walls = [...this.machine.bodiesByType("stoneWall"), ...this.machine.bodiesByType("woodWall"), ...this.machine.bodiesByType("steelBeam")];
@@ -115,7 +129,9 @@ export class ControlRopeMechanism {
   }
 
   points(definition: ControlRope): Point[] | null {
-    const refs=[{gadgetId:definition.targetId,portId:definition.targetPortId,kind:"target" as const},...definition.guides.map(guide=>({...guide,kind:"guide" as const})),{...definition.source,kind:"source" as const}];
+    const targetKind=this.targetKind(definition);
+    if(!targetKind)return null;
+    const refs=[{gadgetId:definition.targetId,portId:definition.targetPortId,kind:targetKind},...definition.guides.map(guide=>({...guide,kind:"guide" as const})),{...definition.source,kind:"source" as const}];
     const points=refs.map(ref=>{
       const config=this.machine.config(ref.gadgetId),body=this.machine.body(ref.gadgetId);
       const port=config&&localPort(config,ref.portId,ref.kind);
@@ -124,11 +140,29 @@ export class ControlRopeMechanism {
     return points.every(point=>point)?points as Point[]:null;
   }
 
+  /** Passive ropes constrain two movable rope ends and can run across fixed or moving pulleys. */
+  private applyPassiveTension(rope:ControlRopeState,points:Point[]) {
+    const stretch=pathLength(points)-rope.restLength;
+    if(stretch<=0)return;
+    const refs=[{gadgetId:rope.definition.targetId},...rope.definition.guides,{gadgetId:rope.definition.source.gadgetId}];
+    const bodies=refs.map(ref=>this.machine.body(ref.gadgetId));
+    const tension=Math.min(.08,stretch*.002);
+    for(let index=0;index<points.length-1;index++){
+      const a=points[index],b=points[index+1],distance=Math.hypot(b.x-a.x,b.y-a.y);
+      if(distance<.001)continue;
+      const force={x:(b.x-a.x)/distance*tension,y:(b.y-a.y)/distance*tension};
+      const bodyA=bodies[index],bodyB=bodies[index+1];
+      if(bodyA&&!bodyA.isStatic)Matter.Body.applyForce(bodyA,a,force);
+      if(bodyB&&!bodyB.isStatic)Matter.Body.applyForce(bodyB,b,{x:-force.x,y:-force.y});
+    }
+  }
+
   step(trigger: (targetId: string, targetPortId: string) => void) {
     for (const rope of this.ropes) {
       const points = this.points(rope.definition);
       if (!points) continue;
       rope.points = points;
+      if(!rope.actionable){rope.blocked=this.blocked(points);if(!rope.blocked)this.applyPassiveTension(rope,points);continue;}
       if (rope.triggered) continue;
       rope.blocked = this.blocked(points);
       if (rope.blocked) { rope.progress = 0; const state=this.machine.state(rope.definition.targetId);if(state)state.properties[`handleProgress:${rope.definition.targetPortId}`]=0; continue; }

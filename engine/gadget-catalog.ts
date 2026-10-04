@@ -89,6 +89,7 @@ export const gadgetsWithTag=(tag:string)=>Object.values(GADGET_CATALOG).filter(g
 GADGET_CATALOG.scissor.ports = () => [{id:"handle",kind:"target",action:"close",local:{x:27,y:27},label:"GRIFF"}];
 GADGET_CATALOG.snapGate.ports = () => [{id:"handle",kind:"target",action:"open",local:{x:16,y:0},label:"RIEGEL"}];
 GADGET_CATALOG.pulley.ports = () => [{id:"guide",kind:"guide",local:{x:0,y:0},label:"ROLLE"}];
+GADGET_CATALOG.movingPulley.ports = () => [{id:"guide",kind:"guide",local:{x:0,y:0},label:"LOSE ROLLE"}];
 GADGET_CATALOG.seesaw.ports = config => [-1,1].map(side => ({id:side<0?"left":"right",kind:"source",local:{x:side*((config.physics?.width??GADGET_CATALOG.seesaw.physics.width??232.5)/2-12),y:0},label:side<0?"LINKES ENDE":"RECHTES ENDE"}));
 GADGET_CATALOG.balloon.ports = config => [{id:"pull",kind:"source",local:{x:0,y:(config.physics?.radius??24)*27/24},label:"ZUGPUNKT"}];
 GADGET_CATALOG.weight.ports = () => [{id:"pull",kind:"source",local:{x:0,y:0},label:"ZUGPUNKT"}];

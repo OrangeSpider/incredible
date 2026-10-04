@@ -7,6 +7,7 @@ import { bodyAnimation, drawGadgetBody } from '../components/game/gadget-body-re
 import { createFireGadgetRenderer } from '../components/game/fire-gadget-renderer.ts';
 import { drawLoadRope } from '../components/game/load-rope-renderer.ts';
 import { drawGadget } from '../components/game/gadget-renderer.ts';
+import { drawControlRopes } from '../components/game/control-rope-renderer.ts';
 import { GADGET_CATALOG } from '../engine/gadget-catalog.ts';
 import Matter from 'matter-js';
 
@@ -102,4 +103,16 @@ test('load rope anchor rendering follows explicit data independently of scene na
  drawLoadRope(ctx,0,false,anchor,[{kind:'anchor'}],new Map(),new Map(),[],null,{supportingStrands:0,tensioned:false});
  assert.ok(ctx.calls.some(([key,x,y])=>key==='arc'&&x===420&&y===140));
  assert.ok(ctx.calls.some(([key,x,y])=>key==='moveTo'&&x===420&&y===110));
+});
+
+test('an operated control rope keeps every segment attached to its moved handle',t=>{
+ const gadgets=[{id:'gate',type:'snapGate',x:100,y:100},{id:'guide',type:'pulley',x:240,y:180},{id:'ball',type:'ball',x:380,y:260}];
+ const rope={targetId:'gate',targetPortId:'handle',guides:[{gadgetId:'guide',portId:'guide'}],source:{gadgetId:'ball',portId:'pull'}};
+ const {machine,runtime}=simulation(t,gadgets,{controlRopes:[rope]});
+ runtime.controlRopes.ropes[0].triggered=true;
+ machine.setState('gate','open');
+ const expected=runtime.controlRopes.points(rope)[0],ctx=context();
+ drawControlRopes(ctx,runtime,gadgets,null,false);
+ const start=ctx.calls.find(([key])=>key==='moveTo');
+ assert.deepEqual(start.slice(1),[expected.x,expected.y]);
 });

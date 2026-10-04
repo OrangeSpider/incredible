@@ -81,7 +81,7 @@ Steuerseile speichern ebenfalls Anschlussidentitäten statt lokaler Koordinaten:
 ]
 ```
 
-`engine/gadget-ports.ts` löst die im Gadget-Katalog beschriebenen lokalen Punkte bei jeder Verwendung auf. `rope-end` stellt automatisch `pull` bereit; besondere Geometrien und mehrere benannte Anschlüsse werden über `ports` in der Gadget-Definition angegeben. Fehlende Anschluss-IDs werden abgewiesen. Riemen verbinden zwei `drive`-Ports, Stromleitungen führen von `power` nach `socket`, Steuerseile führen von `handle` über Rollen zum Zugpunkt. Rotation, Spiegelung und Größenänderung erhalten die gespeicherte Anschlussidentität.
+`engine/gadget-ports.ts` löst die im Gadget-Katalog beschriebenen lokalen Punkte bei jeder Verwendung auf. `rope-end` stellt automatisch `pull` bereit; besondere Geometrien und mehrere benannte Anschlüsse werden über `ports` in der Gadget-Definition angegeben. Fehlende Anschluss-IDs werden abgewiesen. Riemen verbinden zwei `drive`-Ports, Stromleitungen führen von `power` nach `socket`, Steuerseile führen von `handle` über feste oder lose Rollen zum Zugpunkt. Seile können außerdem zwei Zugpunkte direkt oder über Rollen koppeln. Rotation, Spiegelung und Größenänderung erhalten die gespeicherte Anschlussidentität.
 
 ## Aktivierung und Instanzbeziehungen (Stufe 4)
 
