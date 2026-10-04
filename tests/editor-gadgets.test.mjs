@@ -87,6 +87,10 @@ test("transforms round trip through level validation, initial placements and und
 test("editor position modes preserve gadget defaults and let a candle fall onto the floor",()=>{
   for(const type of ["hamsterWheel","rocket","generator"])assert.equal(gadgetPositionMode({id:type,type,x:100,y:100}),"fixed");
   for(const type of ["ball","tennisBall","basketball"])assert.equal(gadgetPositionMode({id:type,type,x:100,y:100}),"gravity");
+  const seesaw={id:"seesaw",type:"seesaw",x:100,y:100};
+  assert.equal(gadgetPositionMode(seesaw),"fixed","a pivot fixes the seesaw's position");
+  const seesawLevel={...newLevel(),fixedGadgets:[seesaw]};
+  assert.deepEqual(setGadgetPositionMode(seesawLevel,"seesaw","gravity"),seesawLevel,"the editor cannot detach a catalog pivot");
 
   const level=newLevel();level.fixedGadgets=[{id:"candle",type:"candle",x:300,y:100}];
   const falling=setGadgetPositionMode(level,"candle","gravity"),candle=falling.fixedGadgets[0];
@@ -117,6 +121,16 @@ test("a free editor cannon fires once from its own burning fuse and mirrored dir
     const start=localPoint(c,{x:-18,y:-42});m.addGadget({id:"c",type:"candle",x:start.x,y:start.y+50});
     advance(m,1800);assert.equal(m.state("gun").state,"firing");assert.equal(m.bodiesByType("cannonball").length,1);
     assert.ok(m.body("gun:shot").velocity.x*(flipX?-1:1)>0);advance(m,500);assert.equal(m.bodiesByType("cannonball").length,1);m.destroy();
+  }
+});
+test("a fast cannonball breaks a fishbowl from any firing direction",()=>{
+  for(const [x,y,vx,vy] of [[300,370,0,-8],[230,300,8,0]]){
+    const m=new MachinePhysicsEngine();
+    m.addGadget({id:"bowl",type:"fishBowl",x:300,y:300});
+    const shot=m.addGadget({id:"shot",type:"cannonball",x,y});
+    Matter.Body.setVelocity(shot,{x:vx,y:vy});advance(m,250);
+    assert.equal(m.state("bowl").state,"breaking");
+    assert.equal(m.signal("fishBowl.broken.bowl"),true);m.destroy();
   }
 });
 test("level 2 flame and level 32 TNT remain reachable with their reference arrangements",()=>{

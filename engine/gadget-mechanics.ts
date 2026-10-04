@@ -97,7 +97,11 @@ export class GadgetMechanics {
       const movement = this.velocities.get(impact.id) ?? impact.velocity;
       if (plugin.type === "seesaw" && GADGET_CATALOG[machinePlugin(impact)?.type ?? "water"].tags.includes("falling-body") && Math.hypot(movement.x, movement.y) >= 1) applySeesawImpact(this.machine.matter, device, impact);
       const speed = Math.max(impact.speed, Math.hypot(movement.x, movement.y));
-      if (plugin.type === "fishBowl" && state.state === "intact" && impact.position.y < device.position.y && movement.y >= Number(this.machine.config(plugin.instanceId)?.physics?.impactThreshold ?? GADGET_CATALOG[plugin.type].physics.impactThreshold ?? 4.5)) {
+      const impactType = machinePlugin(impact)?.type;
+      const threshold = Number(this.machine.config(plugin.instanceId)?.physics?.impactThreshold ?? GADGET_CATALOG[plugin.type].physics.impactThreshold ?? 4.5);
+      const projectileBreaksGlass = impactType === "cannonball" && speed >= threshold;
+      const fallingBodyBreaksGlass = impact.position.y < device.position.y && movement.y >= threshold;
+      if (plugin.type === "fishBowl" && state.state === "intact" && (projectileBreaksGlass || fallingBodyBreaksGlass)) {
         this.breakBowl(device);
       }
       if (plugin.type === "generator") this.strike(device, { x: speed, y: 0 });

@@ -77,6 +77,9 @@ export function updateGadget(level: LevelDefinition, id: string, update: Partial
 export type GadgetPositionMode = "fixed" | "gravity";
 
 export function gadgetPositionMode(gadget: GadgetInstanceConfig): GadgetPositionMode {
+  // A pivot keeps the gadget's position fixed while still allowing it to rotate.
+  // Reporting its dynamic body as gravity-driven is therefore misleading in the editor.
+  if (GADGET_CATALOG[gadget.type].joint?.kind === "pivot") return "fixed";
   const physics = { ...GADGET_CATALOG[gadget.type].physics, ...gadget.physics };
   return !physics.isStatic && physics.gravityScale > 0 ? "gravity" : "fixed";
 }
@@ -84,6 +87,9 @@ export function gadgetPositionMode(gadget: GadgetInstanceConfig): GadgetPosition
 export function setGadgetPositionMode(level: LevelDefinition, id: string, mode: GadgetPositionMode): LevelDefinition {
   const edit = (gadgets: GadgetInstanceConfig[]) => gadgets.map(gadget => {
     if (gadget.id !== id) return gadget;
+    // Pivot-mounted gadgets cannot become free-falling without removing their joint,
+    // which is not an instance-level editor option.
+    if (GADGET_CATALOG[gadget.type].joint?.kind === "pivot") return gadget;
     const defaults = GADGET_CATALOG[gadget.type].physics;
     const effective = { ...defaults, ...gadget.physics };
     const physics = {
