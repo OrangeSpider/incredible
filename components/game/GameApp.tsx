@@ -128,12 +128,13 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
     if (running) return;
     if (event.button !== 0) return;
     const point = boardPoint(event);
+    const touch = event.pointerType === "touch";
     const configs = [...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))];
     const selectRope = (id: string) => { setSelectedRope(id); setSelectedId(null); setSelectedConnection(null); setPendingScissor(null); setSelected(null); };
     if (selected === "wire" || selected === "belt") {
       const kind = selected, ports = gadgetPorts(configs).filter(port => kind === "wire" ? port.kind !== "drive" : port.kind === "drive");
       const port = ports.map(port => ({ port, distance: Math.hypot(point.x - port.x, point.y - port.y) })).sort((a, b) => a.distance - b.distance)[0];
-      if (port && port.distance < 24) {
+      if (port && port.distance < (touch ? 40 : 24)) {
         const limit = (level.inventory.find(entry => entry.type === kind)?.count ?? 0) + (level.connections ?? []).filter(item => item.kind === kind).length;
         if (!pendingConnection) { if (connections.filter(item => item.kind === kind).length < limit) setPendingConnection(port.port); }
         else {
@@ -150,7 +151,7 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
       const limit = (level.inventory.find(entry => entry.type === "rope")?.count ?? 0) + (level.controlRopes ?? []).length;
       const ports = ropePorts([...level.fixedGadgets, ...placed.map(part => ({ ...part, id: placedConfigId(part) }))]);
       const port = ports.map(port => ({ port, distance: Math.hypot(port.x - point.x, port.y - point.y) }))
-        .filter(item => item.distance < 26).sort((a, b) => a.distance - b.distance)[0]?.port;
+        .filter(item => item.distance < (touch ? 42 : 26)).sort((a, b) => a.distance - b.distance)[0]?.port;
       if (port) {
         // Select a connected cable; removal uses the shared toolbar action.
         const connected = scissorRopes.some(rope => rope.targetId === port.gadgetId && rope.targetPortId === port.portId);
@@ -179,12 +180,12 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
         candidates.push([Math.hypot(part.x - point.x, part.y - point.y), { kind: "part", placedId: part.id }]);
       }
       candidates.sort((a, b) => a[0] - b[0]);
-      if (candidates[0]?.[0] < 48) setRopePath((nodes) => [...nodes, candidates[0][1]]);
+      if (candidates[0]?.[0] < (touch ? 58 : 48)) setRopePath((nodes) => [...nodes, candidates[0][1]]);
       return;
     }
 
     // The center of a movable body stays draggable, including connected rope ends.
-    const bodyCenter = placed.find(part => Math.hypot(part.x - point.x, part.y - point.y) < 23);
+    const bodyCenter = placed.find(part => Math.hypot(part.x - point.x, part.y - point.y) < (touch ? 38 : 23));
     if (bodyCenter && selected === null) {
       event.currentTarget.setPointerCapture(event.pointerId); setSelectedId(bodyCenter.id); setSelectedConnection(null); setSelectedRope(null);
       transformDrag.current = { before: bodyCenter }; setDrag({ id: bodyCenter.id, dx: bodyCenter.x - point.x, dy: bodyCenter.y - point.y }); return;
@@ -195,12 +196,12 @@ export default function GameApp({ initialLevel = LEVELS[0], onExitTest }: { init
       return {id:controlRopeKey(rope),points:ropeConfigPoints(rope,[...configById.values()])};
     });
     const cable = paths.map(path => ({ ...path, distance: distanceToPath(point, path.points) })).sort((a, b) => a.distance - b.distance)[0];
-    if (cable && cable.distance < 13) { selectRope(cable.id); return; }
+    if (cable && cable.distance < (touch ? 24 : 13)) { selectRope(cable.id); return; }
     const pulleyPoints = ropePath.flatMap(node => node.kind === "anchor" ? [ROPE_ANCHOR] : placed.filter(part => part.id === node.placedId));
-    if (distanceToPath(point, pulleyPoints) < 13 || (pulleyPoints.length === 1 && Math.hypot(point.x - pulleyPoints[0].x, point.y - pulleyPoints[0].y) < 18)) { selectRope("pulley-rope"); return; }
+    if (distanceToPath(point, pulleyPoints) < (touch ? 24 : 13) || (pulleyPoints.length === 1 && Math.hypot(point.x - pulleyPoints[0].x, point.y - pulleyPoints[0].y) < (touch ? 32 : 18))) { selectRope("pulley-rope"); return; }
     const ports = gadgetPorts(configs);
     const connection = connections.map(item => ({ ...item, distance: distanceToPath(point, connectionPorts(item, ports)) })).sort((a, b) => a.distance - b.distance)[0];
-    if (connection && connection.distance < 13) { setSelectedConnection(connection.id); setSelectedId(null); setSelectedRope(null); setPendingConnection(null); setSelected(null); return; }
+    if (connection && connection.distance < (touch ? 24 : 13)) { setSelectedConnection(connection.id); setSelectedId(null); setSelectedRope(null); setPendingConnection(null); setSelected(null); return; }
 
     const hit = hitGadget(placed.map(part => ({ ...part, id: placedConfigId(part) })), point);
     const movable = hit && placed.find(part => placedConfigId(part) === hit.id);
