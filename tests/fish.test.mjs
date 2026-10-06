@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Matter from "matter-js";
-import {advanceCatTowardFish,catSeesFish,FISHBOWL_BREAK_SPEED,fishbowlBreaks} from "../game/fish.ts";
+import {advanceCatTowardFish,catSeesFish,FISHBOWL_BREAK_SPEED,fishBowlSpriteOffsetX,fishbowlBreaks} from "../game/fish.ts";
 import {CHARACTERS} from "../game/characters.ts";
 import {MachinePhysicsEngine} from "../engine/physics-engine.ts";
 import {FISH_REVEAL_DELAY_MS} from "../game/fish.ts";
@@ -14,6 +14,12 @@ test("Mr. Blue's bowl breaks only from a sufficiently fast falling body",()=>{
   assert.equal(fishbowlBreaks(FISHBOWL_BREAK_SPEED-.01,true),false);
   assert.equal(fishbowlBreaks(FISHBOWL_BREAK_SPEED,true),true);
   assert.equal(fishbowlBreaks(12,false),false,"static scenery must not break the bowl");
+});
+
+test("the intact fishbowl frames compensate their source-image drift",()=>{
+  const sourceCenters=[219,212,188.5],renderedWidth=150,scale=renderedWidth/418;
+  const renderedCenters=sourceCenters.map((center,frame)=>center*scale+fishBowlSpriteOffsetX(frame,renderedWidth));
+  assert.ok(renderedCenters.every(center=>Math.abs(center-renderedCenters[0])<1e-9));
 });
 
 test("a bowling ball can break the static fishbowl and release Mr. Blue",()=>{

@@ -95,11 +95,12 @@ export function createDefaultEffectRegistry(): EffectRegistry {
     Matter.Body.setVelocity(targetBody, { x: direction * 2.8, y: targetBody.velocity.y });
   });
 
-  registry.register("chase", ({ source, target }) => {
+  registry.register("chase", ({ source, target, setState }) => {
     const sourceBody = source.body, targetBody = target.body;
     if (!sourceBody || !targetBody || targetBody.isStatic || typeof target.state.properties.blastStartledAt==="number") return;
     const direction = Math.sign(sourceBody.position.x - targetBody.position.x) || 1;
     if(typeof target.state.properties.facingDirection==="number")target.state.properties.facingDirection=direction;
+    setState(target.config.id, "running");
     Matter.Body.setVelocity(targetBody, { x: direction * 2.2, y: targetBody.velocity.y });
   });
 

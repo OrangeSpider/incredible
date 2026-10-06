@@ -39,7 +39,7 @@ test('TNT startles every exposed cat, then they face and run away in opposite di
  const resting=machine.body('left').position;
  machine.addGadget({id:'new-bait',type:'fish',x:resting.x+80,y:resting.y,state:'flopping'});
  machine.resolve('new-bait','left','proximity');
- assert.ok(machine.body('left').velocity.x>0);assert.equal(machine.state('left').properties.facingDirection,1,'a subsequent chase turns the cat back toward its prey');
+ assert.ok(machine.body('left').velocity.x>0);assert.equal(machine.state('left').state,'running','a fish chase uses the running animation');assert.equal(machine.state('left').properties.facingDirection,1,'a subsequent chase turns the cat back toward its prey');
 });
 
 test('walls shield cats and an extinguished TNT fuse never frightens them',t=>{

@@ -4,6 +4,7 @@ import type { ResolvedAnimation } from "../../engine/animation.ts";
 import { resolveGadgetAnimation } from "../../engine/animation.ts";
 import { machinePlugin } from "../../engine/body-factory.ts";
 import { catSpritePose, catSpriteOffsetX, CAT_STARTLE_DURATION_MS } from "../../game/cat.ts";
+import { fishBowlSpriteOffsetX } from "../../game/fish.ts";
 import { localPort } from "../../engine/gadget-ports.ts";
 import { drawDriveWheel } from "../../game/drive.ts";
 import { drawGadget } from "./gadget-renderer.ts";
@@ -74,7 +75,13 @@ export function drawGadgetBody(ctx:CanvasRenderingContext2D,body:Matter.Body,mac
     const age=!running?now:machine.stateAgeMs(plugin.instanceId)??0;
     spriteDrawn=drawHamsterWheel(ctx,animation,age,sprite);
   }
-  if(!fire(body,machine,now) && !(artwork && drawGadget(ctx,body,machine,now,running)) && !spriteDrawn && !sprite(ctx,animation,config.type==="cat"?catSpriteOffsetX({state:animation?.state==="idle"?"idle":"running",row:animation?.row??0,frame:animation?.frame??0},animation?.definition.kind==="sprite"?animation.definition.width:90):0,0))drawGadget(ctx,body,machine,now,running);
+  const spriteWidth=animation?.definition.kind==="sprite"?animation.definition.width:0;
+  const spriteOffsetX=config.type==="cat"
+    ? catSpriteOffsetX({state:animation?.state==="idle"?"idle":"running",row:animation?.row??0,frame:animation?.frame??0},spriteWidth||90)
+    : config.type==="fishBowl"&&animation?.state==="intact"
+      ? fishBowlSpriteOffsetX(animation.frame,spriteWidth)
+      : 0;
+  if(!fire(body,machine,now) && !(artwork && drawGadget(ctx,body,machine,now,running)) && !spriteDrawn && !sprite(ctx,animation,spriteOffsetX,0))drawGadget(ctx,body,machine,now,running);
   if(config.type==="hamsterWheel") {const port=localPort(config,"drive","drive");if(port)drawDriveWheel(ctx,port.local,14,running&&machine.state(plugin.instanceId)?.state==="running"?now*.008:0);}
   ctx.restore();
 }
